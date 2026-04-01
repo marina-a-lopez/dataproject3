@@ -1,0 +1,1187 @@
+# Importaciones de FastAPI
+from fastapi import FastAPI, File, UploadFile, Form, Depends, HTTPException, status
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional
+import uvicorn
+import os
+import tempfile
+from datetime import datetime, timezone
+
+# Importaciones locales
+from aitonomos.backend.database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
+from aitonomos.backend.voice import process_voice_to_text, extract_line_data, extract_client_data
+from invoice_generator import PremiumInvoicePDF
+import processor as proc
+from werkzeug.security import generate_password_hash, check_password_hash
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+
+app = FastAPI(title="AItonomo Pro API")
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Crear directorio static y base de datos
+os.makedirs("static", exist_ok=True)
+init_db()
+
+# Configuración de Gemini (poner API key hardcodeada)
+os.environ['GEMINI_API_KEY'] = 'AIzaSyDhNVU8VBbwkcHmLxbpoyYMyr_Ky6nlrl8'
+try:
+    proc.configure_gemini('AIzaSyDhNVU8VBbwkcHmLxbpoyYMyr_Ky6nlrl8')
+except Exception as e:
+    print(f"Failed to configure Gemini: {e}")
+
+# Modelos Pydantic para peticiones JSON
+class LoginRequest(BaseModel):
+    dni: str
+    password: str
+
+class RegisterRequest(BaseModel):
+    nombre: str
+    apellidos: str
+    nif_cif: str = Field(pattern=r"^[A-Z0-9]{9}$")
+    domicilio: str
+    poblacion: str = ""
+    provincia: str = ""
+    codigo_postal: str = ""
+    cnae: Optional[str] = None
+    email: EmailStr
+    telefono: str = Field(pattern=r"^\+?[0-9]{9,15}$")
+    password: str
+
+class ClientCreate(BaseModel):
+    user_id: str
+    name: str
+    nif_cif: str = Field(pattern=r"^[A-Z0-9]{9}$")
+    email: EmailStr
+    phone: str = Field(pattern=r"^\+?[0-9]{9,15}$")
+    direccion: str
+    poblacion: str = ""
+    provincia: str = ""
+    codigo_postal: str = ""
+
+class InvoiceCreate(BaseModel):
+    user_id: str
+    client_id: str
+    fecha: str
+    due_date: Optional[str] = None
+    items: list
+
+class ExpenseCreate(BaseModel):
+    user_id: str
+    fecha: str
+    proveedor: str
+    concepto: str
+    importe_total: float
+
+class InvoiceStatusUpdate(BaseModel):
+    status: str
+
+class ProductCreate(BaseModel):
+    user_id: str
+    nombre: str
+    descripcion: str = ""
+    precio_unitario: float
+    tipo: str = "Servicio"
+
+class ChatRequest(BaseModel):
+    user_id: str
+    message: str
+
+class IRPFUpdateRequest(BaseModel):
+    irpf_rate: float
+
+
+# Tabla oficial 2025 de tramos de cotización de autónomos (SS)
+# (rendimiento_neto_mensual_max, base_minima, cuota_minima_aprox, label_tramo)
+# Cuota mínima calculada al tipo total del ~31.4% sobre la base mínima
+_TRAMOS_SS_2025 = [
+    (670,     653.59,  230.00, "Tramo 1 (hasta 670 €)"),
+    (900,     718.95,  253.00, "Tramo 2 (670 – 900 €)"),
+    (1166.7,  849.67,  299.00, "Tramo 3 (900 – 1.167 €)"),
+    (1300,    950.98,  335.00, "Tramo 4 (1.167 – 1.300 €)"),
+    (1500,    960.78,  338.00, "Tramo 5 (1.300 – 1.500 €)"),
+    (1700,    960.78,  338.00, "Tramo 6 (1.500 – 1.700 €)"),
+    (1850,   1143.79,  403.00, "Tramo 7 (1.700 – 1.850 €)"),
+    (2030,   1209.15,  426.00, "Tramo 8 (1.850 – 2.030 €)"),
+    (2330,   1274.51,  449.00, "Tramo 9 (2.030 – 2.330 €)"),
+    (2760,   1356.21,  478.00, "Tramo 10 (2.330 – 2.760 €)"),
+    (3190,   1437.91,  506.00, "Tramo 11 (2.760 – 3.190 €)"),
+    (3620,   1521.61,  536.00, "Tramo 12 (3.190 – 3.620 €)"),
+    (4050,   1601.31,  564.00, "Tramo 13 (3.620 – 4.050 €)"),
+    (6000,   1732.03,  610.00, "Tramo 14 (4.050 – 6.000 €)"),
+    (float('inf'), 1928.10, 679.00, "Tramo 15 (más de 6.000 €)"),
+]
+
+def calcular_cuota_autonomo(rendimiento_neto_mensual: float) -> dict:
+    """Calcula la cuota mensual SS según el sistema de tramos 2025."""
+    if rendimiento_neto_mensual <= 0:
+        # Sin rendimiento positivo -> tramo 1 mínimo
+        return {"cuota": 230.00, "base_cotizacion": 653.59, "tramo": "Tramo 1 (sin beneficio)", "tramo_num": 1}
+    
+    for i, (limite, base, cuota, label) in enumerate(_TRAMOS_SS_2025):
+        if rendimiento_neto_mensual <= limite:
+            return {
+                "cuota": cuota,
+                "base_cotizacion": base,
+                "tramo": label,
+                "tramo_num": i + 1
+            }
+    # Fallback (no deberia ocurrir)
+    return {"cuota": 679.00, "base_cotizacion": 1928.10, "tramo": "Tramo 15", "tramo_num": 15}
+
+
+# Funciones de autenticación
+def get_user_by_dni(db: Session, nif_cif: str):
+    return db.query(Usuario).filter(Usuario.nif_cif == nif_cif).first()
+
+def get_user_by_id(db: Session, user_id: str):
+    return db.query(Usuario).filter(Usuario.id == user_id).first()
+
+@app.post("/api/login")
+async def login(req: LoginRequest, db: Session = Depends(get_db)):
+    user = get_user_by_dni(db, req.dni)
+    if user and check_password_hash(user.password_hash, req.password):
+        return {"success": True, "user_id": str(user.id), "dni": user.nif_cif}
+    raise HTTPException(status_code=401, detail="Credenciales inválidas")
+
+@app.post("/api/register")
+async def register(req: RegisterRequest, db: Session = Depends(get_db)):
+    existing_user_nif = get_user_by_dni(db, req.nif_cif)
+    if existing_user_nif:
+        raise HTTPException(status_code=400, detail="Este DNI/CIF ya está registrado en la base de datos principal.")
+        
+    existing_user_email = db.query(Usuario).filter(Usuario.email == req.email).first()
+    if existing_user_email:
+        raise HTTPException(status_code=400, detail="Este Email ya está registrado y tiene una cuenta activa.")
+        
+    hashed_pwd = generate_password_hash(req.password, method='pbkdf2:sha256')
+    new_user = Usuario(
+        nombre=req.nombre,
+        apellidos=req.apellidos,
+        nif_cif=req.nif_cif,
+        domicilio_fiscal=req.domicilio,
+        poblacion=req.poblacion,
+        provincia=req.provincia,
+        codigo_postal=req.codigo_postal,
+        cnae=req.cnae,
+        email=req.email,
+        telefono=req.telefono,
+        password_hash=hashed_pwd
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return {"success": True, "message": "Usuario creado con éxito"}
+
+# ─── Helpers de filtrado por período ────────────────────────────────────────
+from calendar import monthrange
+
+MONTH_NAMES_ES = [
+    "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+]
+QUARTER_NAMES_ES = ["", "Q1 (Ene-Mar)", "Q2 (Abr-Jun)", "Q3 (Jul-Sep)", "Q4 (Oct-Dic)"]
+
+def _get_period_range(period: str, offset: int) -> tuple:
+    """
+    Returns (start_dt, end_dt, period_label, has_next) for a given period type and offset.
+    offset=0 means current period, offset=-1 means previous, etc.
+    """
+    now = datetime.now(timezone.utc)
+
+    if period == "mensual":
+        year = now.year
+        month = now.month + offset
+        # Normalize month overflow
+        while month < 1:
+            month += 12
+            year -= 1
+        while month > 12:
+            month -= 12
+            year += 1
+        last_day = monthrange(year, month)[1]
+        start = datetime(year, month, 1, tzinfo=timezone.utc)
+        end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        label = f"{MONTH_NAMES_ES[month]} {year}"
+        # has_next: can we go one forward? Only if we haven't reached current month
+        has_next = (year, month) < (now.year, now.month)
+
+    elif period == "trimestral":
+        current_q = (now.month - 1) // 3 + 1
+        total_q = (now.year - 2020) * 4 + current_q  # absolute quarter index from 2020
+        target_q_abs = total_q + offset
+        target_year = 2020 + (target_q_abs - 1) // 4
+        target_q = ((target_q_abs - 1) % 4) + 1
+        q_start_month = (target_q - 1) * 3 + 1
+        q_end_month = q_start_month + 2
+        last_day = monthrange(target_year, q_end_month)[1]
+        start = datetime(target_year, q_start_month, 1, tzinfo=timezone.utc)
+        end = datetime(target_year, q_end_month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        label = f"{QUARTER_NAMES_ES[target_q]} {target_year}"
+        has_next = (target_year, target_q) < (now.year, current_q)
+
+    else:  # anual
+        year = now.year + offset
+        start = datetime(year, 1, 1, tzinfo=timezone.utc)
+        end = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        label = str(year)
+        has_next = year < now.year
+
+    return start, end, label, has_next
+
+def _date_in_range(dt, start, end) -> bool:
+    """Checks if a date (naive or aware) falls within [start, end]."""
+    if dt is None:
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return start <= dt <= end
+
+# ─── Dashboard endpoint ──────────────────────────────────────────────────────
+
+# Funciones de dashboard y CRM (obtención de datos)
+@app.get("/api/dashboard/{user_id}")
+async def get_dashboard(
+    user_id: str,
+    period: str = "anual",
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    # Compute period date range
+    period_start, period_end, period_label, has_next_period = _get_period_range(period, offset)
+
+    # Fetch ALL invoices (for overdue check + recent transactions) then split
+    all_invoices = db.query(Factura).filter(Factura.usuario_id == user.id).all()
+    all_gastos = db.query(Gasto).filter(Gasto.usuario_id == user.id).all()
+
+    # Overdue check (always global - not period-filtered)
+    current_date = datetime.now(timezone.utc)
+    for invoice in all_invoices:
+        if invoice.estado_verifactu in ['Pendiente', 'Enviada'] and invoice.fecha_vencimiento:
+            if invoice.fecha_vencimiento.replace(tzinfo=timezone.utc) < current_date:
+                invoice.estado_verifactu = 'Moroso'
+    db.commit()
+
+    clients = db.query(Cliente).filter(Cliente.usuario_id == user.id).count()
+
+    # Filter by period
+    invoices = [f for f in all_invoices if _date_in_range(f.fecha_expedicion, period_start, period_end)]
+    gastos = [g for g in all_gastos if _date_in_range(g.fecha, period_start, period_end)]
+
+    # Cálculo financiero sobre el período
+    total_base_ingresos = sum(f.total_base for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
+    total_iva_repercutido = sum(f.total_impuestos for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
+
+    total_base_gastos = sum(g.importe_total / 1.21 for g in gastos)
+    total_iva_soportado = sum(g.importe_total - (g.importe_total / 1.21) for g in gastos)
+
+    net_balance = total_base_ingresos - total_base_gastos
+    iva_a_pagar = total_iva_repercutido - total_iva_soportado
+
+    current_irpf_rate = user.irpf_rate if user.irpf_rate is not None else 0.20
+    irpf_estimado = (net_balance * current_irpf_rate) if net_balance > 0 else 0
+    net_balance_after_taxes = net_balance - irpf_estimado
+
+    # Cuota SS: always computed as monthly rendimiento neto
+    # If period is "mensual" use that month's net directly. Otherwise annualise then /12.
+    if period == "mensual":
+        net_for_ss = net_balance
+    elif period == "trimestral":
+        net_for_ss = net_balance / 3
+    else:
+        net_for_ss = net_balance / 12 if net_balance > 0 else 0
+    rendimiento_neto_mensual = (net_for_ss * 0.93) if net_for_ss > 0 else 0
+    cuota_ss = calcular_cuota_autonomo(rendimiento_neto_mensual)
+
+    total_revenue_pagadas = sum(f.importe_total for f in invoices if f.estado_verifactu == 'Pagada')
+    pending_revenue = sum(f.importe_total for f in invoices if f.estado_verifactu in ['Pendiente', 'Enviada'])
+    overdue_revenue = sum(f.importe_total for f in invoices if f.estado_verifactu == 'Moroso')
+    total_expenses = sum(g.importe_total for g in gastos)
+
+    # Recent transactions from the filtered period
+    recent = []
+    for f in invoices:
+        client = db.query(Cliente).filter(Cliente.id == f.cliente_id).first()
+        recent.append({
+            "type": "invoice",
+            "id": str(f.id),
+            "date": f.fecha_expedicion.isoformat() if hasattr(f.fecha_expedicion, 'isoformat') else str(f.fecha_expedicion),
+            "name": client.nombre_empresa if client else "Desconocido",
+            "amount": float(f.importe_total),
+            "status": f.estado_verifactu
+        })
+    for g in gastos:
+        recent.append({
+            "type": "expense",
+            "id": str(g.id),
+            "date": g.fecha.isoformat() if hasattr(g.fecha, 'isoformat') else str(g.fecha),
+            "name": g.proveedor,
+            "amount": float(g.importe_total),
+            "status": "Gasto"
+        })
+    recent.sort(key=lambda x: x["date"], reverse=True)
+    recent = recent[:10]
+
+    return {
+        "period": {
+            "type": period,
+            "offset": offset,
+            "label": period_label,
+            "start": period_start.isoformat(),
+            "end": period_end.isoformat(),
+            "has_next": has_next_period,
+        },
+        "metrics": {
+            "total_revenue": total_revenue_pagadas,
+            "pending_revenue": pending_revenue,
+            "overdue_revenue": overdue_revenue,
+            "total_expenses": total_expenses,
+            "net_balance": net_balance,
+            "net_balance_after_taxes": net_balance_after_taxes,
+            "delta_revenue": f"+{len(invoices) * 2}%",
+            "base_imponible_ingresos": total_base_ingresos,
+            "base_imponible_gastos": total_base_gastos,
+            "iva_repercutido": total_iva_repercutido,
+            "iva_soportado": total_iva_soportado,
+            "iva_a_pagar": iva_a_pagar,
+            "irpf_estimado": irpf_estimado,
+            "irpf_rate": current_irpf_rate,
+            "cuota_autonomo": cuota_ss["cuota"],
+            "base_cotizacion_ss": cuota_ss["base_cotizacion"],
+            "tramo_ss": cuota_ss["tramo"],
+            "tramo_ss_num": cuota_ss["tramo_num"],
+            "rendimiento_neto_mensual": rendimiento_neto_mensual
+        },
+        "recent_transactions": recent,
+        "clients_count": clients
+    }
+
+@app.get("/api/clients/{user_id}")
+async def get_clients(user_id: str, db: Session = Depends(get_db)):
+    clients = db.query(Cliente).filter(Cliente.usuario_id == user_id).all()
+    return [{
+        "id": str(c.id),
+        "name": c.nombre_empresa,
+        "nif_cif": c.nif_cif,
+        "email": c.email,
+        "phone": c.telefono,
+        "direccion": c.direccion_fiscal,
+        "poblacion": c.poblacion,
+        "provincia": c.provincia,
+        "codigo_postal": c.codigo_postal
+    } for c in clients]
+
+@app.post("/api/clients")
+async def create_client(req: ClientCreate, db: Session = Depends(get_db)):
+    # Comprueba si el cliente ya existe
+    existing_client = db.query(Cliente).filter(
+        Cliente.usuario_id == req.user_id,
+        (Cliente.nif_cif == req.nif_cif) | (Cliente.email == req.email)
+    ).first()
+    
+    if existing_client:
+        if existing_client.nif_cif == req.nif_cif:
+            raise HTTPException(status_code=400, detail="Ya tienes un cliente registrado con este NIF/CIF.")
+        if existing_client.email == req.email:
+            raise HTTPException(status_code=400, detail="Ya tienes un cliente registrado con este Email.")
+
+    new_client = Cliente(
+        usuario_id=req.user_id,
+        nombre_empresa=req.name,
+        nif_cif=req.nif_cif,
+        email=req.email,
+        telefono=req.phone,
+        direccion_fiscal=req.direccion,
+        poblacion=req.poblacion,
+        provincia=req.provincia,
+        codigo_postal=req.codigo_postal
+    )
+    db.add(new_client)
+    db.commit()
+    return {"success": True, "message": "Client added"}
+
+@app.put("/api/clients/{user_id}/{client_id}")
+async def update_client(user_id: str, client_id: str, req: ClientCreate, db: Session = Depends(get_db)):
+    client = db.query(Cliente).filter(Cliente.usuario_id == user_id, Cliente.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+        
+    client.nombre_empresa = req.name
+    client.nif_cif = req.nif_cif
+    client.email = req.email
+    client.telefono = req.phone
+    client.direccion_fiscal = req.direccion
+    client.poblacion = req.poblacion
+    client.provincia = req.provincia
+    client.codigo_postal = req.codigo_postal
+    
+    db.commit()
+    return {"success": True, "message": "Client updated"}
+
+@app.get("/api/clients/{user_id}/{client_id}")
+async def get_client_profile(user_id: str, client_id: str, db: Session = Depends(get_db)):
+    client = db.query(Cliente).filter(Cliente.id == client_id, Cliente.usuario_id == user_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+        
+    invoices = db.query(Factura).filter(Factura.cliente_id == client.id).all()
+    
+    return {
+        "success": True,
+        "client": {
+            "id": str(client.id),
+            "name": client.nombre_empresa,
+            "nif_cif": client.nif_cif,
+            "email": client.email,
+            "phone": client.telefono,
+            "direccion": client.direccion_fiscal,
+            "poblacion": client.poblacion,
+            "provincia": client.provincia,
+            "codigo_postal": client.codigo_postal,
+            "created_at": client.created_at.isoformat() if client.created_at else None
+        },
+        "invoices": [{
+            "id": str(f.id),
+            "invoice_number": f.codigo_factura,
+            "date": f.fecha_expedicion.isoformat(),
+            "amount": f.importe_total,
+            "status": f.estado_verifactu
+        } for f in reversed(invoices)]
+    }
+
+@app.delete("/api/clients/{user_id}/{client_id}")
+async def delete_client(user_id: str, client_id: str, db: Session = Depends(get_db)):
+    client = db.query(Cliente).filter(Cliente.id == client_id, Cliente.usuario_id == user_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+        
+    #Nota: Se procede sin eliminación en cascada de facturas para preservar el historial fiscal.
+    #Las facturas se mantendrán en la base de datos pero el cliente_id se establecerá a null/deleted.
+    db.delete(client)
+    db.commit()
+    return {"success": True, "message": "Cliente eliminado"}
+
+# Facturas
+@app.get("/api/invoices/{user_id}")
+async def get_invoices(user_id: str, db: Session = Depends(get_db)):
+    invoices = db.query(Factura).filter(Factura.usuario_id == user_id).all()
+    res = []
+    for f in invoices:
+        client = db.query(Cliente).filter(Cliente.id == f.cliente_id).first()
+        res.append({
+            "id": str(f.id),
+            "invoice_number": f.codigo_factura,
+            "date": f.fecha_expedicion.isoformat(),
+            "client_name": client.nombre_empresa if client else "Desconocido",
+            "amount": f.importe_total,
+            "status": f.estado_verifactu
+        })
+    return list(reversed(res))
+
+@app.post("/api/invoices")
+async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    # Obtiene el número secuencial de la última factura
+    last_invoice = db.query(Factura).filter(Factura.usuario_id == req.user_id).order_by(Factura.numero_factura_secuencial.desc()).first()
+    seq_num = (last_invoice.numero_factura_secuencial + 1) if last_invoice else 1
+    
+    # Calcula los totales
+    total_base = 0.0
+    for item in req.items:
+        total_base += float(item.get('cantidad', 1)) * float(item.get('precio_unitario', 0))
+    total_impuestos = total_base * 0.21
+    importe_total = total_base + total_impuestos
+    
+    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%Y-%m-%d")
+    
+    fecha_ven_obj = None
+    if req.due_date:
+        fecha_ven_obj = datetime.fromisoformat(req.due_date) if 'T' in req.due_date else datetime.strptime(req.due_date, "%Y-%m-%d")
+
+    # Obtiene el hash del registro anterior
+    prev_hash = last_invoice.hash_registro if last_invoice else None
+    
+    # Crea el objeto de la factura
+    factura = Factura(
+        usuario_id=req.user_id,
+        cliente_id=req.client_id,
+        numero_factura_secuencial=seq_num,
+        codigo_factura=f"F-{fecha_exp.year}-{seq_num:03d}",
+        fecha_expedicion=fecha_exp,
+        fecha_vencimiento=fecha_ven_obj,
+        total_base=total_base,
+        total_impuestos=total_impuestos,
+        importe_total=importe_total,
+        json_lineas=req.items,
+        hash_anterior=prev_hash,
+        estado_verifactu='Enviada' # Establece el estado por defecto
+    )
+    
+    factura.hash_registro = "TEMPORARY_DISABLED"
+    
+    db.add(factura)
+    db.commit()
+    db.refresh(factura)
+    return {"success": True, "message": "Factura guardada", "invoice_id": str(factura.id)}
+
+# Productos
+@app.get("/api/products/{user_id}")
+async def get_products(user_id: str, db: Session = Depends(get_db)):
+    productos = db.query(Producto).filter(Producto.usuario_id == user_id).all()
+    res = []
+    for p in productos:
+        res.append({
+            "id": str(p.id),
+            "nombre": p.nombre,
+            "descripcion": p.descripcion,
+            "precio_unitario": p.precio_unitario,
+            "tipo": p.tipo
+        })
+    return res
+
+@app.post("/api/products")
+async def add_product(req: ProductCreate, db: Session = Depends(get_db)):
+    nuevo_producto = Producto(
+        usuario_id=req.user_id,
+        nombre=req.nombre,
+        descripcion=req.descripcion,
+        precio_unitario=req.precio_unitario,
+        tipo=req.tipo
+    )
+    db.add(nuevo_producto)
+    db.commit()
+    db.refresh(nuevo_producto)
+    return {"success": True, "message": "Producto añadido", "product_id": str(nuevo_producto.id)}
+
+@app.delete("/api/products/{user_id}/{product_id}")
+async def delete_product(user_id: str, product_id: str, db: Session = Depends(get_db)):
+    producto = db.query(Producto).filter(Producto.id == product_id, Producto.usuario_id == user_id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    db.delete(producto)
+    db.commit()
+    return {"success": True, "message": "Producto eliminado"}
+@app.delete("/api/invoices/{user_id}/{invoice_id}")
+async def delete_invoice(user_id: str, invoice_id: str, db: Session = Depends(get_db)):
+    factura = db.query(Factura).filter(Factura.id == invoice_id, Factura.usuario_id == user_id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    db.delete(factura)
+    db.commit()
+    return {"success": True, "message": "Factura eliminada"}
+
+@app.patch("/api/invoices/{user_id}/{invoice_id}/status")
+async def update_invoice_status(user_id: str, invoice_id: str, req: InvoiceStatusUpdate, db: Session = Depends(get_db)):
+    factura = db.query(Factura).filter(Factura.id == invoice_id, Factura.usuario_id == user_id).first()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada")
+    factura.estado_verifactu = req.status
+    db.commit()
+    return {"success": True, "message": "Estado actualizado"}
+
+# Gastos
+@app.get("/api/expenses/{user_id}")
+async def get_expenses(user_id: str, db: Session = Depends(get_db)):
+    gastos = db.query(Gasto).filter(Gasto.usuario_id == user_id).order_by(Gasto.fecha.desc()).all()
+    return [{
+        "id": str(g.id),
+        "fecha": g.fecha.strftime("%Y-%m-%d"),
+        "proveedor": g.proveedor or "Varios",
+        "concepto": g.concepto or "Gasto genérico",
+        "importe_total": float(g.importe_total)
+    } for g in gastos]
+
+@app.post("/api/expenses")
+async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
+    try:
+        user = db.query(Usuario).filter(Usuario.id == req.user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        try:
+            fecha_obj = datetime.strptime(req.fecha, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        except:
+            fecha_obj = datetime.now(timezone.utc)
+            
+        nuevo_gasto = Gasto(
+            usuario_id=user.id,
+            fecha=fecha_obj,
+            proveedor=req.proveedor,
+            concepto=req.concepto,
+            importe_total=req.importe_total
+        )
+        db.add(nuevo_gasto)
+        db.commit()
+        return {"success": True, "expense_id": str(nuevo_gasto.id)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/expenses/{user_id}/{expense_id}")
+async def delete_expense(user_id: str, expense_id: str, db: Session = Depends(get_db)):
+    gasto = db.query(Gasto).filter(Gasto.id == expense_id, Gasto.usuario_id == user_id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    db.delete(gasto)
+    db.commit()
+    return {"success": True}
+
+# Integraciones con IA
+
+
+@app.post("/api/process_document")
+async def process_document(
+    file: UploadFile = File(...), 
+    user_id: str = Form(None), 
+    db: Session = Depends(get_db)):
+    
+    try:
+        contents = await file.read()
+        mime_type = file.content_type
+        
+        # Construye el contexto del catálogo para la IA si los detalles del usuario están presentes
+        catalog_context = ""
+        if user_id:
+            productos = db.query(Producto).filter(Producto.usuario_id == user_id).all()
+            if productos:
+                catalog_context = "CATÁLOGO DEL USUARIO (Usa estos conceptos y precios si coinciden con lo mencionado):\n"
+                for p in productos:
+                    catalog_context += f"- {p.nombre}: {p.precio_unitario}€ ({p.tipo})\n"
+        
+        # 1. Notas de voz via GenAI
+        if mime_type.startswith("audio") or mime_type == "video/mp4" or mime_type == 'audio/webm':
+            text = process_voice_to_text(contents)
+            client_data = extract_client_data(text)
+            line_data = extract_line_data(text, catalog_context)
+            
+            return {
+                "extracted_text": text,
+                "client_name": client_data.get('nombre_empresa', ''),
+                "client_nif": client_data.get('nif_cif', ''),
+                "client_address": client_data.get('direccion_fiscal', ''),
+                "items": line_data.get('lineas', []),
+                "date": datetime.now().strftime("%Y-%m-%d")
+            }
+            
+        # 2. PDF/Imagen via Processor.py
+        data = proc.extract_invoice_data(contents, mime_type)
+        if "error" in data:
+            raise HTTPException(status_code=500, detail=data["error"])
+        
+        # Normaliza el formato de los items para el frontend
+        normalized_items = []
+        for i in data.get('items', []):
+            normalized_items.append({
+                "concepto": i.get("description", "Item"),
+                "cantidad": i.get("quantity", 1),
+                "precio_unitario": i.get("unit_price", 0)
+            })
+            
+        return {
+            "client_name": data.get("client_name", ""),
+            "items": normalized_items,
+            "date": data.get("date", datetime.now().strftime("%Y-%m-%d")),
+            "total_amount": data.get("total_amount")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/process_expense")
+async def process_expense(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        mime_type = file.content_type
+        
+        data = proc.extract_expense_data(contents, mime_type)
+        if "error" in data:
+            raise HTTPException(status_code=500, detail=data["error"])
+            
+        return {
+            "success": True,
+            "data": {
+                "proveedor": data.get("proveedor", "Desconocido"),
+                "fecha": data.get("fecha", datetime.now().strftime("%Y-%m-%d")),
+                "concepto": data.get("concepto", "Gasto genérico"),
+                "importe_total": float(data.get("importe_total", 0.0))
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/process_client_voice")
+async def process_client_voice(file: UploadFile = File(...)):
+    try:
+        contents = await file.read()
+        text = process_voice_to_text(contents)
+        client_data = extract_client_data(text)
+        
+        return {
+            "success": True,
+            "extracted_text": text,
+            "data": {
+                "nombre_empresa": client_data.get('nombre_empresa', ''),
+                "nif_cif": client_data.get('nif_cif', ''),
+                "telefono": client_data.get('telefono', ''),
+                "email": client_data.get('email', ''),
+                "direccion_fiscal": client_data.get('direccion_fiscal', ''),
+                "provincia": "", # Infer if possible, currently simple passthrough
+                "poblacion": "",
+                "codigo_postal": ""
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/generate_pdf/{invoice_id}")
+async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db)):
+    try:
+        factura = db.query(Factura).filter(Factura.id == invoice_id).first()
+        if not factura:
+             raise HTTPException(status_code=404, detail="Factura no encontrada")
+             
+        usuario = db.query(Usuario).filter(Usuario.id == factura.usuario_id).first()
+        cliente = db.query(Cliente).filter(Cliente.id == factura.cliente_id).first()
+        
+        mapped_items = []
+        for line in factura.json_lineas:
+            qty = float(line.get('cantidad', 1))
+            price = float(line.get('precio_unitario', 0))
+            mapped_items.append({
+                "description": line.get('concepto', 'Item'),
+                "quantity": qty,
+                "unit_price": price,
+                "total": qty * price
+            })
+            
+        doc_data = {
+            "invoice_number": factura.codigo_factura.split('-')[-1], # e.g. "001"
+            "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
+            "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
+            "client_name": cliente.nombre_empresa,
+            "client_address": cliente.direccion_fiscal,
+            "items": mapped_items,
+            "total_amount": float(factura.total_base),
+            "sender_name": f"{usuario.nombre} {usuario.apellidos}",
+            "sender_iban": usuario.iban
+        }
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp_path = tmp.name
+            
+        pdf = PremiumInvoicePDF(doc_data)
+        pdf.generate(tmp_path)
+        
+        return FileResponse(
+            path=tmp_path, 
+            media_type="application/pdf", 
+            filename=f"{factura.codigo_factura}.pdf"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF Generation Error: {e}")
+
+@app.post("/api/invoices/{user_id}/{invoice_id}/send")
+async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depends(get_db)):
+    try:
+        user = get_user_by_id(db, user_id)
+        if not user.gmail_token:
+            raise HTTPException(status_code=400, detail="El usuario no tiene un Token de Gmail configurado en su perfil.")
+        
+        factura = db.query(Factura).filter(Factura.id == invoice_id).first()
+        cliente = db.query(Cliente).filter(Cliente.id == factura.cliente_id).first()
+        
+        if not cliente.email:
+            raise HTTPException(status_code=400, detail="El cliente no tiene un email configurado.")
+            
+        mapped_items = []
+        for line in factura.json_lineas:
+            qty = float(line.get('cantidad', 1))
+            price = float(line.get('precio_unitario', 0))
+            mapped_items.append({
+                "description": line.get('concepto', 'Item'),
+                "quantity": qty,
+                "unit_price": price,
+                "total": qty * price
+            })
+            
+        doc_data = {
+            "invoice_number": factura.codigo_factura.split('-')[-1],
+            "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
+            "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
+            "client_name": cliente.nombre_empresa,
+            "client_address": cliente.direccion_fiscal,
+            "items": mapped_items,
+            "total_amount": float(factura.total_base),
+            "sender_name": f"{user.nombre} {user.apellidos}",
+            "sender_iban": user.iban
+        }
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp_path = tmp.name
+            
+        pdf = PremiumInvoicePDF(doc_data)
+        pdf.generate(tmp_path)
+        
+        # Build Email
+        msg = MIMEMultipart()
+        msg['From'] = user.email
+        msg['To'] = cliente.email
+        msg['Subject'] = f"Factura {factura.codigo_factura} - {user.nombre} {user.apellidos}"
+        
+        body = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; color: #333;">
+                <p>Estimado/a {cliente.nombre_empresa},</p>
+                <p>Adjunto a este correo encontrará la factura correspondiente a los últimos servicios prestados.</p>
+                <ul>
+                    <li><strong>Referencia:</strong> {factura.codigo_factura}</li>
+                    <li><strong>Importe Total:</strong> {factura.total_base} €</li>
+                    <li><strong>Fecha de Emisión:</strong> {factura.fecha_expedicion.strftime("%d/%m/%Y")}</li>
+                </ul>
+                <p>Si tiene cualquier duda o consulta, por favor, responda a este mismo correo.</p>
+                <br>
+                <p>Atentamente,</p>
+                <p><strong>{user.nombre} {user.apellidos}</strong><br>{user.nif_cif}</p>
+            </body>
+        </html>
+        """
+        msg.attach(MIMEText(body, 'html'))
+        
+        with open(tmp_path, "rb") as f:
+            pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
+            pdf_attachment.add_header('Content-Disposition', 'attachment', filename=f"{factura.codigo_factura}.pdf")
+            msg.attach(pdf_attachment)
+            
+        import os
+        os.remove(tmp_path)
+            
+        # Send via SMTP
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(user.email, user.gmail_token)
+        server.send_message(msg)
+        server.quit()
+        
+        return {"success": True, "message": "Email enviado correctamente."}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/chat")
+async def chat_with_consultant(req: ChatRequest, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    invoices = db.query(Factura).filter(Factura.usuario_id == user.id).all()
+    gastos = db.query(Gasto).filter(Gasto.usuario_id == user.id).all()
+    clientes = db.query(Cliente).filter(Cliente.usuario_id == user.id).all()
+    
+    user_context = {
+        "usuario": f"{user.nombre} {user.apellidos}",
+        "cnae": user.cnae,
+        "resumen": {
+            "total_ingresos": float(sum(f.importe_total for f in invoices)),
+            "total_gastos": float(sum(g.importe_total for g in gastos)),
+            "num_clientes": len(clientes)
+        },
+        "clientes": [
+            {"nombre": c.nombre_empresa, "nif_cif": c.nif_cif, "email": c.email} for c in clientes
+        ],
+        "facturas_completas": [
+            {
+                "numero": f.codigo_factura,
+                "cliente": f.cliente.nombre_empresa if f.cliente else "Desconocido",
+                "fecha": f.fecha_expedicion.isoformat() if hasattr(f.fecha_expedicion, 'isoformat') else str(f.fecha_expedicion),
+                "importe_base": float(f.total_base),
+                "importe_total": float(f.importe_total),
+                "estado": f.estado_verifactu
+            } 
+            for f in sorted(invoices, key=lambda x: str(x.fecha_expedicion), reverse=True)
+        ],
+        "gastos_completos": [
+            {
+                "fecha": g.fecha.isoformat() if hasattr(g.fecha, 'isoformat') else str(g.fecha), 
+                "proveedor": g.proveedor, 
+                "concepto": g.concepto,
+                "importe": float(g.importe_total)
+            }
+            for g in sorted(gastos, key=lambda x: str(x.fecha), reverse=True)
+        ]
+    }
+    
+    response = proc.ask_ai_consultant(user_context, req.message)
+    if "error" in response:
+        raise HTTPException(status_code=500, detail=response["error"])
+        
+    return {"success": True, "answer": response["answer"]}
+
+@app.get("/api/profile/{user_id}")
+async def get_profile(user_id: str, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    return {
+        "success": True,
+        "profile": {
+            "nombre": user.nombre,
+            "apellidos": user.apellidos,
+            "nif_cif": user.nif_cif,
+            "domicilio": user.domicilio_fiscal,
+            "poblacion": user.poblacion,
+            "provincia": user.provincia,
+            "codigo_postal": user.codigo_postal,
+            "cnae": user.cnae,
+            "iban": user.iban,
+            "gmail_token": user.gmail_token,
+            "email": user.email,
+            "telefono": user.telefono,
+            "profile_picture": user.profile_picture
+        }
+    }
+
+@app.put("/api/profile/{user_id}/irpf")
+async def update_irpf_rate(user_id: str, req: IRPFUpdateRequest, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    user.irpf_rate = req.irpf_rate
+    db.commit()
+    return {"success": True, "message": "Tasa de IRPF actualizada con éxito", "irpf_rate": user.irpf_rate}
+
+@app.post("/api/profile/{user_id}")
+async def update_profile(
+    user_id: str,
+    nombre: str = Form(...),
+    apellidos: str = Form(...),
+    domicilio: str = Form(...),
+    nif_cif: str = Form(...),
+    email: EmailStr = Form(...),
+    telefono: str = Form(...),
+    poblacion: str = Form(""),
+    provincia: str = Form(""),
+    codigo_postal: str = Form(""),
+    cnae: str = Form(""),
+    iban: str = Form(""),
+    gmail_token: str = Form(""),
+    avatar: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db)
+):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    user.nombre = nombre
+    user.apellidos = apellidos
+    user.domicilio_fiscal = domicilio
+    user.nif_cif = nif_cif
+    user.email = email
+    user.telefono = telefono
+    user.poblacion = poblacion
+    user.provincia = provincia
+    user.codigo_postal = codigo_postal
+    user.cnae = cnae if cnae else None
+    user.iban = iban if iban else None
+    user.gmail_token = gmail_token if gmail_token else None
+    
+    if avatar and avatar.filename:
+        # Save file
+        ext = os.path.splitext(avatar.filename)[1]
+        filename = f"{user_id}_{int(datetime.now().timestamp())}{ext}"
+        filepath = os.path.join("static", "avatars", filename)
+        
+        with open(filepath, "wb") as buffer:
+            buffer.write(await avatar.read())
+            
+        user.profile_picture = f"/avatars/{filename}"
+        
+    db.commit()
+    return {"success": True, "message": "Perfil actualizado", "profile_picture": user.profile_picture, "nombre": user.nombre}
+
+
+# ─── Calendar API ─────────────────────────────────────────────────────────────
+
+def _get_fiscal_dates(year: int) -> list[dict]:
+    """Returns the standard fiscal deadlines for Spanish autónomos in a given year."""
+    events = []
+    # Mod. 303 & 130 quarterly deadlines (20th of Jan, Apr, Jul, Oct)
+    quarters = [
+        (1, 20, "Límite Mod. 303 & 130 — Q4 del año anterior"),
+        (4, 20, "Límite Mod. 303 & 130 — Q1"),
+        (7, 20, "Límite Mod. 303 & 130 — Q2"),
+        (10, 20, "Límite Mod. 303 & 130 — Q3"),
+    ]
+    for month, day, title in quarters:
+        events.append({
+            "id": f"fiscal-303-{year}-{month}",
+            "fecha": f"{year}-{month:02d}-{day:02d}",
+            "titulo": title,
+            "descripcion": "Presentación trimestral de IVA (Mod. 303) e IRPF (Mod. 130) a la Agencia Tributaria.",
+            "tipo": "fiscal",
+            "color": "#d4af37"
+        })
+    # Cuota SS — 20th of every month
+    for month in range(1, 13):
+        events.append({
+            "id": f"fiscal-ss-{year}-{month}",
+            "fecha": f"{year}-{month:02d}-20",
+            "titulo": "Cuota Autónomo — Seguridad Social",
+            "descripcion": "Fecha límite de ingreso de la cuota mensual de autónomos a la Seguridad Social.",
+            "tipo": "fiscal",
+            "color": "#d4af37"
+        })
+    # Annual income tax (Renta) — June 30
+    events.append({
+        "id": f"fiscal-renta-{year}",
+        "fecha": f"{year}-06-30",
+        "titulo": "Límite Declaración de la Renta",
+        "descripcion": "Fecha límite para presentar la Declaración Anual del IRPF (ejercicio anterior).",
+        "tipo": "fiscal",
+        "color": "#d4af37"
+    })
+    return events
+
+
+class EventoCreate(BaseModel):
+    fecha: str           # ISO format YYYY-MM-DD
+    titulo: str
+    descripcion: Optional[str] = None
+    color: str = "#4a90e2"
+
+
+@app.get("/api/calendar/{user_id}")
+async def get_calendar(
+    user_id: str,
+    year: int = None,
+    month: int = None,
+    include_invoices: bool = True,
+    db: Session = Depends(get_db)
+):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    now = datetime.now(timezone.utc)
+    year = year or now.year
+    month = month or now.month
+
+    # Date range for the requested month
+    from calendar import monthrange
+    last_day = monthrange(year, month)[1]
+    range_start = datetime(year, month, 1, tzinfo=timezone.utc)
+    range_end = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+
+    events = []
+
+    # 1. Fiscal dates for this year
+    fiscal = _get_fiscal_dates(year)
+    for e in fiscal:
+        e_date = datetime.fromisoformat(e["fecha"]).replace(tzinfo=timezone.utc)
+        if range_start <= e_date <= range_end:
+            events.append(e)
+
+    # 2. User personal events in this month
+    user_events = db.query(CalendarioEvento).filter(
+        CalendarioEvento.usuario_id == user.id,
+        CalendarioEvento.fecha >= range_start,
+        CalendarioEvento.fecha <= range_end
+    ).all()
+    for ev in user_events:
+        events.append({
+            "id": str(ev.id),
+            "fecha": ev.fecha.strftime("%Y-%m-%d"),
+            "titulo": ev.titulo,
+            "descripcion": ev.descripcion,
+            "tipo": ev.tipo,
+            "color": ev.color
+        })
+
+    # 3. Invoice due dates (if requested)
+    if include_invoices:
+        invoices_due = db.query(Factura).filter(
+            Factura.usuario_id == user.id,
+            Factura.fecha_vencimiento >= range_start,
+            Factura.fecha_vencimiento <= range_end,
+            Factura.estado_verifactu.in_(["Enviada", "Pendiente", "Moroso"])
+        ).all()
+        for f in invoices_due:
+            if f.fecha_vencimiento:
+                client = db.query(Cliente).filter(Cliente.id == f.cliente_id).first()
+                name = client.nombre_empresa if client else "Cliente"
+                events.append({
+                    "id": f"invoice-{str(f.id)}",
+                    "fecha": f.fecha_vencimiento.strftime("%Y-%m-%d"),
+                    "titulo": f"Vencimiento: {f.codigo_factura}",
+                    "descripcion": f"Factura de {name} — {f.importe_total:.2f} €",
+                    "tipo": "factura",
+                    "color": "#e74c3c"
+                })
+
+    return {"year": year, "month": month, "events": events}
+
+
+@app.post("/api/calendar/{user_id}/evento")
+async def create_calendar_event(user_id: str, evento: EventoCreate, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    fecha_dt = datetime.fromisoformat(evento.fecha).replace(tzinfo=timezone.utc)
+    new_event = CalendarioEvento(
+        usuario_id=user.id,
+        fecha=fecha_dt,
+        titulo=evento.titulo,
+        descripcion=evento.descripcion,
+        tipo="personal",
+        color=evento.color
+    )
+    db.add(new_event)
+    db.commit()
+    db.refresh(new_event)
+    return {"success": True, "id": str(new_event.id)}
+
+
+@app.delete("/api/calendar/{user_id}/evento/{event_id}")
+async def delete_calendar_event(user_id: str, event_id: str, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    ev = db.query(CalendarioEvento).filter(
+        CalendarioEvento.id == event_id,
+        CalendarioEvento.usuario_id == user.id
+    ).first()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+
+    db.delete(ev)
+    db.commit()
+    return {"success": True}
+
+
+# --- Servicio de archivos estáticos (Frontend SPA) ---
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
