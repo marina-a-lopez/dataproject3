@@ -6,3 +6,4 @@ google-generativeai
 python-dotenv
 fpdf2
 Werkzeug
+psycopg2-binary
