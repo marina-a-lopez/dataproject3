@@ -12,8 +12,8 @@ import tempfile
 from datetime import datetime, timezone
 
 # Importaciones locales
-from aitonomos.backend.database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
-from aitonomos.backend.voice import process_voice_to_text, extract_line_data, extract_client_data
+from backend.database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
+from backend.voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
 import processor as proc
 from werkzeug.security import generate_password_hash, check_password_hash

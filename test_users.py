@@ -1,4 +1,4 @@
-from aitonomos.backend.database import SessionLocal, Usuario
+from backend.database import SessionLocal, Usuario
 db = SessionLocal()
 users = db.query(Usuario).all()
 for u in users:

@@ -185,6 +185,8 @@ class Gasto(Base):
 
 # inicializar la bbdd
 DB_PATH = "sqlite:///aitonomos.db"
+# Reemplazaremos <IP_PUBLICA> cuando Terraform termine de crear la BD
+# DB_PATH = "postgresql://admin:Edem2526.@<IP_PUBLICA>:5432/aitonomo_db"
 engine = create_engine(DB_PATH, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
