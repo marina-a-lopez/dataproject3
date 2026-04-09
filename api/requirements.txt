@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+Werkzeug
+sqlalchemy
+pydantic[email]
+psycopg2-binary
+cloud-sql-python-connector[pg8000]
+google-generativeai
+fpdf2
+python-dotenv

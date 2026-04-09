@@ -5,7 +5,7 @@ for u in users:
     print(f"User ID: {u.id}, Name: {u.nombre}")
     
     # Try calling the endpoint function directly to see if it crashes
-    from main import get_profile
+    from api.main import get_profile
     import asyncio
     try:
         res = asyncio.run(get_profile(str(u.id), db))
