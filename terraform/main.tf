@@ -1,7 +1,7 @@
 #storage bucket para almacenar pdfs, etc
 
 resource "google_storage_bucket" "document_bucket" {
-  name          = "bucket-aitonomo-docs-${var.project_id}"
+  name          = "bucket-aitonomo-docs"
   location      = var.region
   force_destroy = false
   # storage_class = "STANDARD"

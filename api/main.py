@@ -21,6 +21,9 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from backend.storage_manager import StorageManager
+
+sm = StorageManager()
 
 app = FastAPI(title="AItonomo Pro API")
 
@@ -1008,12 +1011,13 @@ async def update_profile(
         # Save file
         ext = os.path.splitext(avatar.filename)[1]
         filename = f"{user_id}_{int(datetime.now().timestamp())}{ext}"
-        filepath = os.path.join("static", "avatars", filename)
         
-        with open(filepath, "wb") as buffer:
-            buffer.write(await avatar.read())
-            
-        user.profile_picture = f"/avatars/{filename}"
+        # Leemos el archivo y lo enviamos al Bucket de Google
+        contenido = await avatar.read()
+        url_nube = sm.upload_file(contenido, f"avatars/{filename}")
+        
+        # Guardamos el link de internet en la Base de Datos
+        user.profile_picture = url_nube
         
     db.commit()
     return {"success": True, "message": "Perfil actualizado", "profile_picture": user.profile_picture, "nombre": user.nombre}

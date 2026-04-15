@@ -180,6 +180,7 @@ class Gasto(Base):
     importe_total = Column(Float, nullable=False, default=0.0)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    url_ticket = Column(String(500), nullable=True)
     
     usuario = relationship("Usuario", back_populates="gastos")
 
