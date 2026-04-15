@@ -89,6 +89,7 @@ class ExpenseCreate(BaseModel):
     proveedor: str
     concepto: str
     importe_total: float
+    url_ticket: str = ""
 
 class InvoiceStatusUpdate(BaseModel):
     status: str
@@ -632,7 +633,8 @@ async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
             fecha=fecha_obj,
             proveedor=req.proveedor,
             concepto=req.concepto,
-            importe_total=req.importe_total
+            importe_total=req.importe_total,
+            url_ticket=req.url_ticket
         )
         db.add(nuevo_gasto)
         db.commit()
@@ -715,6 +717,12 @@ async def process_expense(file: UploadFile = File(...)):
         contents = await file.read()
         mime_type = file.content_type
         
+        # Enviamos el ticket al Bucket de Google ---
+        ext = os.path.splitext(file.filename)[1]
+        nombre_nube = f"expenses/ticket_{int(datetime.now().timestamp())}{ext}"
+        url_nube = sm.upload_file(contents, nombre_nube)
+
+        
         data = proc.extract_expense_data(contents, mime_type)
         if "error" in data:
             raise HTTPException(status_code=500, detail=data["error"])
@@ -725,7 +733,8 @@ async def process_expense(file: UploadFile = File(...)):
                 "proveedor": data.get("proveedor", "Desconocido"),
                 "fecha": data.get("fecha", datetime.now().strftime("%Y-%m-%d")),
                 "concepto": data.get("concepto", "Gasto genérico"),
-                "importe_total": float(data.get("importe_total", 0.0))
+                "importe_total": float(data.get("importe_total", 0.0)),
+                "url_ticket": url_nube
             }
         }
     except Exception as e:
@@ -1011,7 +1020,7 @@ async def update_profile(
         # Save file
         ext = os.path.splitext(avatar.filename)[1]
         filename = f"{user_id}_{int(datetime.now().timestamp())}{ext}"
-        
+
         # Leemos el archivo y lo enviamos al Bucket de Google
         contenido = await avatar.read()
         url_nube = sm.upload_file(contenido, f"avatars/{filename}")

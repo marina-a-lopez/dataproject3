@@ -158,6 +158,7 @@ class Factura(Base):
     total_impuestos = Column(Float, nullable=False)
     importe_total = Column(Float, nullable=False)
     json_lineas = Column(JSON, nullable=False)
+    url_pdf = Column(String(500), nullable=True)
     
     # VeriFactu Fields
     hash_registro = Column(String(64), nullable=False)
