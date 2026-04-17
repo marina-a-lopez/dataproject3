@@ -547,6 +547,40 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
     db.add(factura)
     db.commit()
     db.refresh(factura)
+
+    # --- NUEVO: Generar el PDF y subirlo al Bucket ---
+    # 1. Preparamos los datos para el PDF
+    doc_data = {
+        "invoice_number": factura.codigo_factura.split('-')[-1],
+        "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
+        "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
+        "client_name": "Cliente Registrado", # Aquí luego puedes cruzar con la tabla Cliente
+        "items": req.items,
+        "total_amount": factura.total_base,
+        "sender_name": f"{user.nombre} {user.apellidos}",
+        "sender_iban": user.iban
+    }
+    
+    # 2. Creamos un archivo temporal
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp_path = tmp.name
+        
+    # 3. Dibujamos el PDF
+    pdf = PremiumInvoicePDF(doc_data)
+    pdf.generate(tmp_path)
+    
+    # 4. Lo leemos y se lo damos al mensajero (StorageManager)
+    with open(tmp_path, "rb") as f:
+        pdf_bytes = f.read()
+        
+    url_nube = sm.upload_file(pdf_bytes, f"invoices/{factura.codigo_factura}.pdf")
+    
+    # 5. Guardamos el link en la base de datos y borramos el temporal
+    factura.url_pdf = url_nube
+    db.commit()
+    os.remove(tmp_path)
+
+
     return {"success": True, "message": "Factura guardada", "invoice_id": str(factura.id)}
 
 # Productos
@@ -770,7 +804,21 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
         factura = db.query(Factura).filter(Factura.id == invoice_id).first()
         if not factura:
              raise HTTPException(status_code=404, detail="Factura no encontrada")
-             
+        # SI YA TIENE LINK, LO TRAEMOS DE LA NUBE (Más rápido)
+        if factura.url_pdf:
+        # El nombre en la nube es invoices/F-2025-001.pdf
+            blob_name = f"invoices/{factura.codigo_factura}.pdf"
+            pdf_bytes = sm.download_file(blob_name)
+        
+            if pdf_bytes:
+                from fastapi import Response
+                return Response(
+                    content=pdf_bytes, 
+                    media_type="application/pdf", 
+                    headers={"Content-Disposition": f"attachment; filename={factura.codigo_factura}.pdf"}
+                )
+
+    # SI NO TIENE LINK (Facturas viejas), LA CREAMOS     
         usuario = db.query(Usuario).filter(Usuario.id == factura.usuario_id).first()
         cliente = db.query(Cliente).filter(Cliente.id == factura.cliente_id).first()
         
@@ -846,13 +894,23 @@ async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depend
             "sender_name": f"{user.nombre} {user.apellidos}",
             "sender_iban": user.iban
         }
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp_path = tmp.name
             
-        pdf = PremiumInvoicePDF(doc_data)
-        pdf.generate(tmp_path)
         
+        # En lugar de fabricarlo, lo pedimos a la nube
+        blob_name = f"invoices/{factura.codigo_factura}.pdf"
+        pdf_content = sm.download_file(blob_name)
+        
+        if not pdf_content:
+            # Si por algún motivo no está en la nube, lo generamos
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+             tmp_path = tmp.name
+            
+            pdf = PremiumInvoicePDF(doc_data)
+            pdf.generate(tmp_path)
+            with open(tmp_path, "rb") as f:
+                pdf_content = f.read()
+            os.remove(tmp_path) 
+
         # Build Email
         msg = MIMEMultipart()
         msg['From'] = user.email
@@ -878,13 +936,10 @@ async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depend
         """
         msg.attach(MIMEText(body, 'html'))
         
-        with open(tmp_path, "rb") as f:
-            pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
-            pdf_attachment.add_header('Content-Disposition', 'attachment', filename=f"{factura.codigo_factura}.pdf")
-            msg.attach(pdf_attachment)
+        pdf_attachment = MIMEApplication(pdf_content, _subtype="pdf")
+        pdf_attachment.add_header('Content-Disposition', 'attachment', filename=f"{factura.codigo_factura}.pdf")
+        msg.attach(pdf_attachment)
             
-        import os
-        os.remove(tmp_path)
             
         # Send via SMTP
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)

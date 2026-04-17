@@ -1,6 +1,5 @@
 import os
 from google.cloud import storage
-from datetime import datetime
 
 class StorageManager:
     def __init__(self):
@@ -21,4 +20,14 @@ class StorageManager:
             return blob.public_url
         except Exception as e:
             print(f"Error subiendo al bucket: {e}")
+            return None
+        
+    def download_file(self, destination_blob_name):
+        """Trae el archivo de la nube de vuelta a la oficina (en bytes)."""
+        try:
+            bucket = self.storage_client.bucket(self.bucket_name)
+            blob = bucket.blob(destination_blob_name)
+            return blob.download_as_bytes()
+        except Exception as e:
+            print(f"Error al descargar de la nube: {e}")
             return None
