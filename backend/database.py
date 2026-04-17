@@ -3,9 +3,7 @@ import uuid
 import json
 from datetime import datetime, timezone
 from typing import List, Optional
-
 from dotenv import load_dotenv
-
 from sqlalchemy import (
     Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine
 )
@@ -191,7 +189,8 @@ class Gasto(Base):
 # DB_PATH = "sqlite:///aitonomos.db"
 
 load_dotenv()
-DB_PATH = os.getenv("DATABASE_URL")
+# DB_PATH = os.getenv("DATABASE_URL")
+DB_PATH = "postgresql://admin:Edem2526.@34.175.34.126:5432/aitonomo_db"
 engine = create_engine(DB_PATH, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
