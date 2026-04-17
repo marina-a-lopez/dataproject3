@@ -12,5 +12,4 @@ variable "postgres_password" {
   description = "Contraseña para el usuario de la base de datos PostgreSQL"
   type        = string
   sensitive   = true
-  default     = "Edem2526."
 }

@@ -31,3 +31,5 @@ class StorageManager:
         except Exception as e:
             print(f"Error al descargar de la nube: {e}")
             return None
+        
+sm = StorageManager()

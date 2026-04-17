@@ -4,6 +4,8 @@ import json
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from dotenv import load_dotenv
+
 from sqlalchemy import (
     Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine
 )
@@ -186,9 +188,10 @@ class Gasto(Base):
     usuario = relationship("Usuario", back_populates="gastos")
 
 # inicializar la bbdd
-DB_PATH = "sqlite:///aitonomos.db"
-# Reemplazaremos <IP_PUBLICA> cuando Terraform termine de crear la BD
-# DB_PATH = "postgresql://admin:Edem2526.@<IP_PUBLICA>:5432/aitonomo_db"
+# DB_PATH = "sqlite:///aitonomos.db"
+
+load_dotenv()
+DB_PATH = os.getenv("DATABASE_URL")
 engine = create_engine(DB_PATH, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
