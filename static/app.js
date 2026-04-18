@@ -48,10 +48,14 @@ const Utils = {
     }
 };
 
+// Define la URL de tu backend. (Descomenta y cambia por tu URL de Cloud Run cuando lo despliegues)
+// const API_BASE_URL = "https://tu-backend-id.run.app";
+
 const API = {
     request: async (endpoint, options = {}) => {
         try {
             const res = await fetch(endpoint, options);
+            const res = await fetch(/* API_BASE_URL + */ endpoint, options);
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
 

@@ -7,21 +7,22 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 import uvicorn
+from pathlib import Path
 import os
 import tempfile
 from datetime import datetime, timezone
 
 # Importaciones locales
-from backend.database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
-from backend.voice import process_voice_to_text, extract_line_data, extract_client_data
-from backend.invoice_generator import PremiumInvoicePDF
-import backend.processor as proc
+from database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
+from voice import process_voice_to_text, extract_line_data, extract_client_data
+from invoice_generator import PremiumInvoicePDF
+import processor as proc
 from werkzeug.security import generate_password_hash, check_password_hash
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
-from backend.StorageManager import StorageManager
+from StorageManager import StorageManager
 
 sm = StorageManager()
 
@@ -37,7 +38,9 @@ app.add_middleware(
 )
 
 # Crear directorio static y base de datos
-os.makedirs("static", exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
 
 # Configuración de Gemini (poner API key hardcodeada)
@@ -1248,7 +1251,7 @@ async def delete_calendar_event(user_id: str, event_id: str, db: Session = Depen
 
 
 # --- Servicio de archivos estáticos (Frontend SPA) ---
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":
