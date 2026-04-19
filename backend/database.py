@@ -189,13 +189,23 @@ class Gasto(Base):
 # DB_PATH = "sqlite:///aitonomos.db"
 
 load_dotenv()
-# DB_PATH = os.getenv("DATABASE_URL")
-DB_PATH = "postgresql://admin:Edem2526.@34.175.34.126:5432/aitonomo_db"
-engine = create_engine(DB_PATH, echo=False)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+DB_PATH = os.getenv("DATABASE_URL", "postgresql://admin:Edem2526.@34.175.34.126:5432/aitonomo_db")
+
+try:
+    engine = create_engine(DB_PATH, echo=False)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+except Exception as e:
+    print(f"Error al inicializar SQLAlchemy: {e}")
+    engine = None
+    SessionLocal = None
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    if engine is not None:
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("Base de datos conectada y tablas sincronizadas con éxito.")
+        except Exception as e:
+            print(f"Error crítico al conectar a Cloud SQL: {e}")
 
 def get_db():
     db = SessionLocal()

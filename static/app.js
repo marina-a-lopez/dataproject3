@@ -48,14 +48,15 @@ const Utils = {
     }
 };
 
-// Define la URL de tu backend. (Descomenta y cambia por tu URL de Cloud Run cuando lo despliegues)
-// const API_BASE_URL = "https://tu-backend-id.run.app";
+// IMPORTANTE: Cuando despliegues el backend, pega su URL aquí
+const API_BASE_URL = "https://api-backend-4nrtuy3yca-no.a.run.app";
 
 const API = {
     request: async (endpoint, options = {}) => {
         try {
-            const res = await fetch(endpoint, options);
-            const res = await fetch(/* API_BASE_URL + */ endpoint, options);
+            // En local usa rutas relativas, en producción usará la URL completa del backend
+            const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? endpoint : API_BASE_URL + endpoint;
+            const res = await fetch(finalUrl, options);
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
 
@@ -1682,4 +1683,3 @@ window._calModalBgClick = function (e) {
         document.getElementById('add-event-modal').classList.add('hidden');
     }
 };
-

@@ -37,10 +37,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Crear directorio static y base de datos
-BASE_DIR = Path(__file__).resolve().parent.parent
-STATIC_DIR = BASE_DIR / "static"
-os.makedirs(STATIC_DIR, exist_ok=True)
+# # Crear directorio static y base de datos
+# BASE_DIR = Path(__file__).resolve().parent.parent
+# STATIC_DIR = BASE_DIR / "static"
+# os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
 
 # Configuración de Gemini (poner API key hardcodeada)
@@ -1250,8 +1250,8 @@ async def delete_calendar_event(user_id: str, event_id: str, db: Session = Depen
     return {"success": True}
 
 
-# --- Servicio de archivos estáticos (Frontend SPA) ---
-app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+# # --- Servicio de archivos estáticos (Frontend SPA) ---
+# app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":
