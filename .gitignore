@@ -23,3 +23,8 @@ ENV/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+terraform.*
+.terraform
+.terraform.*
+*.tfstate

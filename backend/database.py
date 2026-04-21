@@ -3,7 +3,7 @@ import uuid
 import json
 from datetime import datetime, timezone
 from typing import List, Optional
-
+from dotenv import load_dotenv
 from sqlalchemy import (
     Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine
 )
@@ -158,6 +158,7 @@ class Factura(Base):
     total_impuestos = Column(Float, nullable=False)
     importe_total = Column(Float, nullable=False)
     json_lineas = Column(JSON, nullable=False)
+    url_pdf = Column(String(500), nullable=True)
     
     # VeriFactu Fields
     hash_registro = Column(String(64), nullable=False)
@@ -180,16 +181,31 @@ class Gasto(Base):
     importe_total = Column(Float, nullable=False, default=0.0)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    url_ticket = Column(String(500), nullable=True)
     
     usuario = relationship("Usuario", back_populates="gastos")
 
 # inicializar la bbdd
-DB_PATH = "sqlite:///aitonomos.db"
-engine = create_engine(DB_PATH, echo=False)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# DB_PATH = "sqlite:///aitonomos.db"
+
+load_dotenv()
+DB_PATH = os.getenv("DATABASE_URL", "postgresql://admin:Edem2526.@34.175.34.126:5432/aitonomo_db")
+
+try:
+    engine = create_engine(DB_PATH, echo=False)
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+except Exception as e:
+    print(f"Error al inicializar SQLAlchemy: {e}")
+    engine = None
+    SessionLocal = None
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    if engine is not None:
+        try:
+            Base.metadata.create_all(bind=engine)
+            print("Base de datos conectada y tablas sincronizadas con éxito.")
+        except Exception as e:
+            print(f"Error crítico al conectar a Cloud SQL: {e}")
 
 def get_db():
     db = SessionLocal()

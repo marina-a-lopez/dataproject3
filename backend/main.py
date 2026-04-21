@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 import uvicorn
+from pathlib import Path
 import os
 import tempfile
 from datetime import datetime, timezone
 
 # Importaciones locales
-from aitonomos.backend.database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
-from aitonomos.backend.voice import process_voice_to_text, extract_line_data, extract_client_data
+from database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
+from voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
 import processor as proc
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -21,6 +22,9 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from StorageManager import StorageManager
+
+sm = StorageManager()
 
 app = FastAPI(title="AItonomo Pro API")
 
@@ -33,8 +37,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Crear directorio static y base de datos
-os.makedirs("static", exist_ok=True)
+# # Crear directorio static y base de datos
+# BASE_DIR = Path(__file__).resolve().parent.parent
+# STATIC_DIR = BASE_DIR / "static"
+# os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
 
 # Configuración de Gemini (poner API key hardcodeada)
@@ -86,6 +92,7 @@ class ExpenseCreate(BaseModel):
     proveedor: str
     concepto: str
     importe_total: float
+    url_ticket: str = ""
 
 class InvoiceStatusUpdate(BaseModel):
     status: str
@@ -543,6 +550,40 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
     db.add(factura)
     db.commit()
     db.refresh(factura)
+
+    # --- NUEVO: Generar el PDF y subirlo al Bucket ---
+    # 1. Preparamos los datos para el PDF
+    doc_data = {
+        "invoice_number": factura.codigo_factura.split('-')[-1],
+        "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
+        "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
+        "client_name": "Cliente Registrado", # Aquí luego puedes cruzar con la tabla Cliente
+        "items": req.items,
+        "total_amount": factura.total_base,
+        "sender_name": f"{user.nombre} {user.apellidos}",
+        "sender_iban": user.iban
+    }
+    
+    # 2. Creamos un archivo temporal
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp_path = tmp.name
+        
+    # 3. Dibujamos el PDF
+    pdf = PremiumInvoicePDF(doc_data)
+    pdf.generate(tmp_path)
+    
+    # 4. Lo leemos y se lo damos al mensajero (StorageManager)
+    with open(tmp_path, "rb") as f:
+        pdf_bytes = f.read()
+        
+    url_nube = sm.upload_file(pdf_bytes, f"invoices/{factura.codigo_factura}.pdf")
+    
+    # 5. Guardamos el link en la base de datos y borramos el temporal
+    factura.url_pdf = url_nube
+    db.commit()
+    os.remove(tmp_path)
+
+
     return {"success": True, "message": "Factura guardada", "invoice_id": str(factura.id)}
 
 # Productos
@@ -629,7 +670,8 @@ async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
             fecha=fecha_obj,
             proveedor=req.proveedor,
             concepto=req.concepto,
-            importe_total=req.importe_total
+            importe_total=req.importe_total,
+            url_ticket=req.url_ticket
         )
         db.add(nuevo_gasto)
         db.commit()
@@ -712,6 +754,12 @@ async def process_expense(file: UploadFile = File(...)):
         contents = await file.read()
         mime_type = file.content_type
         
+        # Enviamos el ticket al Bucket de Google ---
+        ext = os.path.splitext(file.filename)[1]
+        nombre_nube = f"expenses/ticket_{int(datetime.now().timestamp())}{ext}"
+        url_nube = sm.upload_file(contents, nombre_nube)
+
+        
         data = proc.extract_expense_data(contents, mime_type)
         if "error" in data:
             raise HTTPException(status_code=500, detail=data["error"])
@@ -722,7 +770,8 @@ async def process_expense(file: UploadFile = File(...)):
                 "proveedor": data.get("proveedor", "Desconocido"),
                 "fecha": data.get("fecha", datetime.now().strftime("%Y-%m-%d")),
                 "concepto": data.get("concepto", "Gasto genérico"),
-                "importe_total": float(data.get("importe_total", 0.0))
+                "importe_total": float(data.get("importe_total", 0.0)),
+                "url_ticket": url_nube
             }
         }
     except Exception as e:
@@ -758,7 +807,21 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
         factura = db.query(Factura).filter(Factura.id == invoice_id).first()
         if not factura:
              raise HTTPException(status_code=404, detail="Factura no encontrada")
-             
+        # SI YA TIENE LINK, LO TRAEMOS DE LA NUBE (Más rápido)
+        if factura.url_pdf:
+        # El nombre en la nube es invoices/F-2025-001.pdf
+            blob_name = f"invoices/{factura.codigo_factura}.pdf"
+            pdf_bytes = sm.download_file(blob_name)
+        
+            if pdf_bytes:
+                from fastapi import Response
+                return Response(
+                    content=pdf_bytes, 
+                    media_type="application/pdf", 
+                    headers={"Content-Disposition": f"attachment; filename={factura.codigo_factura}.pdf"}
+                )
+
+    # SI NO TIENE LINK (Facturas viejas), LA CREAMOS     
         usuario = db.query(Usuario).filter(Usuario.id == factura.usuario_id).first()
         cliente = db.query(Cliente).filter(Cliente.id == factura.cliente_id).first()
         
@@ -834,13 +897,23 @@ async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depend
             "sender_name": f"{user.nombre} {user.apellidos}",
             "sender_iban": user.iban
         }
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp_path = tmp.name
             
-        pdf = PremiumInvoicePDF(doc_data)
-        pdf.generate(tmp_path)
         
+        # En lugar de fabricarlo, lo pedimos a la nube
+        blob_name = f"invoices/{factura.codigo_factura}.pdf"
+        pdf_content = sm.download_file(blob_name)
+        
+        if not pdf_content:
+            # Si por algún motivo no está en la nube, lo generamos
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+             tmp_path = tmp.name
+            
+            pdf = PremiumInvoicePDF(doc_data)
+            pdf.generate(tmp_path)
+            with open(tmp_path, "rb") as f:
+                pdf_content = f.read()
+            os.remove(tmp_path) 
+
         # Build Email
         msg = MIMEMultipart()
         msg['From'] = user.email
@@ -866,13 +939,10 @@ async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depend
         """
         msg.attach(MIMEText(body, 'html'))
         
-        with open(tmp_path, "rb") as f:
-            pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
-            pdf_attachment.add_header('Content-Disposition', 'attachment', filename=f"{factura.codigo_factura}.pdf")
-            msg.attach(pdf_attachment)
+        pdf_attachment = MIMEApplication(pdf_content, _subtype="pdf")
+        pdf_attachment.add_header('Content-Disposition', 'attachment', filename=f"{factura.codigo_factura}.pdf")
+        msg.attach(pdf_attachment)
             
-        import os
-        os.remove(tmp_path)
             
         # Send via SMTP
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
@@ -1008,12 +1078,13 @@ async def update_profile(
         # Save file
         ext = os.path.splitext(avatar.filename)[1]
         filename = f"{user_id}_{int(datetime.now().timestamp())}{ext}"
-        filepath = os.path.join("static", "avatars", filename)
+
+        # Leemos el archivo y lo enviamos al Bucket de Google
+        contenido = await avatar.read()
+        url_nube = sm.upload_file(contenido, f"avatars/{filename}")
         
-        with open(filepath, "wb") as buffer:
-            buffer.write(await avatar.read())
-            
-        user.profile_picture = f"/avatars/{filename}"
+        # Guardamos el link de internet en la Base de Datos
+        user.profile_picture = url_nube
         
     db.commit()
     return {"success": True, "message": "Perfil actualizado", "profile_picture": user.profile_picture, "nombre": user.nombre}
@@ -1179,8 +1250,8 @@ async def delete_calendar_event(user_id: str, event_id: str, db: Session = Depen
     return {"success": True}
 
 
-# --- Servicio de archivos estáticos (Frontend SPA) ---
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+# # --- Servicio de archivos estáticos (Frontend SPA) ---
+# app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":
