@@ -194,10 +194,10 @@ class PremiumInvoicePDF(FPDF):
         # Total extraido
         extracted_total = self.data.get('total_amount')
         try:
-             final_total = float(extracted_total) if extracted_total else total_amount
+            final_total = float(extracted_total) if extracted_total else total_amount
         except:
-             final_total = total_amount
-             
+            final_total = total_amount
+        
         # Seccion de totales y notas de pago alineadas paralelamente
         y_totals_start = self.get_y()
         self.set_y(y_totals_start)
