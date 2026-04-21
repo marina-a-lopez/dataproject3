@@ -825,7 +825,8 @@ const appLogic = {
     },
 
     downloadPDF: (invId) => {
-        window.open(`/api/generate_pdf/${invId}`, '_blank');
+        const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? `/api/generate_pdf/${invId}` : `${API_BASE_URL}/api/generate_pdf/${invId}`;
+        window.open(finalUrl, '_blank');
     },
 
     handleFileSelect: (file) => {
@@ -1181,7 +1182,8 @@ const appLogic = {
         const res = await appLogic.saveExtractedInvoice(true);
         if (res && res.invoice_id) {
             Utils.showToast("Generando Documento PDF...", "info");
-            window.open(`/api/generate_pdf/${res.invoice_id}`, '_blank');
+            const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? `/api/generate_pdf/${res.invoice_id}` : `${API_BASE_URL}/api/generate_pdf/${res.invoice_id}`;
+            window.open(finalUrl, '_blank');
 
             // Clean UI
             document.getElementById('extracted-form').classList.add('hidden');

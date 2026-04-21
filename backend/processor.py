@@ -78,10 +78,23 @@ def extract_invoice_data(content, mime_type="image/jpeg"):
         """
     
     try:
-        response = model.generate_content([
-            {'mime_type': mime_type, 'data': content},
-            prompt
-        ])
+        import mimetypes
+        ext = mimetypes.guess_extension(mime_type) or ''
+        if not ext and 'pdf' in mime_type: ext = '.pdf'
+        if not ext and 'jpg' in mime_type: ext = '.jpg'
+        if not ext and 'png' in mime_type: ext = '.png'
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+            
+        try:
+            uploaded_file = genai.upload_file(tmp_path)
+            response = model.generate_content([uploaded_file, prompt])
+            uploaded_file.delete()
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
         
         # Limpia el texto de la respuesta para asegurar que sea un JSON válido
         text = response.text.strip()

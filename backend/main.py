@@ -866,14 +866,14 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
             
         doc_data = {
             "invoice_number": factura.codigo_factura.split('-')[-1], # e.g. "001"
-            "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
-            "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
-            "client_name": cliente.nombre_empresa,
-            "client_address": cliente.direccion_fiscal,
+            "date": factura.fecha_expedicion.strftime("%Y-%m-%d") if hasattr(factura.fecha_expedicion, 'strftime') else str(factura.fecha_expedicion),
+            "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if hasattr(factura.fecha_vencimiento, 'strftime') else (str(factura.fecha_vencimiento) if factura.fecha_vencimiento else None),
+            "client_name": cliente.nombre_empresa if cliente else "Cliente Eliminado",
+            "client_address": cliente.direccion_fiscal if cliente else "",
             "items": mapped_items,
             "total_amount": float(factura.total_base),
-            "sender_name": f"{usuario.nombre} {usuario.apellidos}",
-            "sender_iban": usuario.iban
+            "sender_name": f"{usuario.nombre} {usuario.apellidos}" if usuario else "Emisor Desconocido",
+            "sender_iban": usuario.iban if usuario else ""
         }
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
