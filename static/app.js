@@ -475,6 +475,7 @@ const appLogic = {
     saveClientChanges: async (btn) => {
         const id = document.getElementById('modal-client-id').value;
         const req = {
+            user_id: AppState.userId,
             name: document.getElementById('modal-client-name-input').value,
             nif_cif: document.getElementById('modal-client-nif').value,
             email: document.getElementById('modal-client-email').value,

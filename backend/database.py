@@ -9,49 +9,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.types import TypeDecorator, CHAR
-from sqlalchemy.dialects.postgresql import UUID
-
-# SQLite UUID
-class GUID(TypeDecorator):
-    """Platform-independent GUID type.
-    Uses PostgreSQL's UUID type, otherwise uses
-    CHAR(32), storing as stringified hex values.
-    """
-    impl = CHAR
-    cache_ok = True
-
-    def load_dialect_impl(self, dialect):
-        if dialect.name == 'postgresql':
-            return dialect.type_descriptor(UUID())
-        else:
-            return dialect.type_descriptor(CHAR(32))
-
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return value
-        elif dialect.name == 'postgresql':
-            return str(value)
-        else:
-            if not isinstance(value, uuid.UUID):
-                return "%.32x" % uuid.UUID(value).int
-            else:
-                # hexstring
-                return "%.32x" % value.int
-
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return value
-        else:
-            if not isinstance(value, uuid.UUID):
-                value = uuid.UUID(value)
-            return value
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 Base = declarative_base()
 
 class Usuario(Base):
     __tablename__ = 'usuarios'
     
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     nombre = Column(String(100), nullable=False)
     apellidos = Column(String(100), nullable=False)
     nif_cif = Column(String(20), unique=True, nullable=False)
@@ -90,8 +55,8 @@ class CalendarioEvento(Base):
     """Eventos del calendario del autónomo: personales, fiscales o de factura."""
     __tablename__ = 'calendario_eventos'
 
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    usuario_id = Column(GUID(), ForeignKey('usuarios.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
 
     fecha = Column(DateTime, nullable=False)           # Fecha del evento
     titulo = Column(String(255), nullable=False)
@@ -108,8 +73,8 @@ class CalendarioEvento(Base):
 class Cliente(Base):
     __tablename__ = 'clientes'
     
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    usuario_id = Column(GUID(), ForeignKey('usuarios.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
     nombre_empresa = Column(String(150), nullable=False)
     nif_cif = Column(String(20), nullable=False)
     telefono = Column(String(20))
@@ -128,8 +93,8 @@ class Cliente(Base):
 class Producto(Base):
     __tablename__ = "productos"
 
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    usuario_id = Column(GUID(), ForeignKey("usuarios.id"), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     
     nombre = Column(String(100), nullable=False)
     descripcion = Column(Text, nullable=True)
@@ -147,9 +112,9 @@ class Factura(Base):
         UniqueConstraint('usuario_id', 'numero_factura_secuencial', name='_usuario_num_factura_uc'),
     )
 
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    usuario_id = Column(GUID(), ForeignKey('usuarios.id'), nullable=False)
-    cliente_id = Column(GUID(), ForeignKey('clientes.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
+    cliente_id = Column(UUID(as_uuid=True), ForeignKey('clientes.id'), nullable=False)
     numero_factura_secuencial = Column(Integer, nullable=False) # Para asegurar correlatividad
     codigo_factura = Column(String(50), nullable=False) # Ej: F-2024-001
     fecha_expedicion = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
@@ -157,7 +122,7 @@ class Factura(Base):
     total_base = Column(Float, nullable=False)
     total_impuestos = Column(Float, nullable=False)
     importe_total = Column(Float, nullable=False)
-    json_lineas = Column(JSON, nullable=False)
+    json_lineas = Column(JSONB, nullable=False)
     url_pdf = Column(String(500), nullable=True)
     
     # VeriFactu Fields
@@ -172,8 +137,8 @@ class Factura(Base):
 
 class Gasto(Base):
     __tablename__ = 'gastos'
-    id = Column(GUID(), primary_key=True, default=uuid.uuid4)
-    usuario_id = Column(GUID(), ForeignKey('usuarios.id'), nullable=False)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
     
     fecha = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     proveedor = Column(String(255), nullable=True)
@@ -189,7 +154,7 @@ class Gasto(Base):
 # DB_PATH = "sqlite:///aitonomos.db"
 
 load_dotenv()
-DB_PATH = os.getenv("DATABASE_URL", "postgresql://admin:Edem2526.@34.175.34.126:5432/aitonomo_db")
+DB_PATH = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aitonomo_db")
 
 try:
     engine = create_engine(DB_PATH, echo=False)
