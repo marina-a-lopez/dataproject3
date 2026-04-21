@@ -784,13 +784,10 @@ const appLogic = {
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
-            const res = await fetch(`/api/invoices/${AppState.userId}/${invId}/send`, { method: 'POST' });
-            const data = await res.json();
-
-            if (res.ok && data.success) {
+            const data = await API.request(`/api/invoices/${AppState.userId}/${invId}/send`, { method: 'POST' });
+            
+            if (data.success) {
                 Utils.showToast('Factura enviada al cliente por correo', 'success');
-            } else {
-                throw new Error(data.detail || "Error al conectar con Google/SMTP");
             }
         } catch (e) {
             Utils.showToast(e.message, 'error');
@@ -825,7 +822,7 @@ const appLogic = {
     },
 
     downloadPDF: (invId) => {
-        window.open(`/api/generate_pdf/${invId}`, '_blank');
+        window.open(`${API_BASE_URL}/api/generate_pdf/${invId}`, '_blank');
     },
 
     handleFileSelect: (file) => {
@@ -1181,7 +1178,7 @@ const appLogic = {
         const res = await appLogic.saveExtractedInvoice(true);
         if (res && res.invoice_id) {
             Utils.showToast("Generando Documento PDF...", "info");
-            window.open(`/api/generate_pdf/${res.invoice_id}`, '_blank');
+            window.open(`${API_BASE_URL}/api/generate_pdf/${res.invoice_id}`, '_blank');
 
             // Clean UI
             document.getElementById('extracted-form').classList.add('hidden');
@@ -1318,7 +1315,7 @@ const appLogic = {
                 formData.append("avatar", fileInput.files[0]);
             }
 
-            const res = await fetch(`/api/profile/${AppState.userId}`, {
+            const res = await fetch(`${API_BASE_URL}/api/profile/${AppState.userId}`, {
                 method: 'POST',
                 body: formData
             });
