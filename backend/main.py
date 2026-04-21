@@ -37,10 +37,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# # Crear directorio static y base de datos
-# BASE_DIR = Path(__file__).resolve().parent.parent
-# STATIC_DIR = BASE_DIR / "static"
-# os.makedirs(STATIC_DIR, exist_ok=True)
+# Crear directorio static y base de datos
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
 
 # Configuración de Gemini (poner API key hardcodeada)
@@ -552,13 +552,27 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
     db.refresh(factura)
 
     # --- NUEVO: Generar el PDF y subirlo al Bucket ---
+    client = db.query(Cliente).filter(Cliente.id == req.client_id).first()
+    
+    mapped_items = []
+    for item in req.items:
+        qty = float(item.get('cantidad', 1))
+        price = float(item.get('precio_unitario', 0))
+        mapped_items.append({
+            "description": item.get('concepto', 'Articulo'),
+            "quantity": qty,
+            "unit_price": price,
+            "total": qty * price
+        })
+        
     # 1. Preparamos los datos para el PDF
     doc_data = {
         "invoice_number": factura.codigo_factura.split('-')[-1],
         "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
         "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
-        "client_name": "Cliente Registrado", # Aquí luego puedes cruzar con la tabla Cliente
-        "items": req.items,
+        "client_name": client.nombre_empresa if client else "Cliente Registrado",
+        "client_address": client.direccion_fiscal if client else "",
+        "items": mapped_items,
         "total_amount": factura.total_base,
         "sender_name": f"{user.nombre} {user.apellidos}",
         "sender_iban": user.iban
@@ -614,6 +628,20 @@ async def add_product(req: ProductCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(nuevo_producto)
     return {"success": True, "message": "Producto añadido", "product_id": str(nuevo_producto.id)}
+
+@app.put("/api/products/{user_id}/{product_id}")
+async def update_product(user_id: str, product_id: str, req: ProductCreate, db: Session = Depends(get_db)):
+    producto = db.query(Producto).filter(Producto.id == product_id, Producto.usuario_id == user_id).first()
+    if not producto:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    
+    producto.nombre = req.nombre
+    producto.descripcion = req.descripcion
+    producto.precio_unitario = req.precio_unitario
+    producto.tipo = req.tipo
+    
+    db.commit()
+    return {"success": True, "message": "Producto actualizado"}
 
 @app.delete("/api/products/{user_id}/{product_id}")
 async def delete_product(user_id: str, product_id: str, db: Session = Depends(get_db)):
@@ -1046,7 +1074,7 @@ async def update_profile(
     apellidos: str = Form(...),
     domicilio: str = Form(...),
     nif_cif: str = Form(...),
-    email: EmailStr = Form(...),
+    email: str = Form(...),
     telefono: str = Form(...),
     poblacion: str = Form(""),
     provincia: str = Form(""),
@@ -1250,8 +1278,8 @@ async def delete_calendar_event(user_id: str, event_id: str, db: Session = Depen
     return {"success": True}
 
 
-# # --- Servicio de archivos estáticos (Frontend SPA) ---
-# app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+# --- Servicio de archivos estáticos (Frontend SPA) ---
+app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 
 if __name__ == "__main__":
