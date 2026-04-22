@@ -13,7 +13,7 @@ import tempfile
 from datetime import datetime, timezone
 
 # Importaciones locales
-from database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
+from database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento, Presupuesto
 from voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
 import processor as proc
@@ -80,6 +80,13 @@ class ClientCreate(BaseModel):
     codigo_postal: str = ""
 
 class InvoiceCreate(BaseModel):
+    user_id: str
+    client_id: str
+    fecha: str
+    due_date: Optional[str] = None
+    items: list
+
+class PresupuestoCreate(BaseModel):
     user_id: str
     client_id: str
     fecha: str
@@ -669,6 +676,261 @@ async def update_invoice_status(user_id: str, invoice_id: str, req: InvoiceStatu
     db.commit()
     return {"success": True, "message": "Estado actualizado"}
 
+# Presupuestos
+@app.get("/api/presupuestos/{user_id}")
+async def get_presupuestos(user_id: str, db: Session = Depends(get_db)):
+    presupuestos = db.query(Presupuesto).filter(Presupuesto.usuario_id == user_id).all()
+    res = []
+    for p in presupuestos:
+        client = db.query(Cliente).filter(Cliente.id == p.cliente_id).first()
+        res.append({
+            "id": str(p.id),
+            "codigo_presupuesto": p.codigo_presupuesto,
+            "date": p.fecha_expedicion.isoformat(),
+            "client_name": client.nombre_empresa if client else "Desconocido",
+            "amount": p.importe_total,
+            "status": p.estado
+        })
+    return list(reversed(res))
+
+
+@app.get("/api/presupuestos/{user_id}/{presupuesto_id}")
+async def get_presupuesto(user_id: str, presupuesto_id: str, db: Session = Depends(get_db)):
+    p = db.query(Presupuesto).filter(Presupuesto.id == presupuesto_id, Presupuesto.usuario_id == user_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="No encontrado")
+    return {
+        "id": str(p.id),
+        "client_id": str(p.cliente_id),
+        "codigo_presupuesto": p.codigo_presupuesto,
+        "date": p.fecha_expedicion.isoformat(),
+        "due_date": p.fecha_vencimiento.isoformat() if p.fecha_vencimiento else None,
+        "items": p.json_lineas,
+        "amount": p.importe_total,
+        "status": p.estado
+    }
+
+@app.post("/api/presupuestos")
+
+async def save_presupuesto(req: PresupuestoCreate, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    last_presu = db.query(Presupuesto).filter(Presupuesto.usuario_id == req.user_id).order_by(Presupuesto.numero_presupuesto_secuencial.desc()).first()
+    seq_num = (last_presu.numero_presupuesto_secuencial + 1) if last_presu else 1
+    
+    total_base = 0.0
+    for item in req.items:
+        total_base += float(item.get('cantidad', 1)) * float(item.get('precio_unitario', 0))
+    total_impuestos = total_base * 0.21
+    importe_total = total_base + total_impuestos
+    
+    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%Y-%m-%d")
+    fecha_ven_obj = None
+    if req.due_date:
+        fecha_ven_obj = datetime.fromisoformat(req.due_date) if 'T' in req.due_date else datetime.strptime(req.due_date, "%Y-%m-%d")
+
+    presupuesto = Presupuesto(
+        usuario_id=req.user_id,
+        cliente_id=req.client_id,
+        numero_presupuesto_secuencial=seq_num,
+        codigo_presupuesto=f"P-{fecha_exp.year}-{seq_num:03d}",
+        fecha_expedicion=fecha_exp,
+        fecha_vencimiento=fecha_ven_obj,
+        total_base=total_base,
+        total_impuestos=total_impuestos,
+        importe_total=importe_total,
+        json_lineas=req.items,
+        estado='Pendiente'
+    )
+    
+    db.add(presupuesto)
+    db.commit()
+    db.refresh(presupuesto)
+
+    # Generar PDF
+    client = db.query(Cliente).filter(Cliente.id == req.client_id).first()
+    mapped_items = []
+    for item in req.items:
+        qty = float(item.get('cantidad', 1))
+        price = float(item.get('precio_unitario', 0))
+        mapped_items.append({
+            "description": item.get('concepto', 'Articulo'),
+            "quantity": qty,
+            "unit_price": price,
+            "total": qty * price
+        })
+        
+    doc_data = {
+        "invoice_number": presupuesto.codigo_presupuesto.split('-')[-1],
+        "date": presupuesto.fecha_expedicion.strftime("%Y-%m-%d"),
+        "due_date": presupuesto.fecha_vencimiento.strftime("%Y-%m-%d") if presupuesto.fecha_vencimiento else None,
+        "client_name": client.nombre_empresa if client else "Cliente Registrado",
+        "client_address": client.direccion_fiscal if client else "",
+        "items": mapped_items,
+        "total_amount": presupuesto.total_base,
+        "sender_name": f"{user.nombre} {user.apellidos}",
+        "sender_iban": user.iban,
+        "is_presupuesto": True  # Flag to change title in PDF generator
+    }
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp_path = tmp.name
+        
+    pdf = PremiumInvoicePDF(doc_data)
+    pdf.generate(tmp_path)
+    
+    with open(tmp_path, "rb") as f:
+        pdf_bytes = f.read()
+        
+    url_nube = sm.upload_file(pdf_bytes, f"presupuestos/{presupuesto.codigo_presupuesto}.pdf")
+    presupuesto.url_pdf = url_nube
+    db.commit()
+    os.remove(tmp_path)
+
+    return {"success": True, "message": "Presupuesto guardado", "presupuesto_id": str(presupuesto.id)}
+
+@app.put("/api/presupuestos/{user_id}/{presupuesto_id}")
+async def update_presupuesto(user_id: str, presupuesto_id: str, req: PresupuestoCreate, db: Session = Depends(get_db)):
+    presupuesto = db.query(Presupuesto).filter(Presupuesto.id == presupuesto_id, Presupuesto.usuario_id == user_id).first()
+    if not presupuesto:
+        raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+        
+    total_base = 0.0
+    for item in req.items:
+        total_base += float(item.get('cantidad', 1)) * float(item.get('precio_unitario', 0))
+    total_impuestos = total_base * 0.21
+    importe_total = total_base + total_impuestos
+    
+    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%Y-%m-%d")
+    fecha_ven_obj = None
+    if req.due_date:
+        fecha_ven_obj = datetime.fromisoformat(req.due_date) if 'T' in req.due_date else datetime.strptime(req.due_date, "%Y-%m-%d")
+
+    presupuesto.cliente_id = req.client_id
+    presupuesto.json_lineas = req.items
+    presupuesto.total_base = total_base
+    presupuesto.total_impuestos = total_impuestos
+    presupuesto.importe_total = importe_total
+    presupuesto.fecha_expedicion = fecha_exp
+    presupuesto.fecha_vencimiento = fecha_ven_obj
+    
+    db.commit()
+    
+    # Regenerate PDF
+    user = get_user_by_id(db, user_id)
+    client = db.query(Cliente).filter(Cliente.id == req.client_id).first()
+    mapped_items = []
+    for item in req.items:
+        qty = float(item.get('cantidad', 1))
+        price = float(item.get('precio_unitario', 0))
+        mapped_items.append({"description": item.get('concepto', 'Articulo'), "quantity": qty, "unit_price": price, "total": qty * price})
+        
+    doc_data = {
+        "invoice_number": presupuesto.codigo_presupuesto.split('-')[-1],
+        "date": presupuesto.fecha_expedicion.strftime("%Y-%m-%d"),
+        "due_date": presupuesto.fecha_vencimiento.strftime("%Y-%m-%d") if presupuesto.fecha_vencimiento else None,
+        "client_name": client.nombre_empresa if client else "Cliente Registrado",
+        "client_address": client.direccion_fiscal if client else "",
+        "items": mapped_items,
+        "total_amount": presupuesto.total_base,
+        "sender_name": f"{user.nombre} {user.apellidos}",
+        "sender_iban": user.iban,
+        "is_presupuesto": True
+    }
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp_path = tmp.name
+    pdf = PremiumInvoicePDF(doc_data)
+    pdf.generate(tmp_path)
+    with open(tmp_path, "rb") as f:
+        pdf_bytes = f.read()
+    url_nube = sm.upload_file(pdf_bytes, f"presupuestos/{presupuesto.codigo_presupuesto}.pdf")
+    presupuesto.url_pdf = url_nube
+    db.commit()
+    os.remove(tmp_path)
+    
+    return {"success": True, "message": "Presupuesto actualizado"}
+
+@app.post("/api/presupuestos/{user_id}/{presupuesto_id}/convertir")
+async def convert_presupuesto(user_id: str, presupuesto_id: str, db: Session = Depends(get_db)):
+    presupuesto = db.query(Presupuesto).filter(Presupuesto.id == presupuesto_id, Presupuesto.usuario_id == user_id).first()
+    if not presupuesto:
+        raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+        
+    if presupuesto.estado == 'Aceptado' and presupuesto.factura_id:
+        return {"success": True, "message": "Ya convertido", "invoice_id": str(presupuesto.factura_id)}
+        
+    last_invoice = db.query(Factura).filter(Factura.usuario_id == user_id).order_by(Factura.numero_factura_secuencial.desc()).first()
+    seq_num = (last_invoice.numero_factura_secuencial + 1) if last_invoice else 1
+    
+    prev_hash = last_invoice.hash_registro if last_invoice else None
+    fecha_exp = datetime.now(timezone.utc)
+    
+    factura = Factura(
+        usuario_id=user_id,
+        cliente_id=presupuesto.cliente_id,
+        numero_factura_secuencial=seq_num,
+        codigo_factura=f"F-{fecha_exp.year}-{seq_num:03d}",
+        fecha_expedicion=fecha_exp,
+        fecha_vencimiento=presupuesto.fecha_vencimiento,
+        total_base=presupuesto.total_base,
+        total_impuestos=presupuesto.total_impuestos,
+        importe_total=presupuesto.importe_total,
+        json_lineas=presupuesto.json_lineas,
+        hash_anterior=prev_hash,
+        estado_verifactu='Pendiente'
+    )
+    factura.hash_registro = "TEMPORARY_DISABLED"
+    
+    db.add(factura)
+    db.commit()
+    db.refresh(factura)
+    
+    presupuesto.estado = 'Aceptado'
+    presupuesto.factura_id = factura.id
+    db.commit()
+    
+    # Create PDF for Factura
+    user = get_user_by_id(db, user_id)
+    client = db.query(Cliente).filter(Cliente.id == factura.cliente_id).first()
+    mapped_items = []
+    for item in factura.json_lineas:
+        qty = float(item.get('cantidad', 1))
+        price = float(item.get('precio_unitario', 0))
+        mapped_items.append({"description": item.get('concepto', 'Articulo'), "quantity": qty, "unit_price": price, "total": qty * price})
+        
+    doc_data = {
+        "invoice_number": factura.codigo_factura.split('-')[-1],
+        "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
+        "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
+        "client_name": client.nombre_empresa if client else "Cliente Registrado",
+        "client_address": client.direccion_fiscal if client else "",
+        "items": mapped_items,
+        "total_amount": factura.total_base,
+        "sender_name": f"{user.nombre} {user.apellidos}",
+        "sender_iban": user.iban
+    }
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp_path = tmp.name
+    pdf = PremiumInvoicePDF(doc_data)
+    pdf.generate(tmp_path)
+    with open(tmp_path, "rb") as f:
+        pdf_bytes = f.read()
+        # Guardamos en bucket para cache
+        try:
+            folder = "invoices"
+            new_url = sm.upload_file(pdf_bytes, f"{folder}/{factura.codigo_factura}.pdf")
+            factura.url_pdf = new_url
+            db.commit()
+        except:
+            pass
+    os.remove(tmp_path)
+    
+    return {"success": True, "message": "Convertido a Factura", "invoice_id": str(factura.id)}
+
+
 # Gastos
 @app.get("/api/expenses/{user_id}")
 async def get_expenses(user_id: str, db: Session = Depends(get_db)):
@@ -830,15 +1092,23 @@ async def process_client_voice(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/generate_pdf/{invoice_id}")
-async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db)):
+async def fetch_and_generate_pdf(invoice_id: str, type: Optional[str] = None, db: Session = Depends(get_db)):
     try:
-        factura = db.query(Factura).filter(Factura.id == invoice_id).first()
-        if not factura:
-             raise HTTPException(status_code=404, detail="Factura no encontrada")
+        if type == 'presupuesto':
+            doc = db.query(Presupuesto).filter(Presupuesto.id == invoice_id).first()
+            if not doc:
+                raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+            factura = doc
+            codigo_doc = doc.codigo_presupuesto
+        else:
+            factura = db.query(Factura).filter(Factura.id == invoice_id).first()
+            if not factura:
+                 raise HTTPException(status_code=404, detail="Factura no encontrada")
+            codigo_doc = factura.codigo_factura
+
         # SI YA TIENE LINK, LO TRAEMOS DE LA NUBE (Más rápido)
         if factura.url_pdf:
-        # El nombre en la nube es invoices/F-2025-001.pdf
-            blob_name = f"invoices/{factura.codigo_factura}.pdf"
+            blob_name = f"{'presupuestos' if type == 'presupuesto' else 'invoices'}/{codigo_doc}.pdf"
             pdf_bytes = sm.download_file(blob_name)
         
             if pdf_bytes:
@@ -846,10 +1116,10 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
                 return Response(
                     content=pdf_bytes, 
                     media_type="application/pdf", 
-                    headers={"Content-Disposition": f"attachment; filename={factura.codigo_factura}.pdf"}
+                    headers={"Content-Disposition": f"attachment; filename={codigo_doc}.pdf"}
                 )
 
-    # SI NO TIENE LINK (Facturas viejas), LA CREAMOS     
+        # SI NO TIENE LINK, LA CREAMOS     
         usuario = db.query(Usuario).filter(Usuario.id == factura.usuario_id).first()
         cliente = db.query(Cliente).filter(Cliente.id == factura.cliente_id).first()
         
@@ -865,7 +1135,7 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
             })
             
         doc_data = {
-            "invoice_number": factura.codigo_factura.split('-')[-1], # e.g. "001"
+            "invoice_number": codigo_doc.split('-')[-1], # e.g. "001"
             "date": factura.fecha_expedicion.strftime("%Y-%m-%d") if hasattr(factura.fecha_expedicion, 'strftime') else str(factura.fecha_expedicion),
             "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if hasattr(factura.fecha_vencimiento, 'strftime') else (str(factura.fecha_vencimiento) if factura.fecha_vencimiento else None),
             "client_name": cliente.nombre_empresa if cliente else "Cliente Eliminado",
@@ -873,7 +1143,8 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
             "items": mapped_items,
             "total_amount": float(factura.total_base),
             "sender_name": f"{usuario.nombre} {usuario.apellidos}" if usuario else "Emisor Desconocido",
-            "sender_iban": usuario.iban if usuario else ""
+            "sender_iban": usuario.iban if usuario else "",
+            "is_presupuesto": type == 'presupuesto'
         }
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:

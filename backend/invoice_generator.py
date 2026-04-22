@@ -28,10 +28,11 @@ class PremiumInvoicePDF(FPDF):
         sender = self.data.get('sender_name', 'AITONOMO').upper()
         self.cell(100, 10, sender, ln=False, align='L')
         
-        # Etiqueta FACTURA
+        # Etiqueta FACTURA / PRESUPUESTO
         self.set_font('Helvetica', 'B', 24)
         self.set_text_color(*self.c_accent)
-        self.cell(0, 10, 'FACTURA', ln=True, align='R')
+        title = 'PRESUPUESTO' if self.data.get('is_presupuesto') else 'FACTURA'
+        self.cell(0, 10, title, ln=True, align='R')
         
         # Linea separadora elegante
         self.set_draw_color(*self.c_primary)
@@ -112,7 +113,8 @@ class PremiumInvoicePDF(FPDF):
         self.set_text_color(*self.c_text_muted)
         
         self.set_x(15)
-        self.cell(50, 4, 'NO. FACTURA', ln=False)
+        lbl_num = 'NO. PRESUPUESTO' if self.data.get('is_presupuesto') else 'NO. FACTURA'
+        self.cell(50, 4, lbl_num, ln=False)
         self.set_x(80)
         self.cell(50, 4, 'FECHA DE EMISION', ln=False)
         self.set_x(140)
@@ -244,7 +246,8 @@ class PremiumInvoicePDF(FPDF):
         
         sender_name = self.data.get('sender_name', 'Aitonomo S.L.')
         sender_iban = self.data.get('sender_iban') or 'PENDIENTE DE CONFIGURAR EN PERFIL'
-        self.multi_cell(100, 5, f"Transferencia Bancaria a:\n{sender_name}\nIBAN: {sender_iban}\nRef: Factura #{self.data.get('invoice_number', 'DRAFT')}", align='L')
+        ref_text = 'Presupuesto' if self.data.get('is_presupuesto') else 'Factura'
+        self.multi_cell(100, 5, f"Transferencia Bancaria a:\n{sender_name}\nIBAN: {sender_iban}\nRef: {ref_text} #{self.data.get('invoice_number', 'DRAFT')}", align='L')
         
         self.output(output_path)
 

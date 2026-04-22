@@ -133,6 +133,17 @@ const UI = {
         document.getElementById('btn-remove-file').addEventListener('click', appLogic.clearFile);
         document.getElementById('btn-process-ai').addEventListener('click', appLogic.processDocument);
 
+        
+        // Budgeting Actions
+        const fileInputBudgets = document.getElementById('file-upload-budgets');
+        if(fileInputBudgets) {
+            fileInputBudgets.addEventListener('change', (e) => appLogic.handleFileSelect(e.target.files[0], 'budgets'));
+            document.getElementById('btn-remove-file-budgets').addEventListener('click', () => appLogic.clearFile('budgets'));
+            document.getElementById('btn-process-ai-budgets').addEventListener('click', () => appLogic.processDocument('budgets'));
+            document.getElementById('btn-save-db-budgets').addEventListener('click', () => appLogic.saveExtractedBudget(false));
+            document.getElementById('btn-gen-pdf-budgets').addEventListener('click', appLogic.generateBudgetPDF);
+        }
+
         // Invoice Actions
         document.getElementById('btn-save-db').addEventListener('click', appLogic.saveExtractedInvoice);
         document.getElementById('btn-gen-pdf').addEventListener('click', appLogic.generatePDF);
@@ -690,23 +701,23 @@ const appLogic = {
         select.value = "";
 
         // Render lines and recompute total
-        appLogic.renderExtractedItems();
+        appLogic.renderExtractedItems(document.getElementById('budgeting-view') && !document.getElementById('budgeting-view').classList.contains('hidden') ? '-budgets' : '');
     },
 
-    renderExtractedItems: () => {
-        const tbody = document.querySelector('#ext-items-table tbody');
+    
+    renderExtractedItems: (sfp='') => {
+        const tbody = document.querySelector(`#ext-items-table${sfp} tbody`);
         if (!tbody) return;
         tbody.innerHTML = '';
 
         if (!AppState.extractedData || !AppState.extractedData.items || AppState.extractedData.items.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay líneas detectadas.</td></tr>';
-            document.getElementById('ext-amount').value = '0.00';
+            document.getElementById(`ext-amount${sfp}`).value = '0.00';
             return;
         }
 
         let total = 0;
         AppState.extractedData.items.forEach((item, index) => {
-            // Fallbacks if data structure differs slightly
             const qty = parseFloat(item.cantidad || item.quantity || 1);
             const price = parseFloat(item.precio_unitario || item.unit_price || 0);
             const desc = item.concepto || item.description || 'Artículo';
@@ -720,7 +731,7 @@ const appLogic = {
                     <td style="text-align: right;">${Utils.formatCurrency(price)}</td>
                     <td style="text-align: right; color: var(--clr-accent); font-weight: bold;">${Utils.formatCurrency(lineTotal)}</td>
                     <td style="text-align: center;">
-                        <button type="button" class="btn-icon text-red" onclick="appLogic.removeExtractedItem(${index})" title="Eliminar fila">
+                        <button type="button" class="btn-icon text-red" onclick="appLogic.removeExtractedItem(${index}, '${sfp}')" title="Eliminar fila">
                             <i class="fa-solid fa-trash"></i>
                         </button>
                     </td>
@@ -728,17 +739,159 @@ const appLogic = {
             `;
         });
 
-        // Add VAT to global amount since table is for base lines generally, or assume total is final?
-        // Let's assume lines are base amounts.
         const finalTotal = total * 1.21;
         AppState.extractedData.total_amount = finalTotal;
-        document.getElementById('ext-amount').value = parseFloat(finalTotal).toFixed(2);
+        document.getElementById(`ext-amount${sfp}`).value = parseFloat(finalTotal).toFixed(2);
     },
 
-    removeExtractedItem: (index) => {
+    removeExtractedItem: (index, sfp='') => {
         if (!AppState.extractedData || !AppState.extractedData.items) return;
         AppState.extractedData.items.splice(index, 1);
-        appLogic.renderExtractedItems();
+        appLogic.renderExtractedItems(sfp);
+    },
+    convertBudgetToInvoice: async (budgetId) => {
+        if(!confirm('¿Estás seguro de que quieres convertir este presupuesto a factura? Se creará una nueva factura con los mismos datos y el presupuesto se marcará como Aceptado.')) return;
+        try {
+            const res = await API.request(`/api/presupuestos/${AppState.userId}/${budgetId}/convertir`, { method: 'POST' });
+            if(res.success) {
+                Utils.showToast('Presupuesto convertido a factura con éxito', 'success');
+                appLogic.loadBudgets();
+                appLogic.loadInvoices();
+            }
+        } catch(e) {
+            Utils.showToast('Error al convertir', 'error');
+        }
+    },
+    
+    downloadBudget: (id) => {
+        const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? `/api/generate_pdf/${id}` : `${API_BASE_URL}/api/generate_pdf/${id}`;
+        window.open(finalUrl, '_blank');
+    },
+
+    loadBudgets: async () => {
+        try {
+            const budgets = await API.request(`/api/presupuestos/${AppState.userId}`);
+            const tbody = document.querySelector('#all-budgets-table tbody');
+            tbody.innerHTML = '';
+            budgets.forEach(b => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="text-muted">#${b.codigo_presupuesto || b.id.substring(0,8)}</td>
+                        <td>${Utils.formatDate(b.date)}</td>
+                        <td class="font-bold">${b.client_name}</td>
+                        <td class="font-bold">${Utils.formatCurrency(b.amount)}</td>
+                        <td>
+                            <span class="status-badge" style="padding: 2px 4px; border-radius: 4px; background: transparent; border: 1px solid var(--clr-border); ${b.status === 'Aceptado' ? 'color: var(--clr-success)' : ''}">${b.status}</span>
+                        </td>
+                        <td>
+                            <button class="btn-icon text-accent" onclick="appLogic.editBudget('${b.id}')" title="Editar">
+                                <i class="fa-solid fa-pencil"></i>
+                            </button>
+                            <button class="btn-icon text-success" onclick="appLogic.downloadBudget('${b.id}')" title="Descargar PDF" style="margin-left: 8px;">
+                                <i class="fa-solid fa-file-pdf"></i>
+                            </button>
+                            <button class="btn-icon text-primary" onclick="appLogic.convertBudgetToInvoice('${b.id}')" title="Convertir a Factura" style="margin-left: 8px;">
+                                <i class="fa-solid fa-file-invoice-dollar"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (e) { }
+    },
+    
+    editBudget: async (budgetId) => {
+        try {
+            const data = await API.request(`/api/presupuestos/${AppState.userId}/${budgetId}`);
+            AppState.extractedData = data;
+            
+            // Re-use extracted-form-budgets to edit
+            const select = document.getElementById('ext-client-budgets');
+            select.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
+            const clients = await API.request(`/api/clients/${AppState.userId}`);
+            
+            let matchedId = null;
+            clients.forEach(c => {
+                const isSelected = c.id === data.client_id ? 'selected' : '';
+                if(isSelected) matchedId = c.id;
+                select.innerHTML += `<option value="${c.id}" ${isSelected}>${c.name} (${c.nif_cif})</option>`;
+            });
+            
+            if (matchedId) {
+                AppState.extractedData.client_name = select.options[select.selectedIndex].text;
+            }
+
+            document.getElementById('ext-budget-num').value = data.codigo_presupuesto;
+            document.getElementById('ext-date-budgets').value = data.date ? data.date.split('T')[0] : '';
+            document.getElementById('ext-due-date-budgets').value = data.due_date ? data.due_date.split('T')[0] : '';
+
+            // Guardar budget actual para editar endpoint
+            AppState.editingBudgetId = budgetId;
+            
+            appLogic.renderExtractedItems('-budgets');
+            
+            document.getElementById('extracted-data-placeholder-budgets').classList.add('hidden');
+            document.getElementById('extracted-form-budgets').classList.remove('hidden');
+            Utils.showToast('Presupuesto listo para editar', 'success');
+            
+        } catch(e) {
+            Utils.showToast('Error cargando presupuesto', 'error');
+        }
+    },
+
+    saveExtractedBudget: async (isPdfGeneration = false) => {
+        if (!AppState.extractedData) return null;
+        const data = AppState.extractedData;
+        if (!data.client_id) {
+            Utils.showToast("Por favor seleccione un cliente válido primero", "error");
+            return null;
+        }
+
+        const payload = {
+            user_id: AppState.userId,
+            client_id: data.client_id,
+            fecha: data.date || new Date().toISOString().split('T')[0],
+            due_date: document.getElementById('ext-due-date-budgets').value || "",
+            items: data.items || []
+        };
+
+        const btn = document.getElementById('btn-save-db-budgets');
+        const ogText = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+        try {
+            let res;
+            if (AppState.editingBudgetId) { // PUT request
+                res = await API.request(`/api/presupuestos/${AppState.userId}/${AppState.editingBudgetId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                AppState.editingBudgetId = null;
+            } else {
+                res = await API.request('/api/presupuestos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
+            
+            if (res.success) {
+                Utils.showToast('Presupuesto guardado con éxito.', 'success');
+                appLogic.loadBudgets();
+                
+                if (isPdfGeneration !== true) {
+                    document.getElementById('extracted-form-budgets').classList.add('hidden');
+                    document.getElementById('extracted-data-placeholder-budgets').classList.remove('hidden');
+                    AppState.extractedData = null;
+                }
+                return res;
+            }
+        } catch(e) {
+        } finally {
+            btn.innerHTML = ogText;
+        }
+        return null;
     },
 
     loadInvoices: async () => {
@@ -829,22 +982,24 @@ const appLogic = {
         window.open(finalUrl, '_blank');
     },
 
-    handleFileSelect: (file) => {
+    
+    handleFileSelect: (file, type='invoices') => {
         if (!file) return;
         AppState.activeFile = file;
-        document.getElementById('drop-zone').classList.add('hidden');
-        document.getElementById('file-preview-area').classList.remove('hidden');
-        document.getElementById('preview-filename').textContent = file.name;
+        const sfp = type === 'budgets' ? '-budgets' : '';
+        document.getElementById(`drop-zone${sfp}`).classList.add('hidden');
+        document.getElementById(`file-preview-area${sfp}`).classList.remove('hidden');
+        document.getElementById(`preview-filename${sfp}`).textContent = file.name;
     },
 
-    clearFile: () => {
+    clearFile: (type='invoices') => {
         AppState.activeFile = null;
-        document.getElementById('drop-zone').classList.remove('hidden');
-        document.getElementById('file-preview-area').classList.add('hidden');
-        document.getElementById('file-upload').value = '';
+        const sfp = type === 'budgets' ? '-budgets' : '';
+        document.getElementById(`drop-zone${sfp}`).classList.remove('hidden');
+        document.getElementById(`file-preview-area${sfp}`).classList.add('hidden');
+        document.getElementById(`file-upload${sfp}`).value = '';
     },
-
-    startRecording: async () => {
+startRecording: async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             AppState.mediaRecorder = new MediaRecorder(stream);
@@ -1066,13 +1221,15 @@ const appLogic = {
         }
     },
 
-    processDocument: async () => {
+    
+    processDocument: async (type='invoices') => {
+        const sfp = type === 'budgets' ? '-budgets' : '';
         if (!AppState.activeFile) {
             Utils.showToast('Por favor, explora un archivo o graba audio primero.', 'error');
             return;
         }
 
-        const btn = document.getElementById('btn-process-ai');
+        const btn = document.getElementById(`btn-process-ai${sfp}`);
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analizando...';
         btn.disabled = true;
 
@@ -1088,10 +1245,7 @@ const appLogic = {
 
             AppState.extractedData = data;
 
-            // Populate Form
-
-            // Populate Dropdown for client
-            const select = document.getElementById('ext-client');
+            const select = document.getElementById(`ext-client${sfp}`);
             select.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
             try {
                 const clients = await API.request(`/api/clients/${AppState.userId}`);
@@ -1113,19 +1267,23 @@ const appLogic = {
                 AppState.extractedData.client_name = e.target.options[e.target.selectedIndex].text;
             });
 
-            document.getElementById('ext-invoice-num').value = data.invoice_number || 'BORRADOR / Auto Gen';
-            document.getElementById('ext-date').value = data.date || new Date().toISOString().split('T')[0];
+            if(type === 'budgets') {
+                document.getElementById('ext-budget-num').value = data.invoice_number || 'BORRADOR / Auto Gen';
+            } else {
+                document.getElementById('ext-invoice-num').value = data.invoice_number || 'BORRADOR / Auto Gen';
+            }
+            
+            document.getElementById(`ext-date${sfp}`).value = data.date || new Date().toISOString().split('T')[0];
 
             // Render table lines
-            appLogic.renderExtractedItems();
+            appLogic.renderExtractedItems(sfp);
 
-            // Handle special cases when invoice has total_amount explicitly set by AI from PDF
             if (data.total_amount && (!data.items || data.items.length === 0)) {
-                document.getElementById('ext-amount').value = parseFloat(data.total_amount).toFixed(2);
+                document.getElementById(`ext-amount${sfp}`).value = parseFloat(data.total_amount).toFixed(2);
             }
 
-            document.getElementById('extracted-data-placeholder').classList.add('hidden');
-            document.getElementById('extracted-form').classList.remove('hidden');
+            document.getElementById(`extracted-data-placeholder${sfp}`).classList.add('hidden');
+            document.getElementById(`extracted-form${sfp}`).classList.remove('hidden');
             Utils.showToast('Extracción Completa', 'success');
 
         } finally {
@@ -1133,8 +1291,7 @@ const appLogic = {
             btn.disabled = false;
         }
     },
-
-    saveExtractedInvoice: async (isPdfGeneration = false) => {
+saveExtractedInvoice: async (isPdfGeneration = false) => {
         if (!AppState.extractedData) return null;
         const data = AppState.extractedData;
         if (!data.client_id) {
@@ -1188,6 +1345,21 @@ const appLogic = {
             // Clean UI
             document.getElementById('extracted-form').classList.add('hidden');
             document.getElementById('extracted-data-placeholder').classList.remove('hidden');
+            AppState.extractedData = null;
+        }
+    },
+
+    generateBudgetPDF: async () => {
+        const res = await appLogic.saveExtractedBudget(true);
+        if (res && (res.presupuesto_id || res.id)) {
+            const pId = res.presupuesto_id || res.id;
+            Utils.showToast("Generando Documento PDF...", "info");
+            const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? `/api/generate_pdf/${pId}?type=presupuesto` : `${API_BASE_URL}/api/generate_pdf/${pId}?type=presupuesto`;
+            window.open(finalUrl, '_blank');
+
+            // Clean UI
+            document.getElementById('extracted-form-budgets').classList.add('hidden');
+            document.getElementById('extracted-data-placeholder-budgets').classList.remove('hidden');
             AppState.extractedData = null;
         }
     },
@@ -1358,6 +1530,8 @@ const appState = {
         if (viewId === 'dashboard-view') appLogic.loadDashboard();
         if (viewId === 'crm-view') appLogic.loadCRM();
         if (viewId === 'expenses-view') appLogic.loadExpenses();
+        if (viewId === 'budgeting-view') { appLogic.loadBudgets(); appLogic.loadCatalog(); }
+        if (viewId === 'budgeting-view') { appLogic.loadBudgets(); appLogic.loadCatalog(); }
         if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); }
         if (viewId === 'catalog-view') appLogic.loadCatalog();
         if (viewId === 'calendar-view') appLogic.loadCalendar();

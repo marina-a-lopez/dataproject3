@@ -46,6 +46,7 @@ class Usuario(Base):
     # Relaciones con otras tablas
     clientes = relationship("Cliente", back_populates="usuario")
     facturas = relationship("Factura", back_populates="usuario")
+    presupuestos = relationship("Presupuesto", back_populates="usuario")
     productos = relationship("Producto", back_populates="usuario")
     gastos = relationship("Gasto", back_populates="usuario", cascade="all, delete-orphan")
     eventos_calendario = relationship("CalendarioEvento", back_populates="usuario", cascade="all, delete-orphan")
@@ -89,6 +90,7 @@ class Cliente(Base):
     
     usuario = relationship("Usuario", back_populates="clientes")
     facturas = relationship("Factura", back_populates="cliente")
+    presupuestos = relationship("Presupuesto", back_populates="cliente")
 
 class Producto(Base):
     __tablename__ = "productos"
@@ -134,6 +136,33 @@ class Factura(Base):
     
     usuario = relationship("Usuario", back_populates="facturas")
     cliente = relationship("Cliente", back_populates="facturas")
+
+class Presupuesto(Base):
+    __tablename__ = 'presupuestos'
+    __table_args__ = (
+        UniqueConstraint('usuario_id', 'numero_presupuesto_secuencial', name='_usuario_num_presupuesto_uc'),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
+    cliente_id = Column(UUID(as_uuid=True), ForeignKey('clientes.id'), nullable=False)
+    numero_presupuesto_secuencial = Column(Integer, nullable=False)
+    codigo_presupuesto = Column(String(50), nullable=False) # Ej: P-2024-001
+    fecha_expedicion = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    fecha_vencimiento = Column(DateTime, nullable=True) # Validez del presupuesto
+    total_base = Column(Float, nullable=False)
+    total_impuestos = Column(Float, nullable=False)
+    importe_total = Column(Float, nullable=False)
+    json_lineas = Column(JSONB, nullable=False)
+    url_pdf = Column(String(500), nullable=True)
+    estado = Column(String(20), default='Pendiente') # Pendiente, Aceptado, Rechazado
+    factura_id = Column(UUID(as_uuid=True), ForeignKey('facturas.id'), nullable=True) # ID de la factura si fue convertido
+    
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    usuario = relationship("Usuario", back_populates="presupuestos")
+    cliente = relationship("Cliente", back_populates="presupuestos")
+    factura = relationship("Factura")
 
 class Gasto(Base):
     __tablename__ = 'gastos'
