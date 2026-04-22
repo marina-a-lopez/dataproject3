@@ -199,14 +199,28 @@ const UI = {
         document.getElementById('btn-start-record').addEventListener('click', appLogic.startRecording);
         document.getElementById('btn-stop-record').addEventListener('click', appLogic.stopRecording);
         // Budget Voice Recording
-        document.getElementById('btn-start-record-budgets').addEventListener('click', () => {
-            console.log('Budget start recording clicked');
-            appLogic.startRecording('-budgets');
-        });
-        document.getElementById('btn-stop-record-budgets').addEventListener('click', () => {
-            console.log('Budget stop recording clicked');
-            appLogic.stopRecording('-budgets');
-        });
+        console.log('Adding budget voice listeners');
+        const budgetStartBtn = document.getElementById('btn-start-record-budgets');
+        console.log('btn-start-record-budgets element:', budgetStartBtn);
+        if (budgetStartBtn) {
+            budgetStartBtn.addEventListener('click', () => {
+                console.log('Budget start recording clicked');
+                alert('Budget start clicked'); // Temporary alert for debug
+                appLogic.startRecording('-budgets');
+            });
+        } else {
+            console.error('btn-start-record-budgets not found');
+        }
+        const budgetStopBtn = document.getElementById('btn-stop-record-budgets');
+        console.log('btn-stop-record-budgets element:', budgetStopBtn);
+        if (budgetStopBtn) {
+            budgetStopBtn.addEventListener('click', () => {
+                console.log('Budget stop recording clicked');
+                appLogic.stopRecording('-budgets');
+            });
+        } else {
+            console.error('btn-stop-record-budgets not found');
+        }
 
         // CRM Voice
         const crmStartBtn = document.getElementById('btn-crm-start-record');
@@ -1648,8 +1662,6 @@ const appState = {
         if (viewId === 'crm-view') appLogic.loadCRM();
         if (viewId === 'expenses-view') appLogic.loadExpenses();
 <<<<<<< HEAD
-        if (viewId === 'budgeting-view') { appLogic.loadBudgets(); appLogic.loadCatalog(); }
-=======
         if (viewId === 'budgeting-view') { 
             appLogic.loadBudgets(); 
             appLogic.loadCatalog();
@@ -1674,7 +1686,6 @@ const appState = {
                 }
             });
         }
->>>>>>> db3477b0c4406b72533a031d7827eb7a6309bd37
         if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); }
         if (viewId === 'catalog-view') appLogic.loadCatalog();
         if (viewId === 'calendar-view') appLogic.loadCalendar();
