@@ -150,7 +150,7 @@ const UI = {
 
         // Catalog
         document.getElementById('add-catalog-form').addEventListener('submit', appLogic.addProduct);
-        document.getElementById('btn-add-catalog-item').addEventListener('click', appLogic.addCatalogItemToInvoice);
+        document.getElementById('btn-add-catalog-item').addEventListener('click', () => appLogic.addCatalogItemToInvoice(''));
 
         // Expenses
         const expenseInput = document.getElementById('file-input-expense');
@@ -175,9 +175,6 @@ const UI = {
         // Voice Recording
         document.getElementById('btn-start-record').addEventListener('click', appLogic.startRecording);
         document.getElementById('btn-stop-record').addEventListener('click', appLogic.stopRecording);
-        // Budget Voice Recording
-        document.getElementById('btn-start-record-budgets').addEventListener('click', () => appLogic.startRecording('-budgets'));
-        document.getElementById('btn-stop-record-budgets').addEventListener('click', () => appLogic.stopRecording('-budgets'));
 
         // CRM Voice
         const crmStartBtn = document.getElementById('btn-crm-start-record');
@@ -678,8 +675,8 @@ const appLogic = {
         } catch (e) { }
     },
 
-    addCatalogItemToInvoice: () => {
-        const select = document.getElementById('ext-catalog-select');
+    addCatalogItemToInvoice: (sfp='') => {
+        const select = document.getElementById(`ext-catalog-select${sfp}`);
         const val = select.value;
         if (!val) return;
 
@@ -698,13 +695,13 @@ const appLogic = {
             precio_unitario: parseFloat(itemData.price)
         });
 
-        Utils.showToast(`Añadido ${itemData.desc} a la Factura`, 'success');
+        Utils.showToast(`Añadido ${itemData.desc} al documento`, 'success');
 
         // Reset selector
         select.value = "";
 
         // Render lines and recompute total
-        appLogic.renderExtractedItems(document.getElementById('budgeting-view') && !document.getElementById('budgeting-view').classList.contains('hidden') ? '-budgets' : '');
+        appLogic.renderExtractedItems(sfp);
     },
 
     
@@ -1003,6 +1000,7 @@ const appLogic = {
         document.getElementById(`file-upload${sfp}`).value = '';
     },
 startRecording: async (sfp = '') => {
+        console.log('startRecording called with sfp:', sfp);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             AppState.mediaRecorder = new MediaRecorder(stream);
@@ -1533,8 +1531,34 @@ const appState = {
         if (viewId === 'dashboard-view') appLogic.loadDashboard();
         if (viewId === 'crm-view') appLogic.loadCRM();
         if (viewId === 'expenses-view') appLogic.loadExpenses();
-        if (viewId === 'budgeting-view') { appLogic.loadBudgets(); appLogic.loadCatalog(); }
-        if (viewId === 'budgeting-view') { appLogic.loadBudgets(); appLogic.loadCatalog(); }
+        if (viewId === 'budgeting-view') { 
+            appLogic.loadBudgets(); 
+            appLogic.loadCatalog();
+            // Add budgeting-specific event listeners
+            const startRecordBtn = document.getElementById('btn-start-record-budgets');
+            if (startRecordBtn) startRecordBtn.addEventListener('click', () => appLogic.startRecording('-budgets'));
+            const stopRecordBtn = document.getElementById('btn-stop-record-budgets');
+            if (stopRecordBtn) stopRecordBtn.addEventListener('click', () => appLogic.stopRecording('-budgets'));
+            const fileInput = document.getElementById('file-upload-budgets');
+            if (fileInput) fileInput.addEventListener('change', (e) => appLogic.handleFileSelect(e.target.files[0], 'budgets'));
+            const removeFileBtn = document.getElementById('btn-remove-file-budgets');
+            if (removeFileBtn) removeFileBtn.addEventListener('click', () => appLogic.clearFile('budgets'));
+            const processBtn = document.getElementById('btn-process-ai-budgets');
+            if (processBtn) processBtn.addEventListener('click', () => appLogic.processDocument('budgets'));
+            const saveBtn = document.getElementById('btn-save-db-budgets');
+            if (saveBtn) saveBtn.addEventListener('click', appLogic.saveExtractedBudget);
+            const genPdfBtn = document.getElementById('btn-gen-pdf-budgets');
+            if (genPdfBtn) genPdfBtn.addEventListener('click', appLogic.generateBudgetPDF);
+            const addCatalogBtn = document.getElementById('btn-add-catalog-item-budgets');
+            if (addCatalogBtn) addCatalogBtn.addEventListener('click', () => appLogic.addCatalogItemToInvoice('-budgets'));
+            const clientSelect = document.getElementById('ext-client-budgets');
+            if (clientSelect) clientSelect.addEventListener('change', (e) => {
+                if (AppState.extractedData) {
+                    AppState.extractedData.client_id = e.target.value;
+                    AppState.extractedData.client_name = e.target.options[e.target.selectedIndex].text;
+                }
+            });
+        }
         if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); }
         if (viewId === 'catalog-view') appLogic.loadCatalog();
         if (viewId === 'calendar-view') appLogic.loadCalendar();
