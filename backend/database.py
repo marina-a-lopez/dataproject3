@@ -154,13 +154,16 @@ class Gasto(Base):
 # DB_PATH = "sqlite:///aitonomos.db"
 
 load_dotenv()
-DB_PATH = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aitonomo_db")
+DB_PATH = os.getenv("DATABASE_URL")
 
 try:
-    engine = create_engine(DB_PATH, echo=False)
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    if DB_PATH:
+        engine = create_engine(DB_PATH, echo=False)
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    else:
+        raise ValueError("La variable DATABASE_URL no está definida en el entorno.")
 except Exception as e:
-    print(f"Error al inicializar SQLAlchemy: {e}")
+    print(f"Error al inicializar la base de datos: {e}")
     engine = None
     SessionLocal = None
 

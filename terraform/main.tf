@@ -38,8 +38,8 @@ resource "google_sql_database_instance" "postgres_instance" {
     ip_configuration {
       ipv4_enabled    = true
       authorized_networks {
-        name  = "Mac-Marina"
-        value = "95.120.242.61/32"
+        name  = "Admin-IP"
+        value = var.admin_ip
       }
       # private_network = data.google_compute_network.vpc_aitonomo.id
     }
@@ -131,7 +131,21 @@ resource "google_cloud_run_v2_service" "backend_cloud_run" {
       }
       env {
         name  = "DATABASE_URL"
-        value = "postgresql://admin:${var.postgres_password}@/aitonomo_db?host=/cloudsql/${google_sql_database_instance.postgres_instance.connection_name}"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.database_url.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name  = "GEMINI_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.gemini_api_key.secret_id
+            version = "latest"
+          }
+        }
       }
     }
   }
@@ -181,4 +195,39 @@ output "url_backend" {
 
 output "url_frontend" {
   value = google_cloud_run_v2_service.frontend_cloud_run.uri
+}
+
+# ---------------------------------------------------------
+# 6. GOOGLE SECRET MANAGER (Seguridad de Variables)
+# ---------------------------------------------------------
+
+resource "google_secret_manager_secret" "gemini_api_key" {
+  secret_id = "gemini-api-key"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "gemini_api_key_version" {
+  secret      = google_secret_manager_secret.gemini_api_key.id
+  secret_data = var.gemini_api_key
+}
+
+resource "google_secret_manager_secret" "database_url" {
+  secret_id = "database-url"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "database_url_version" {
+  secret      = google_secret_manager_secret.database_url.id
+  secret_data = "postgresql://admin:${var.postgres_password}@/aitonomo_db?host=/cloudsql/${google_sql_database_instance.postgres_instance.connection_name}"
+}
+
+# Permiso para que Cloud Run pueda desencriptar y leer los secretos
+resource "google_project_iam_member" "secret_accessor" {
+  project = var.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
 }
