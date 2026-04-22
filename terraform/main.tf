@@ -28,7 +28,7 @@ resource "google_sql_database_instance" "postgres_instance" {
   name = "aitonomo-db"
   region = var.region
   database_version = "POSTGRES_17"
-  deletion_protection = false
+  deletion_protection = true
   settings {
     tier = "db-f1-micro"
     availability_type = "ZONAL"

@@ -26,7 +26,7 @@ class Usuario(Base):
     codigo_postal = Column(String(20), nullable=True)
     email = Column(String(150), unique=True, nullable=False)
     telefono = Column(String(20), nullable=False)
-    password_hash = Column(String(128), nullable=False) # Contraseña encriptada
+    password_hash = Column(String(255), nullable=False) # Contraseña encriptada
     cnae = Column(String(10), nullable=True)
     iban = Column(String(50), nullable=True)
     profile_picture = Column(String(255), nullable=True)
