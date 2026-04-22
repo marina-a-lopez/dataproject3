@@ -167,9 +167,13 @@ const UI = {
 
         // Catalog
         document.getElementById('add-catalog-form').addEventListener('submit', appLogic.addProduct);
+<<<<<<< HEAD
         document.getElementById('btn-add-catalog-item').addEventListener('click', appLogic.addCatalogItemToInvoice);
         const budgetCatalogBtn = document.getElementById('btn-add-catalog-item-budgets');
         if (budgetCatalogBtn) budgetCatalogBtn.addEventListener('click', appLogic.addCatalogItemToBudget);
+=======
+        document.getElementById('btn-add-catalog-item').addEventListener('click', () => appLogic.addCatalogItemToInvoice(''));
+>>>>>>> db3477b0c4406b72533a031d7827eb7a6309bd37
 
         // Expenses
         const expenseInput = document.getElementById('file-input-expense');
@@ -703,8 +707,8 @@ const appLogic = {
         } catch (e) { }
     },
 
-    addCatalogItemToInvoice: () => {
-        const select = document.getElementById('ext-catalog-select');
+    addCatalogItemToInvoice: (sfp='') => {
+        const select = document.getElementById(`ext-catalog-select${sfp}`);
         const val = select.value;
         if (!val) return;
 
@@ -723,12 +727,13 @@ const appLogic = {
             precio_unitario: parseFloat(itemData.price)
         });
 
-        Utils.showToast(`Añadido ${itemData.desc} a la Factura`, 'success');
+        Utils.showToast(`Añadido ${itemData.desc} al documento`, 'success');
 
         // Reset selector
         select.value = "";
 
         // Render lines and recompute total
+<<<<<<< HEAD
         appLogic.renderExtractedItems();
     },
 
@@ -753,6 +758,9 @@ const appLogic = {
         Utils.showToast(`Añadido ${itemData.desc} al Presupuesto`, 'success');
         select.value = "";
         appLogic.renderExtractedItems('-budgets');
+=======
+        appLogic.renderExtractedItems(sfp);
+>>>>>>> db3477b0c4406b72533a031d7827eb7a6309bd37
     },
 
     
@@ -815,7 +823,7 @@ const appLogic = {
     },
     
     downloadBudget: (id) => {
-        const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? `/api/generate_pdf/${id}` : `${API_BASE_URL}/api/generate_pdf/${id}`;
+        const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? `/api/generate_pdf/${id}?type=presupuesto` : `${API_BASE_URL}/api/generate_pdf/${id}?type=presupuesto`;
         window.open(finalUrl, '_blank');
     },
 
@@ -1050,7 +1058,8 @@ const appLogic = {
         document.getElementById(`file-preview-area${sfp}`).classList.add('hidden');
         document.getElementById(`file-upload${sfp}`).value = '';
     },
-startRecording: async () => {
+startRecording: async (sfp = '') => {
+        console.log('startRecording called with sfp:', sfp);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             AppState.mediaRecorder = new MediaRecorder(stream);
@@ -1065,13 +1074,13 @@ startRecording: async () => {
             AppState.mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(AppState.audioChunks, { type: 'audio/webm' });
                 const file = new File([audioBlob], "voice_note.webm", { type: "audio/webm" });
-                appLogic.handleFileSelect(file);
+                appLogic.handleFileSelect(file, sfp === '-budgets' ? 'budgets' : 'invoices');
 
                 // Reset UI
-                document.getElementById('btn-start-record').classList.remove('hidden');
-                document.getElementById('btn-stop-record').classList.add('hidden');
-                document.getElementById('recording-status').textContent = 'Audio Capturado. Listo para procesar.';
-                document.getElementById('recording-status').classList.remove('text-red', 'font-bold', 'blink');
+                document.getElementById(`btn-start-record${sfp}`).classList.remove('hidden');
+                document.getElementById(`btn-stop-record${sfp}`).classList.add('hidden');
+                document.getElementById(`recording-status${sfp}`).textContent = 'Audio Capturado. Listo para procesar.';
+                document.getElementById(`recording-status${sfp}`).classList.remove('text-red', 'font-bold', 'blink');
 
                 // Stop tracks to release mic
                 stream.getTracks().forEach(track => track.stop());
@@ -1081,9 +1090,9 @@ startRecording: async () => {
             AppState.isRecording = true;
 
             // Toggle UI
-            document.getElementById('btn-start-record').classList.add('hidden');
-            document.getElementById('btn-stop-record').classList.remove('hidden');
-            const statusBox = document.getElementById('recording-status');
+            document.getElementById(`btn-start-record${sfp}`).classList.add('hidden');
+            document.getElementById(`btn-stop-record${sfp}`).classList.remove('hidden');
+            const statusBox = document.getElementById(`recording-status${sfp}`);
             statusBox.textContent = 'Grabación activa...';
             statusBox.classList.add('text-red', 'font-bold', 'blink');
 
@@ -1092,7 +1101,7 @@ startRecording: async () => {
         }
     },
 
-    stopRecording: () => {
+    stopRecording: (sfp = '') => {
         if (AppState.mediaRecorder && AppState.isRecording) {
             AppState.mediaRecorder.stop();
             AppState.isRecording = false;
@@ -1629,7 +1638,38 @@ const appState = {
         if (viewId === 'dashboard-view') appLogic.loadDashboard();
         if (viewId === 'crm-view') appLogic.loadCRM();
         if (viewId === 'expenses-view') appLogic.loadExpenses();
+<<<<<<< HEAD
         if (viewId === 'budgeting-view') { appLogic.loadBudgets(); appLogic.loadCatalog(); }
+=======
+        if (viewId === 'budgeting-view') { 
+            appLogic.loadBudgets(); 
+            appLogic.loadCatalog();
+            // Add budgeting-specific event listeners
+            const startRecordBtn = document.getElementById('btn-start-record-budgets');
+            if (startRecordBtn) startRecordBtn.addEventListener('click', () => appLogic.startRecording('-budgets'));
+            const stopRecordBtn = document.getElementById('btn-stop-record-budgets');
+            if (stopRecordBtn) stopRecordBtn.addEventListener('click', () => appLogic.stopRecording('-budgets'));
+            const fileInput = document.getElementById('file-upload-budgets');
+            if (fileInput) fileInput.addEventListener('change', (e) => appLogic.handleFileSelect(e.target.files[0], 'budgets'));
+            const removeFileBtn = document.getElementById('btn-remove-file-budgets');
+            if (removeFileBtn) removeFileBtn.addEventListener('click', () => appLogic.clearFile('budgets'));
+            const processBtn = document.getElementById('btn-process-ai-budgets');
+            if (processBtn) processBtn.addEventListener('click', () => appLogic.processDocument('budgets'));
+            const saveBtn = document.getElementById('btn-save-db-budgets');
+            if (saveBtn) saveBtn.addEventListener('click', appLogic.saveExtractedBudget);
+            const genPdfBtn = document.getElementById('btn-gen-pdf-budgets');
+            if (genPdfBtn) genPdfBtn.addEventListener('click', appLogic.generateBudgetPDF);
+            const addCatalogBtn = document.getElementById('btn-add-catalog-item-budgets');
+            if (addCatalogBtn) addCatalogBtn.addEventListener('click', () => appLogic.addCatalogItemToInvoice('-budgets'));
+            const clientSelect = document.getElementById('ext-client-budgets');
+            if (clientSelect) clientSelect.addEventListener('change', (e) => {
+                if (AppState.extractedData) {
+                    AppState.extractedData.client_id = e.target.value;
+                    AppState.extractedData.client_name = e.target.options[e.target.selectedIndex].text;
+                }
+            });
+        }
+>>>>>>> db3477b0c4406b72533a031d7827eb7a6309bd37
         if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); }
         if (viewId === 'catalog-view') appLogic.loadCatalog();
         if (viewId === 'calendar-view') appLogic.loadCalendar();
