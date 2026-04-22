@@ -90,7 +90,11 @@ class PremiumInvoicePDF(FPDF):
         
         # Emisor info
         self.set_xy(x_start, y_addrs)
-        self.multi_cell(90, 5, "Paseo de la Castellana 1, Madrid\nVAT: ES-B12345678\ncontact@aitonomo.com", align='L')
+        sender_addr = self.data.get('sender_address', '')
+        sender_nif = self.data.get('sender_nif', '')
+        sender_email = self.data.get('sender_email', '')
+        emisor_info = f"{sender_addr}\nNIF/CIF: {sender_nif}\n{sender_email}".strip()
+        self.multi_cell(90, 5, emisor_info, align='L')
         y_emisor_end = self.get_y()
         
         # Cliente info
@@ -247,4 +251,3 @@ class PremiumInvoicePDF(FPDF):
         self.multi_cell(100, 5, f"Transferencia Bancaria a:\n{sender_name}\nIBAN: {sender_iban}\nRef: Factura #{self.data.get('invoice_number', 'DRAFT')}", align='L')
         
         self.output(output_path)
-
