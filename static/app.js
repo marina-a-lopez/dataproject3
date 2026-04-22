@@ -175,6 +175,15 @@ const UI = {
         // Voice Recording
         document.getElementById('btn-start-record').addEventListener('click', appLogic.startRecording);
         document.getElementById('btn-stop-record').addEventListener('click', appLogic.stopRecording);
+        // Budget Voice Recording
+        document.getElementById('btn-start-record-budgets').addEventListener('click', () => {
+            console.log('Budget start recording clicked');
+            appLogic.startRecording('-budgets');
+        });
+        document.getElementById('btn-stop-record-budgets').addEventListener('click', () => {
+            console.log('Budget stop recording clicked');
+            appLogic.stopRecording('-budgets');
+        });
 
         // CRM Voice
         const crmStartBtn = document.getElementById('btn-crm-start-record');
@@ -1534,11 +1543,7 @@ const appState = {
         if (viewId === 'budgeting-view') { 
             appLogic.loadBudgets(); 
             appLogic.loadCatalog();
-            // Add budgeting-specific event listeners
-            const startRecordBtn = document.getElementById('btn-start-record-budgets');
-            if (startRecordBtn) startRecordBtn.addEventListener('click', () => appLogic.startRecording('-budgets'));
-            const stopRecordBtn = document.getElementById('btn-stop-record-budgets');
-            if (stopRecordBtn) stopRecordBtn.addEventListener('click', () => appLogic.stopRecording('-budgets'));
+            // Add budgeting-specific event listeners (excluding voice recording which is in init)
             const fileInput = document.getElementById('file-upload-budgets');
             if (fileInput) fileInput.addEventListener('change', (e) => appLogic.handleFileSelect(e.target.files[0], 'budgets'));
             const removeFileBtn = document.getElementById('btn-remove-file-budgets');
