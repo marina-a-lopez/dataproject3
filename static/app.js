@@ -134,8 +134,19 @@ const UI = {
         document.getElementById('btn-process-ai').addEventListener('click', appLogic.processDocument);
 
         
-        // Budgeting Actions
+        // Budgeting Upload Area (mirrors invoicing)
         const fileInputBudgets = document.getElementById('file-upload-budgets');
+        const budgetDropZone = document.getElementById('drop-zone-budgets');
+        if (budgetDropZone) {
+            budgetDropZone.addEventListener('click', (e) => { if (e.target !== fileInputBudgets && !e.target.closest('button') && !e.target.closest('label')) fileInputBudgets.click(); });
+            budgetDropZone.addEventListener('dragover', (e) => { e.preventDefault(); budgetDropZone.classList.add('dragover'); });
+            budgetDropZone.addEventListener('dragleave', () => budgetDropZone.classList.remove('dragover'));
+            budgetDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                budgetDropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) appLogic.handleFileSelect(e.dataTransfer.files[0], 'budgets');
+            });
+        }
         if(fileInputBudgets) {
             fileInputBudgets.addEventListener('change', (e) => appLogic.handleFileSelect(e.target.files[0], 'budgets'));
             document.getElementById('btn-remove-file-budgets').addEventListener('click', () => appLogic.clearFile('budgets'));
@@ -144,6 +155,12 @@ const UI = {
             document.getElementById('btn-gen-pdf-budgets').addEventListener('click', appLogic.generateBudgetPDF);
         }
 
+        // Budget Voice Recording
+        const budgetStartBtn = document.getElementById('btn-start-record-budgets');
+        if (budgetStartBtn) budgetStartBtn.addEventListener('click', appLogic.startBudgetRecording);
+        const budgetStopBtn = document.getElementById('btn-stop-record-budgets');
+        if (budgetStopBtn) budgetStopBtn.addEventListener('click', appLogic.stopBudgetRecording);
+
         // Invoice Actions
         document.getElementById('btn-save-db').addEventListener('click', appLogic.saveExtractedInvoice);
         document.getElementById('btn-gen-pdf').addEventListener('click', appLogic.generatePDF);
@@ -151,6 +168,8 @@ const UI = {
         // Catalog
         document.getElementById('add-catalog-form').addEventListener('submit', appLogic.addProduct);
         document.getElementById('btn-add-catalog-item').addEventListener('click', appLogic.addCatalogItemToInvoice);
+        const budgetCatalogBtn = document.getElementById('btn-add-catalog-item-budgets');
+        if (budgetCatalogBtn) budgetCatalogBtn.addEventListener('click', appLogic.addCatalogItemToBudget);
 
         // Expenses
         const expenseInput = document.getElementById('file-input-expense');
@@ -600,6 +619,15 @@ const appLogic = {
                 select.innerHTML += `<option value='${JSON.stringify({ desc: p.nombre, price: p.precio_unitario })}'>${p.nombre} - ${Utils.formatCurrency(p.precio_unitario)}</option>`;
             });
 
+            // Populate Budget Extractor Selector
+            const selectBudgets = document.getElementById('ext-catalog-select-budgets');
+            if (selectBudgets) {
+                selectBudgets.innerHTML = '<option value="">Selecciona un producto/servicio...</option>';
+                products.forEach(p => {
+                    selectBudgets.innerHTML += `<option value='${JSON.stringify({ desc: p.nombre, price: p.precio_unitario })}'>${p.nombre} - ${Utils.formatCurrency(p.precio_unitario)}</option>`;
+                });
+            }
+
         } catch (e) {
             console.error("Error loading catalog:", e);
         }
@@ -701,7 +729,30 @@ const appLogic = {
         select.value = "";
 
         // Render lines and recompute total
-        appLogic.renderExtractedItems(document.getElementById('budgeting-view') && !document.getElementById('budgeting-view').classList.contains('hidden') ? '-budgets' : '');
+        appLogic.renderExtractedItems();
+    },
+
+    addCatalogItemToBudget: () => {
+        const select = document.getElementById('ext-catalog-select-budgets');
+        const val = select.value;
+        if (!val) return;
+
+        const itemData = JSON.parse(val);
+
+        if (!AppState.extractedData) {
+            AppState.extractedData = { items: [] };
+        }
+        if (!AppState.extractedData.items) AppState.extractedData.items = [];
+
+        AppState.extractedData.items.push({
+            concepto: itemData.desc,
+            cantidad: 1,
+            precio_unitario: parseFloat(itemData.price)
+        });
+
+        Utils.showToast(`Añadido ${itemData.desc} al Presupuesto`, 'success');
+        select.value = "";
+        appLogic.renderExtractedItems('-budgets');
     },
 
     
@@ -1045,6 +1096,54 @@ startRecording: async () => {
         if (AppState.mediaRecorder && AppState.isRecording) {
             AppState.mediaRecorder.stop();
             AppState.isRecording = false;
+        }
+    },
+
+    startBudgetRecording: async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            AppState.budgetMediaRecorder = new MediaRecorder(stream);
+            AppState.budgetAudioChunks = [];
+
+            AppState.budgetMediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    AppState.budgetAudioChunks.push(event.data);
+                }
+            };
+
+            AppState.budgetMediaRecorder.onstop = () => {
+                const audioBlob = new Blob(AppState.budgetAudioChunks, { type: 'audio/webm' });
+                const file = new File([audioBlob], "budget_voice_note.webm", { type: "audio/webm" });
+                appLogic.handleFileSelect(file, 'budgets');
+
+                // Reset UI
+                document.getElementById('btn-start-record-budgets').classList.remove('hidden');
+                document.getElementById('btn-stop-record-budgets').classList.add('hidden');
+                document.getElementById('recording-status-budgets').textContent = 'Audio Capturado. Listo para procesar.';
+                document.getElementById('recording-status-budgets').classList.remove('text-red', 'font-bold', 'blink');
+
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            AppState.budgetMediaRecorder.start();
+            AppState.isBudgetRecording = true;
+
+            // Toggle UI
+            document.getElementById('btn-start-record-budgets').classList.add('hidden');
+            document.getElementById('btn-stop-record-budgets').classList.remove('hidden');
+            const statusBox = document.getElementById('recording-status-budgets');
+            statusBox.textContent = 'Grabación activa...';
+            statusBox.classList.add('text-red', 'font-bold', 'blink');
+
+        } catch (err) {
+            Utils.showToast('Acceso al micrófono denegado o no disponible.', 'error');
+        }
+    },
+
+    stopBudgetRecording: () => {
+        if (AppState.budgetMediaRecorder && AppState.isBudgetRecording) {
+            AppState.budgetMediaRecorder.stop();
+            AppState.isBudgetRecording = false;
         }
     },
 
@@ -1530,7 +1629,6 @@ const appState = {
         if (viewId === 'dashboard-view') appLogic.loadDashboard();
         if (viewId === 'crm-view') appLogic.loadCRM();
         if (viewId === 'expenses-view') appLogic.loadExpenses();
-        if (viewId === 'budgeting-view') { appLogic.loadBudgets(); appLogic.loadCatalog(); }
         if (viewId === 'budgeting-view') { appLogic.loadBudgets(); appLogic.loadCatalog(); }
         if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); }
         if (viewId === 'catalog-view') appLogic.loadCatalog();
