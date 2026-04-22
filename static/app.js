@@ -175,6 +175,9 @@ const UI = {
         // Voice Recording
         document.getElementById('btn-start-record').addEventListener('click', appLogic.startRecording);
         document.getElementById('btn-stop-record').addEventListener('click', appLogic.stopRecording);
+        // Budget Voice Recording
+        document.getElementById('btn-start-record-budgets').addEventListener('click', () => appLogic.startRecording('-budgets'));
+        document.getElementById('btn-stop-record-budgets').addEventListener('click', () => appLogic.stopRecording('-budgets'));
 
         // CRM Voice
         const crmStartBtn = document.getElementById('btn-crm-start-record');
@@ -764,7 +767,7 @@ const appLogic = {
     },
     
     downloadBudget: (id) => {
-        const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? `/api/generate_pdf/${id}` : `${API_BASE_URL}/api/generate_pdf/${id}`;
+        const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? `/api/generate_pdf/${id}?type=presupuesto` : `${API_BASE_URL}/api/generate_pdf/${id}?type=presupuesto`;
         window.open(finalUrl, '_blank');
     },
 
@@ -999,7 +1002,7 @@ const appLogic = {
         document.getElementById(`file-preview-area${sfp}`).classList.add('hidden');
         document.getElementById(`file-upload${sfp}`).value = '';
     },
-startRecording: async () => {
+startRecording: async (sfp = '') => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             AppState.mediaRecorder = new MediaRecorder(stream);
@@ -1014,13 +1017,13 @@ startRecording: async () => {
             AppState.mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(AppState.audioChunks, { type: 'audio/webm' });
                 const file = new File([audioBlob], "voice_note.webm", { type: "audio/webm" });
-                appLogic.handleFileSelect(file);
+                appLogic.handleFileSelect(file, sfp === '-budgets' ? 'budgets' : 'invoices');
 
                 // Reset UI
-                document.getElementById('btn-start-record').classList.remove('hidden');
-                document.getElementById('btn-stop-record').classList.add('hidden');
-                document.getElementById('recording-status').textContent = 'Audio Capturado. Listo para procesar.';
-                document.getElementById('recording-status').classList.remove('text-red', 'font-bold', 'blink');
+                document.getElementById(`btn-start-record${sfp}`).classList.remove('hidden');
+                document.getElementById(`btn-stop-record${sfp}`).classList.add('hidden');
+                document.getElementById(`recording-status${sfp}`).textContent = 'Audio Capturado. Listo para procesar.';
+                document.getElementById(`recording-status${sfp}`).classList.remove('text-red', 'font-bold', 'blink');
 
                 // Stop tracks to release mic
                 stream.getTracks().forEach(track => track.stop());
@@ -1030,9 +1033,9 @@ startRecording: async () => {
             AppState.isRecording = true;
 
             // Toggle UI
-            document.getElementById('btn-start-record').classList.add('hidden');
-            document.getElementById('btn-stop-record').classList.remove('hidden');
-            const statusBox = document.getElementById('recording-status');
+            document.getElementById(`btn-start-record${sfp}`).classList.add('hidden');
+            document.getElementById(`btn-stop-record${sfp}`).classList.remove('hidden');
+            const statusBox = document.getElementById(`recording-status${sfp}`);
             statusBox.textContent = 'Grabación activa...';
             statusBox.classList.add('text-red', 'font-bold', 'blink');
 
@@ -1041,7 +1044,7 @@ startRecording: async () => {
         }
     },
 
-    stopRecording: () => {
+    stopRecording: (sfp = '') => {
         if (AppState.mediaRecorder && AppState.isRecording) {
             AppState.mediaRecorder.stop();
             AppState.isRecording = false;
