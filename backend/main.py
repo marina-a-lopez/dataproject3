@@ -1066,6 +1066,23 @@ async def get_profile(user_id: str, db: Session = Depends(get_db)):
         }
     }
 
+@app.get("/api/avatars/{filename}")
+async def get_avatar(filename: str):
+    try:
+        avatar_bytes = sm.download_file(f"avatars/{filename}")
+        if not avatar_bytes:
+            raise HTTPException(status_code=404, detail="Avatar no encontrado")
+        
+        ext = os.path.splitext(filename)[1].lower()
+        media_type = "image/jpeg"
+        if ext == ".png": media_type = "image/png"
+        elif ext in [".webp", ".gif"]: media_type = f"image/{ext[1:]}"
+            
+        from fastapi import Response
+        return Response(content=avatar_bytes, media_type=media_type)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.put("/api/profile/{user_id}/irpf")
 async def update_irpf_rate(user_id: str, req: IRPFUpdateRequest, db: Session = Depends(get_db)):
     user = get_user_by_id(db, user_id)
@@ -1120,8 +1137,8 @@ async def update_profile(
         contenido = await avatar.read()
         url_nube = sm.upload_file(contenido, f"avatars/{filename}")
         
-        # Guardamos el link de internet en la Base de Datos
-        user.profile_picture = url_nube
+        # Guardamos un path relativo hacia nuestro nuevo endpoint puente
+        user.profile_picture = f"/api/avatars/{filename}"
         
     db.commit()
     return {"success": True, "message": "Perfil actualizado", "profile_picture": user.profile_picture, "nombre": user.nombre}
