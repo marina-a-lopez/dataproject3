@@ -575,7 +575,10 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
         "items": mapped_items,
         "total_amount": factura.total_base,
         "sender_name": f"{user.nombre} {user.apellidos}",
-        "sender_iban": user.iban
+        "sender_iban": user.iban,
+        "sender_nif": user.nif_cif,
+        "sender_email": user.email,
+        "sender_address": f"{user.domicilio_fiscal or ''}\n{user.codigo_postal or ''} {user.poblacion or ''} {user.provincia or ''}".strip()
     }
     
     # 2. Creamos un archivo temporal
@@ -873,7 +876,10 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
             "items": mapped_items,
             "total_amount": float(factura.total_base),
             "sender_name": f"{usuario.nombre} {usuario.apellidos}",
-            "sender_iban": usuario.iban
+            "sender_iban": usuario.iban,
+            "sender_nif": usuario.nif_cif,
+            "sender_email": usuario.email,
+            "sender_address": f"{usuario.domicilio_fiscal or ''}\n{usuario.codigo_postal or ''} {usuario.poblacion or ''} {usuario.provincia or ''}".strip()
         }
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -923,7 +929,10 @@ async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depend
             "items": mapped_items,
             "total_amount": float(factura.total_base),
             "sender_name": f"{user.nombre} {user.apellidos}",
-            "sender_iban": user.iban
+            "sender_iban": user.iban,
+            "sender_nif": user.nif_cif,
+            "sender_email": user.email,
+            "sender_address": f"{user.domicilio_fiscal or ''}\n{user.codigo_postal or ''} {user.poblacion or ''} {user.provincia or ''}".strip()
         }
             
         
