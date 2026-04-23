@@ -328,6 +328,8 @@
                             Clientes</a></li>
                     <li><a href="#" class="nav-item" data-view="catalog-view"><i class="fa-solid fa-box-open"></i>
                             Productos y Servicios</a></li>
+                    <li><a href="#" class="nav-item" data-view="quotes-view"><i class="fa-solid fa-file-contract"></i>
+                            Presupuestos</a></li>
                     <li><a href="#" class="nav-item" data-view="invoicing-view"><i
                                 class="fa-solid fa-file-invoice-dollar"></i> Facturación Inteligente</a></li>
                     <li><a href="#" class="nav-item" data-view="expenses-view"><i class="fa-solid fa-receipt"></i>
@@ -470,6 +472,21 @@
                                     <p class="text-muted text-sm" style="margin-top: 5px;">Impulsado por IA Gemini</p>
                                 </div>
 
+                                <div class="upload-zone-wrapper mb-3"
+                                    style="background: rgba(212, 175, 55, 0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(212, 175, 55, 0.3);">
+                                    <label class="text-accent"
+                                        style="font-weight: 600; display:block; margin-bottom: 8px;">
+                                        <i class="fa-solid fa-file-export"></i> Opcional: Generar desde Presupuesto
+                                    </label>
+                                    <div style="display: flex; gap: 10px;">
+                                        <select id="import-quote-select" class="w-100"
+                                            style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                            <option value="">Selecciona un presupuesto aprobado...</option>
+                                        </select>
+                                        <button type="button" class="btn btn-gold" id="btn-import-quote">Cargar</button>
+                                    </div>
+                                </div>
+
                                 <div class="upload-zone" id="drop-zone">
                                     <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
                                     <h4>Acciones</h4>
@@ -590,7 +607,7 @@
 
                                     <div class="action-buttons mt-4 grid-2-col gap-2">
                                         <button class="btn btn-primary hover-animate" id="btn-save-db"><i
-                                                class="fa-solid fa-database"></i> Guardar en BD</button>
+                                                class="fa-solid fa-database"></i> Guardar</button>
                                         <button class="btn btn-gold hover-animate" id="btn-gen-pdf"><i
                                                 class="fa-solid fa-file-pdf"></i> Generar PDF Premium</button>
                                     </div>
@@ -604,6 +621,170 @@
                             </div>
                             <div class="table-responsive">
                                 <table class="corporate-table" id="all-invoices-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Fecha</th>
+                                            <th>Cliente</th>
+                                            <th>Importe</th>
+                                            <th>Estado</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Quotes View -->
+                    <main id="quotes-view" class="view hidden fade-in">
+                        <div class="grid-2-col">
+                            <!-- Upload / Process Panel -->
+                            <div class="section-block box-shadow flex-col">
+                                <div class="section-header">
+                                    <h3>Generador Inteligente de Presupuestos</h3>
+                                    <p class="text-muted text-sm" style="margin-top: 5px;">Impulsado por IA Gemini</p>
+                                </div>
+
+                                <div class="upload-zone" id="drop-zone-quote">
+                                    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                                    <h4>Acciones</h4>
+
+                                    <div class="audio-controls mt-2 mb-2"
+                                        style="display: flex; gap: 10px; justify-content: center;">
+                                        <button id="btn-start-record-quote" class="btn btn-outline hover-animate"
+                                            style="color:red; border-color:red;">
+                                            <i class="fa-solid fa-microphone"></i> Grabar Voz
+                                        </button>
+                                        <button id="btn-stop-record-quote"
+                                            class="btn btn-danger-icon hover-animate hidden text-white"
+                                            style="background:red;">
+                                            <i class="fa-solid fa-square"></i> Detener Grabación
+                                        </button>
+                                    </div>
+                                    <p class="text-muted text-sm" id="recording-status-quote">O sube un archivo
+                                        directamente
+                                    </p>
+                                    <div class="divider"
+                                        style="margin: 10px 0; width:100%; border-bottom: 1px solid #eee;"></div>
+
+                                    <input type="file" id="file-upload-quote" class="hidden"
+                                        accept="image/*,application/pdf,audio/*,video/mp4">
+                                    <label for="file-upload-quote" class="btn btn-primary hover-animate">Explorar
+                                        Archivos</label>
+                                    <p class="upload-formats">PDF, JPG, PNG, MP3, WAV, WebM</p>
+                                </div>
+
+                                <div class="file-preview-area hidden" id="file-preview-area-quote">
+                                    <div class="file-info">
+                                        <i class="fa-solid fa-file-lines text-primary"></i>
+                                        <span id="preview-filename-quote">document.pdf</span>
+                                        <button class="btn-icon" id="btn-remove-file-quote"><i
+                                                class="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                    <button class="btn btn-primary w-100 hover-animate mt-3" id="btn-process-ai-quote">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Procesar con IA
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Extracted Data Panel -->
+                            <div class="section-block box-shadow flex-col">
+                                <div class="section-header">
+                                    <h3>Datos Extraídos</h3>
+                                </div>
+                                <div id="extracted-data-placeholder-quote" class="empty-state">
+                                    <i class="fa-solid fa-clipboard-list text-muted"></i>
+                                    <p>Procesa un documento para ver los datos</p>
+                                </div>
+                                <div class="extracted-form hidden" id="extracted-form-quote">
+                                    <div class="input-group">
+                                        <label>Cliente</label>
+                                        <select id="ext-client-quote" class="w-100"
+                                            style="padding: 0.625rem 0.875rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm); font-family: var(--font-body);"></select>
+                                    </div>
+                                    <div class="input-group mt-2 mb-3"
+                                        style="background: rgba(212, 175, 55, 0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(212, 175, 55, 0.3);">
+                                        <label class="text-accent" style="font-weight: 600;"><i
+                                                class="fa-solid fa-box-open"></i> Añadir Rápido desde Catálogo</label>
+                                        <div style="display: flex; gap: 10px; margin-top: 5px;">
+                                            <select id="ext-catalog-select-quote" class="w-100"
+                                                style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                                <option value="">Selecciona un producto/servicio...</option>
+                                            </select>
+                                            <button type="button" class="btn btn-secondary"
+                                                id="btn-add-catalog-item-quote">Añadir</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Table for detecting invoice lines -->
+                                    <div class="extracted-items-section mt-3 mb-3">
+                                        <label class="text-accent"
+                                            style="font-weight: 600; margin-bottom: 5px; display: block;"><i
+                                                class="fa-solid fa-list-check"></i> Líneas Detectadas</label>
+                                        <div class="table-responsive"
+                                            style="max-height: 250px; overflow-y: auto; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                            <table class="corporate-table" id="ext-items-table-quote"
+                                                style="margin: 0; font-size: 0.9rem;">
+                                                <thead
+                                                    style="position: sticky; top: 0; background: var(--clr-surface);">
+                                                    <tr>
+                                                        <th style="padding: 8px;">Concepto</th>
+                                                        <th style="padding: 8px; text-align: center;">Cant.</th>
+                                                        <th style="padding: 8px; text-align: right;">Precio Unit.</th>
+                                                        <th style="padding: 8px; text-align: right;">Total</th>
+                                                        <th style="padding: 8px; width: 40px;"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Filled via JS -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid-2-col gap-2">
+                                        <div class="input-group">
+                                            <label>Nº de Presupuesto</label>
+                                            <input type="text" id="ext-quote-num" readonly>
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Fecha</label>
+                                            <input type="text" id="ext-date-quote" readonly>
+                                        </div>
+                                    </div>
+                                    <div class="grid-2-col gap-2 mt-3">
+                                        <div class="input-group">
+                                            <label>Importe Total (€)</label>
+                                            <input type="text" id="ext-amount-quote" readonly
+                                                class="font-bold text-accent">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Fecha Venc. (Opcional)</label>
+                                            <input type="date" id="ext-due-date-quote" class="w-100"
+                                                style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                        </div>
+                                    </div>
+
+                                    <div class="action-buttons mt-4 grid-2-col gap-2">
+                                        <button class="btn btn-primary hover-animate" id="btn-save-db-quote"><i
+                                                class="fa-solid fa-database"></i> Guardar</button>
+                                        <button class="btn btn-gold hover-animate" id="btn-gen-pdf-quote"><i
+                                                class="fa-solid fa-file-pdf"></i> Generar Presupuesto Premium</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section-block box-shadow mt-4">
+                            <div class="section-header">
+                                <h3>Registro de Presupuestos</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="corporate-table" id="all-quotes-table">
                                     <thead>
                                         <tr>
                                             <th>ID</th>

@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Importaciones locales
-from database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
+from database import get_db, init_db, Usuario, Cliente, Factura, Presupuesto, Producto, Gasto, CalendarioEvento
 from voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
 import processor as proc
@@ -104,6 +104,16 @@ class ExpenseCreate(BaseModel):
 class InvoiceStatusUpdate(BaseModel):
     status: str
 
+class QuoteCreate(BaseModel):
+    user_id: str
+    client_id: str
+    fecha: str
+    fecha_validez: Optional[str] = None
+    items: list
+
+class QuoteStatusUpdate(BaseModel):
+    status: str
+
 class ProductCreate(BaseModel):
     user_id: str
     nombre: str
@@ -167,10 +177,23 @@ def get_user_by_id(db: Session, user_id: str):
 
 @app.post("/api/login")
 async def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = get_user_by_dni(db, req.dni)
-    if user and check_password_hash(user.password_hash, req.password):
-        return {"success": True, "user_id": str(user.id), "dni": user.nif_cif}
-    raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    print(f"DEBUG LOGIN - Given DNI: '{req.dni}', Given Pass: '{req.password}'")
+    try:
+        user = get_user_by_dni(db, req.dni)
+        print(f"DEBUG LOGIN - User found in DB: {user is not None}")
+        if user:
+            pwd_check = check_password_hash(user.password_hash, req.password)
+            print(f"DEBUG LOGIN - Password match: {pwd_check}")
+            if pwd_check:
+                return {"success": True, "user_id": str(user.id), "dni": user.nif_cif}
+        
+        print("DEBUG LOGIN - Returning 401 Unauthorized")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"DEBUG LOGIN - Exception: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error interno durante el login: {str(e)}")
 
 @app.post("/api/register")
 async def register(req: RegisterRequest, db: Session = Depends(get_db)):
@@ -518,7 +541,10 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
         
     # Obtiene el número secuencial de la última factura
     last_invoice = db.query(Factura).filter(Factura.usuario_id == req.user_id).order_by(Factura.numero_factura_secuencial.desc()).first()
-    seq_num = (last_invoice.numero_factura_secuencial + 1) if last_invoice else 1
+    if last_invoice and last_invoice.numero_factura_secuencial is not None:
+        seq_num = last_invoice.numero_factura_secuencial + 1
+    else:
+        seq_num = 1
     
     # Calcula los totales
     total_base = 0.0
@@ -578,7 +604,9 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
         "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
         "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
         "client_name": client.nombre_empresa if client else "Cliente Registrado",
-        "client_address": client.direccion_fiscal if client else "",
+        "client_address": f"{client.direccion_fiscal or ''}\n{client.codigo_postal or ''} {client.poblacion or ''}".strip() if client else "",
+        "client_nif": client.nif_cif if client else "",
+        "client_contact": f"Email: {client.email or '-'}\nTel: {client.telefono or '-'}" if client else "",
         "items": mapped_items,
         "total_amount": factura.total_base,
         "sender_name": f"{user.nombre} {user.apellidos}",
@@ -678,6 +706,190 @@ async def update_invoice_status(user_id: str, invoice_id: str, req: InvoiceStatu
     factura.estado_verifactu = req.status
     db.commit()
     return {"success": True, "message": "Estado actualizado"}
+
+# Presupuestos
+@app.get("/api/quotes/{user_id}")
+async def get_quotes(user_id: str, db: Session = Depends(get_db)):
+    quotes = db.query(Presupuesto).filter(Presupuesto.usuario_id == user_id).all()
+    res = []
+    for f in quotes:
+        client = db.query(Cliente).filter(Cliente.id == f.cliente_id).first()
+        res.append({
+            "id": str(f.id),
+            "quote_number": f.codigo_presupuesto,
+            "date": f.fecha_expedicion.isoformat(),
+            "client_name": client.nombre_empresa if client else "Desconocido",
+            "client_id": str(client.id) if client else None,
+            "client_nif": client.nif_cif if client else None,
+            "items": f.json_lineas,
+            "amount": f.importe_total,
+            "status": f.estado
+        })
+    return list(reversed(res))
+
+@app.post("/api/quotes")
+async def save_quote(req: QuoteCreate, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, req.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    last_quote = db.query(Presupuesto).filter(Presupuesto.usuario_id == req.user_id).order_by(Presupuesto.numero_presupuesto_secuencial.desc()).first()
+    seq_num = (last_quote.numero_presupuesto_secuencial + 1) if last_quote else 1
+    
+    total_base = 0.0
+    for item in req.items:
+        total_base += float(item.get('cantidad', 1)) * float(item.get('precio_unitario', 0))
+    total_impuestos = total_base * 0.21
+    importe_total = total_base + total_impuestos
+    
+    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%Y-%m-%d")
+    fecha_ven_obj = None
+    if req.fecha_validez:
+        fecha_ven_obj = datetime.fromisoformat(req.fecha_validez) if 'T' in req.fecha_validez else datetime.strptime(req.fecha_validez, "%Y-%m-%d")
+
+    presupuesto = Presupuesto(
+        usuario_id=req.user_id,
+        cliente_id=req.client_id,
+        numero_presupuesto_secuencial=seq_num,
+        codigo_presupuesto=f"P-{fecha_exp.year}-{seq_num:03d}",
+        fecha_expedicion=fecha_exp,
+        fecha_validez=fecha_ven_obj,
+        total_base=total_base,
+        total_impuestos=total_impuestos,
+        importe_total=importe_total,
+        json_lineas=req.items,
+        estado='Enviado'
+    )
+    
+    db.add(presupuesto)
+    db.commit()
+    db.refresh(presupuesto)
+
+    client = db.query(Cliente).filter(Cliente.id == req.client_id).first()
+    mapped_items = []
+    for item in req.items:
+        qty = float(item.get('cantidad', 1))
+        price = float(item.get('precio_unitario', 0))
+        mapped_items.append({
+            "description": item.get('concepto', 'Articulo'),
+            "quantity": qty,
+            "unit_price": price,
+            "total": qty * price
+        })
+        
+    doc_data = {
+        "invoice_number": presupuesto.codigo_presupuesto.split('-')[-1],
+        "date": presupuesto.fecha_expedicion.strftime("%Y-%m-%d"),
+        "due_date": presupuesto.fecha_validez.strftime("%Y-%m-%d") if presupuesto.fecha_validez else None,
+        "client_name": client.nombre_empresa if client else "Cliente Registrado",
+        "client_address": f"{client.direccion_fiscal or ''}\n{client.codigo_postal or ''} {client.poblacion or ''}".strip() if client else "",
+        "client_nif": client.nif_cif if client else "",
+        "client_contact": f"Email: {client.email or '-'}\nTel: {client.telefono or '-'}" if client else "",
+        "items": mapped_items,
+        "total_amount": presupuesto.total_base,
+        "sender_name": f"{user.nombre} {user.apellidos}",
+        "sender_iban": user.iban,
+        "sender_nif": user.nif_cif,
+        "sender_email": user.email,
+        "sender_address": f"{user.domicilio_fiscal or ''}\n{user.codigo_postal or ''} {user.poblacion or ''} {user.provincia or ''}".strip()
+    }
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp_path = tmp.name
+        
+    pdf = PremiumInvoicePDF(doc_data, doc_type="PRESUPUESTO")
+    pdf.generate(tmp_path)
+    
+    with open(tmp_path, "rb") as f:
+        pdf_bytes = f.read()
+        
+    url_nube = sm.upload_file(pdf_bytes, f"quotes/{presupuesto.codigo_presupuesto}.pdf")
+    presupuesto.url_pdf = url_nube
+    db.commit()
+    os.remove(tmp_path)
+
+    return {"success": True, "message": "Presupuesto guardado", "quote_id": str(presupuesto.id)}
+
+@app.delete("/api/quotes/{user_id}/{quote_id}")
+async def delete_quote(user_id: str, quote_id: str, db: Session = Depends(get_db)):
+    presupuesto = db.query(Presupuesto).filter(Presupuesto.id == quote_id, Presupuesto.usuario_id == user_id).first()
+    if not presupuesto:
+        raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+    db.delete(presupuesto)
+    db.commit()
+    return {"success": True, "message": "Presupuesto eliminado"}
+
+@app.patch("/api/quotes/{user_id}/{quote_id}/status")
+async def update_quote_status(user_id: str, quote_id: str, req: QuoteStatusUpdate, db: Session = Depends(get_db)):
+    presupuesto = db.query(Presupuesto).filter(Presupuesto.id == quote_id, Presupuesto.usuario_id == user_id).first()
+    if not presupuesto:
+        raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+    presupuesto.estado = req.status
+    db.commit()
+    return {"success": True, "message": "Estado actualizado"}
+
+@app.get("/api/generate_pdf_quote/{quote_id}")
+async def fetch_and_generate_pdf_quote(quote_id: str, db: Session = Depends(get_db)):
+    try:
+        presupuesto = db.query(Presupuesto).filter(Presupuesto.id == quote_id).first()
+        if not presupuesto:
+             raise HTTPException(status_code=404, detail="Presupuesto no encontrado")
+        
+        if presupuesto.url_pdf:
+            blob_name = f"quotes/{presupuesto.codigo_presupuesto}.pdf"
+            pdf_bytes = sm.download_file(blob_name)
+            if pdf_bytes:
+                from fastapi import Response
+                return Response(
+                    content=pdf_bytes, 
+                    media_type="application/pdf", 
+                    headers={"Content-Disposition": f"attachment; filename={presupuesto.codigo_presupuesto}.pdf"}
+                )
+
+        usuario = db.query(Usuario).filter(Usuario.id == presupuesto.usuario_id).first()
+        cliente = db.query(Cliente).filter(Cliente.id == presupuesto.cliente_id).first()
+        
+        mapped_items = []
+        for line in presupuesto.json_lineas:
+            qty = float(line.get('cantidad', 1))
+            price = float(line.get('precio_unitario', 0))
+            mapped_items.append({
+                "description": line.get('concepto', 'Item'),
+                "quantity": qty,
+                "unit_price": price,
+                "total": qty * price
+            })
+            
+        doc_data = {
+            "invoice_number": presupuesto.codigo_presupuesto.split('-')[-1],
+            "date": presupuesto.fecha_expedicion.strftime("%Y-%m-%d"),
+            "due_date": presupuesto.fecha_validez.strftime("%Y-%m-%d") if presupuesto.fecha_validez else None,
+            "client_name": cliente.nombre_empresa,
+            "client_address": f"{cliente.direccion_fiscal or ''}\n{cliente.codigo_postal or ''} {cliente.poblacion or ''}".strip(),
+            "client_nif": cliente.nif_cif,
+            "client_contact": f"Email: {cliente.email or '-'}\nTel: {cliente.telefono or '-'}",
+            "items": mapped_items,
+            "total_amount": float(presupuesto.total_base),
+            "sender_name": f"{usuario.nombre} {usuario.apellidos}",
+            "sender_iban": usuario.iban,
+            "sender_nif": usuario.nif_cif,
+            "sender_email": f"Email: {usuario.email}\nTel: {usuario.telefono}",
+            "sender_address": f"{usuario.domicilio_fiscal or ''}\n{usuario.codigo_postal or ''} {usuario.poblacion or ''} {usuario.provincia or ''}".strip()
+        }
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp_path = tmp.name
+            
+        pdf = PremiumInvoicePDF(doc_data, doc_type="PRESUPUESTO")
+        pdf.generate(tmp_path)
+        
+        return FileResponse(
+            path=tmp_path, 
+            media_type="application/pdf", 
+            filename=f"{presupuesto.codigo_presupuesto}.pdf"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF Generation Error: {e}")
 
 # Gastos
 @app.get("/api/expenses/{user_id}")
@@ -879,13 +1091,15 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
             "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
             "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
             "client_name": cliente.nombre_empresa,
-            "client_address": cliente.direccion_fiscal,
+            "client_address": f"{cliente.direccion_fiscal or ''}\n{cliente.codigo_postal or ''} {cliente.poblacion or ''}".strip(),
+            "client_nif": cliente.nif_cif,
+            "client_contact": f"Email: {cliente.email or '-'}\nTel: {cliente.telefono or '-'}",
             "items": mapped_items,
             "total_amount": float(factura.total_base),
             "sender_name": f"{usuario.nombre} {usuario.apellidos}",
             "sender_iban": usuario.iban,
             "sender_nif": usuario.nif_cif,
-            "sender_email": usuario.email,
+            "sender_email": f"Email: {usuario.email}\nTel: {usuario.telefono}",
             "sender_address": f"{usuario.domicilio_fiscal or ''}\n{usuario.codigo_postal or ''} {usuario.poblacion or ''} {usuario.provincia or ''}".strip()
         }
         
@@ -932,7 +1146,9 @@ async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depend
             "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
             "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
             "client_name": cliente.nombre_empresa,
-            "client_address": cliente.direccion_fiscal,
+            "client_address": f"{cliente.direccion_fiscal or ''}\n{cliente.codigo_postal or ''} {cliente.poblacion or ''}".strip(),
+            "client_nif": cliente.nif_cif,
+            "client_contact": f"Email: {cliente.email or '-'}\nTel: {cliente.telefono or '-'}",
             "items": mapped_items,
             "total_amount": float(factura.total_base),
             "sender_name": f"{user.nombre} {user.apellidos}",

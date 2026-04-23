@@ -136,6 +136,37 @@ const UI = {
         // Invoice Actions
         document.getElementById('btn-save-db').addEventListener('click', appLogic.saveExtractedInvoice);
         document.getElementById('btn-gen-pdf').addEventListener('click', appLogic.generatePDF);
+        const btnImportQuote = document.getElementById('btn-import-quote');
+        if (btnImportQuote) btnImportQuote.addEventListener('click', appLogic.importQuoteToInvoice);
+
+        // Quotes Actions
+        const quoteFileInput = document.getElementById('file-upload-quote');
+        const quoteDropZone = document.getElementById('drop-zone-quote');
+        if (quoteDropZone) {
+            quoteDropZone.addEventListener('click', (e) => { if (e.target !== quoteFileInput && !e.target.closest('button')) quoteFileInput.click(); });
+            quoteDropZone.addEventListener('dragover', (e) => { e.preventDefault(); quoteDropZone.classList.add('dragover'); });
+            quoteDropZone.addEventListener('dragleave', () => quoteDropZone.classList.remove('dragover'));
+            quoteDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                quoteDropZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) appLogic.handleQuoteFileSelect(e.dataTransfer.files[0]);
+            });
+        }
+        if (quoteFileInput) quoteFileInput.addEventListener('change', (e) => appLogic.handleQuoteFileSelect(e.target.files[0]));
+        const btnRemoveQuote = document.getElementById('btn-remove-file-quote');
+        if (btnRemoveQuote) btnRemoveQuote.addEventListener('click', appLogic.clearQuoteFile);
+        const btnProcQuote = document.getElementById('btn-process-ai-quote');
+        if (btnProcQuote) btnProcQuote.addEventListener('click', appLogic.processQuoteDocument);
+        const btnStartObj = document.getElementById('btn-start-record-quote');
+        if (btnStartObj) btnStartObj.addEventListener('click', appLogic.startQuoteRecording);
+        const btnStopObj = document.getElementById('btn-stop-record-quote');
+        if (btnStopObj) btnStopObj.addEventListener('click', appLogic.stopQuoteRecording);
+        const btnSaveQuote = document.getElementById('btn-save-db-quote');
+        if (btnSaveQuote) btnSaveQuote.addEventListener('click', () => appLogic.saveExtractedQuote(false));
+        const btnGenQuote = document.getElementById('btn-gen-pdf-quote');
+        if (btnGenQuote) btnGenQuote.addEventListener('click', appLogic.generateQuotePDF);
+        const btnAddCatalogQuote = document.getElementById('btn-add-catalog-item-quote');
+        if (btnAddCatalogQuote) btnAddCatalogQuote.addEventListener('click', appLogic.addCatalogItemToQuote);
 
         // Catalog
         document.getElementById('add-catalog-form').addEventListener('submit', appLogic.addProduct);
@@ -201,6 +232,7 @@ const UI = {
             let titles = {
                 'dashboard-view': 'Resumen Financiero',
                 'invoicing-view': 'Facturación Inteligente',
+                'quotes-view': 'Presupuestos',
                 'crm-view': 'CRM y Clientes',
                 'catalog-view': 'Productos y Servicios',
                 'expenses-view': 'Gastos',
@@ -785,7 +817,7 @@ const appLogic = {
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
             const data = await API.request(`/api/invoices/${AppState.userId}/${invId}/send`, { method: 'POST' });
-            
+
             if (data.success) {
                 Utils.showToast('Factura enviada al cliente por correo', 'success');
             }
@@ -1344,6 +1376,333 @@ const appLogic = {
             btn.disabled = false;
             btn.innerHTML = 'Guardar Cambios';
         }
+    },
+
+    // --- QUOTES LOGIC ---
+    handleQuoteFileSelect: (file) => {
+        if (!file) return;
+        AppState.activeFile = file;
+        document.getElementById('drop-zone-quote').classList.add('hidden');
+        document.getElementById('file-preview-area-quote').classList.remove('hidden');
+        document.getElementById('preview-filename-quote').textContent = file.name;
+    },
+    clearQuoteFile: () => {
+        AppState.activeFile = null;
+        document.getElementById('drop-zone-quote').classList.remove('hidden');
+        document.getElementById('file-preview-area-quote').classList.add('hidden');
+        document.getElementById('file-upload-quote').value = '';
+    },
+    startQuoteRecording: async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            AppState.mediaRecorder = new MediaRecorder(stream);
+            AppState.audioChunks = [];
+
+            AppState.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) AppState.audioChunks.push(event.data);
+            };
+
+            AppState.mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(AppState.audioChunks, { type: 'audio/webm' });
+                const file = new File([audioBlob], "quote_voice.webm", { type: "audio/webm" });
+                appLogic.handleQuoteFileSelect(file);
+
+                document.getElementById('btn-start-record-quote').classList.remove('hidden');
+                document.getElementById('btn-stop-record-quote').classList.add('hidden');
+                document.getElementById('recording-status-quote').textContent = 'Audio Capturado. Listo para procesar.';
+                document.getElementById('recording-status-quote').classList.remove('text-red', 'font-bold', 'blink');
+
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            AppState.mediaRecorder.start();
+            AppState.isRecording = true;
+
+            document.getElementById('btn-start-record-quote').classList.add('hidden');
+            document.getElementById('btn-stop-record-quote').classList.remove('hidden');
+            const statusBox = document.getElementById('recording-status-quote');
+            statusBox.textContent = 'Grabación activa...';
+            statusBox.classList.add('text-red', 'font-bold', 'blink');
+        } catch (err) {
+            Utils.showToast('Acceso al micrófono denegado o no disponible.', 'error');
+        }
+    },
+    stopQuoteRecording: () => {
+        if (AppState.mediaRecorder && AppState.isRecording) {
+            AppState.mediaRecorder.stop();
+            AppState.isRecording = false;
+        }
+    },
+    processQuoteDocument: async () => {
+        if (!AppState.activeFile) {
+            Utils.showToast('Por favor, explora un archivo o graba audio primero.', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('btn-process-ai-quote');
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analizando...';
+        btn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('file', AppState.activeFile);
+        formData.append('user_id', AppState.userId);
+
+        try {
+            const data = await API.request('/api/process_document', {
+                method: 'POST',
+                body: formData
+            });
+
+            AppState.extractedData = data;
+            const select = document.getElementById('ext-client-quote');
+            select.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
+            try {
+                const clients = await API.request(`/api/clients/${AppState.userId}`);
+                let matchedId = null;
+                clients.forEach(c => {
+                    const selected = (c.name.toLowerCase() === (data.client_name || '').toLowerCase() ||
+                        c.nif_cif === data.client_nif) ? 'selected' : '';
+                    if (selected) matchedId = c.id;
+                    select.innerHTML += `<option value="${c.id}" ${selected}>${c.name} (${c.nif_cif})</option>`;
+                });
+                if (matchedId) {
+                    AppState.extractedData.client_id = matchedId;
+                    AppState.extractedData.client_name = select.options[select.selectedIndex].text;
+                }
+            } catch (e) { }
+
+            select.addEventListener('change', (e) => {
+                AppState.extractedData.client_id = e.target.value;
+                AppState.extractedData.client_name = e.target.options[e.target.selectedIndex].text;
+            });
+
+            document.getElementById('ext-quote-num').value = 'BORRADOR / Auto Gen';
+            document.getElementById('ext-date-quote').value = data.date || new Date().toISOString().split('T')[0];
+
+            appLogic.renderExtractedQuoteItems();
+
+            if (data.total_amount && (!data.items || data.items.length === 0)) {
+                document.getElementById('ext-amount-quote').value = parseFloat(data.total_amount).toFixed(2);
+            }
+
+            document.getElementById('extracted-data-placeholder-quote').classList.add('hidden');
+            document.getElementById('extracted-form-quote').classList.remove('hidden');
+            Utils.showToast('Extracción Completa', 'success');
+        } finally {
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Procesar con IA';
+            btn.disabled = false;
+        }
+    },
+    saveExtractedQuote: async (isPdfGeneration = false) => {
+        if (!AppState.extractedData) return null;
+        const data = AppState.extractedData;
+        if (!data.client_id) {
+            Utils.showToast("Por favor seleccione un cliente válido primero", "error");
+            return null;
+        }
+
+        const payload = {
+            user_id: AppState.userId,
+            client_id: data.client_id,
+            fecha: data.date || new Date().toISOString().split('T')[0],
+            fecha_validez: document.getElementById('ext-due-date-quote').value || "",
+            items: data.items || []
+        };
+
+        const btn = document.getElementById('btn-save-db-quote');
+        const ogText = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+        try {
+            const res = await API.request('/api/quotes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (res.success) {
+                Utils.showToast('Presupuesto guardado con éxito.', 'success');
+                appLogic.loadQuotes();
+
+                if (isPdfGeneration !== true) {
+                    document.getElementById('extracted-form-quote').classList.add('hidden');
+                    document.getElementById('extracted-data-placeholder-quote').classList.remove('hidden');
+                    AppState.extractedData = null;
+                }
+                return res;
+            }
+        } finally {
+            btn.innerHTML = ogText;
+        }
+        return null;
+    },
+    generateQuotePDF: async () => {
+        const res = await appLogic.saveExtractedQuote(true);
+        if (res && res.quote_id) {
+            Utils.showToast("Generando Documento PDF...", "info");
+            window.open(`${API_BASE_URL}/api/generate_pdf_quote/${res.quote_id}`, '_blank');
+            document.getElementById('extracted-form-quote').classList.add('hidden');
+            document.getElementById('extracted-data-placeholder-quote').classList.remove('hidden');
+            AppState.extractedData = null;
+        }
+    },
+    addCatalogItemToQuote: () => {
+        const select = document.getElementById('ext-catalog-select-quote');
+        const val = select.value;
+        if (!val) return;
+        const itemData = JSON.parse(val);
+        if (!AppState.extractedData) AppState.extractedData = { items: [] };
+        if (!AppState.extractedData.items) AppState.extractedData.items = [];
+        AppState.extractedData.items.push({ concepto: itemData.desc, cantidad: 1, precio_unitario: parseFloat(itemData.price) });
+        Utils.showToast(`Añadido ${itemData.desc} al Presupuesto`, 'success');
+        select.value = "";
+        appLogic.renderExtractedQuoteItems();
+    },
+    renderExtractedQuoteItems: () => {
+        const tbody = document.querySelector('#ext-items-table-quote tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!AppState.extractedData || !AppState.extractedData.items || AppState.extractedData.items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay líneas detectadas.</td></tr>';
+            document.getElementById('ext-amount-quote').value = '0.00';
+            return;
+        }
+        let total = 0;
+        AppState.extractedData.items.forEach((item, index) => {
+            const qty = parseFloat(item.cantidad || item.quantity || 1);
+            const price = parseFloat(item.precio_unitario || item.unit_price || 0);
+            const desc = item.concepto || item.description || 'Artículo';
+            const lineTotal = qty * price;
+            total += lineTotal;
+            tbody.innerHTML += `
+                <tr>
+                    <td class="font-bold">${desc}</td>
+                    <td style="text-align: center;">${qty}</td>
+                    <td style="text-align: right;">${Utils.formatCurrency(price)}</td>
+                    <td style="text-align: right; color: var(--clr-accent); font-weight: bold;">${Utils.formatCurrency(lineTotal)}</td>
+                    <td style="text-align: center;">
+                        <button type="button" class="btn-icon text-red" onclick="appLogic.removeExtractedQuoteItem(${index})" title="Eliminar fila">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        const finalTotal = total * 1.21;
+        AppState.extractedData.total_amount = finalTotal;
+        document.getElementById('ext-amount-quote').value = parseFloat(finalTotal).toFixed(2);
+    },
+    removeExtractedQuoteItem: (index) => {
+        if (!AppState.extractedData || !AppState.extractedData.items) return;
+        AppState.extractedData.items.splice(index, 1);
+        appLogic.renderExtractedQuoteItems();
+    },
+    loadQuotes: async () => {
+        try {
+            const quotes = await API.request(`/api/quotes/${AppState.userId}`);
+            const tbody = document.querySelector('#all-quotes-table tbody');
+            tbody.innerHTML = '';
+            if (quotes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No tienes presupuestos.</td></tr>';
+            }
+            quotes.forEach(inv => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="text-muted">#${inv.quote_number}</td>
+                        <td>${Utils.formatDate(inv.date)}</td>
+                        <td class="font-bold">${inv.client_name}</td>
+                        <td class="font-bold">${Utils.formatCurrency(inv.amount)}</td>
+                        <td>
+                            <select class="status-select" onchange="appLogic.updateQuoteStatus('${inv.id}', this.value)" style="padding: 2px 4px; border-radius: 4px; background: transparent; border: 1px solid var(--clr-border);">
+                                <option value="Borrador" ${inv.status === 'Borrador' ? 'selected' : ''}>Borrador</option>
+                                <option value="Enviado" ${inv.status === 'Enviado' ? 'selected' : ''}>Enviado</option>
+                                <option value="Aceptado" ${inv.status === 'Aceptado' ? 'selected' : ''}>Aceptado</option>
+                                <option value="Rechazado" ${inv.status === 'Rechazado' ? 'selected' : ''}>Rechazado</option>
+                            </select>
+                        </td>
+                        <td>
+                            <button class="btn-icon text-gold" style="color: #ca8a04" onclick="appLogic.downloadQuotePDF('${inv.id}')" title="Descargar PDF">
+                                <i class="fa-solid fa-file-pdf"></i>
+                            </button>
+                            <button class="btn-icon btn-danger-icon" onclick="appLogic.deleteQuote('${inv.id}')" title="Eliminar">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (e) { }
+    },
+    updateQuoteStatus: async (quoteId, newStatus) => {
+        try {
+            const res = await API.request(`/api/quotes/${AppState.userId}/${quoteId}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (res.success) {
+                Utils.showToast('Estado Actualizado', 'success');
+            }
+        } catch (e) { }
+    },
+    downloadQuotePDF: (quoteId) => {
+        window.open(`${API_BASE_URL}/api/generate_pdf_quote/${quoteId}`, '_blank');
+    },
+    deleteQuote: async (quoteId) => {
+        if (!confirm('¿Eliminar este presupuesto permanentemente?')) return;
+        try {
+            await API.request(`/api/quotes/${AppState.userId}/${quoteId}`, { method: 'DELETE' });
+            Utils.showToast('Presupuesto Eliminado', 'success');
+            appLogic.loadQuotes();
+        } catch (e) { }
+    },
+    loadQuotesForImport: async () => {
+        try {
+            const quotes = await API.request(`/api/quotes/${AppState.userId}`);
+            AppState.quotes = quotes;
+            const select = document.getElementById('import-quote-select');
+            if (select) {
+                select.innerHTML = '<option value="">Selecciona un presupuesto aprobado...</option>';
+                quotes.forEach(q => {
+                    select.innerHTML += `<option value="${q.id}">#${q.quote_number} - ${q.client_name} - ${Utils.formatCurrency(q.amount)}</option>`;
+                });
+            }
+        } catch (e) { }
+    },
+    importQuoteToInvoice: async () => {
+        const select = document.getElementById('import-quote-select');
+        const quoteId = select.value;
+        if (!quoteId) return;
+        const quote = (AppState.quotes || []).find(q => q.id === quoteId);
+        if (!quote) return;
+
+        document.getElementById('drop-zone').classList.add('hidden');
+        document.getElementById('extracted-data-placeholder').classList.add('hidden');
+        document.getElementById('extracted-form').classList.remove('hidden');
+
+        AppState.extractedData = {
+            client_id: quote.client_id,
+            client_name: quote.client_name,
+            client_nif: quote.client_nif,
+            date: new Date().toISOString().split('T')[0],
+            items: quote.items || [],
+            total_amount: quote.amount
+        };
+
+        const clientSelect = document.getElementById('ext-client');
+        clientSelect.innerHTML = '<option value="">-- Seleccionar Cliente --</option>';
+        try {
+            const clients = await API.request(`/api/clients/${AppState.userId}`);
+            clients.forEach(c => {
+                const selected = (c.id === quote.client_id) ? 'selected' : '';
+                clientSelect.innerHTML += `<option value="${c.id}" ${selected}>${c.name} (${c.nif_cif})</option>`;
+            });
+        } catch (e) { }
+
+        document.getElementById('ext-invoice-num').value = 'P-' + quote.quote_number;
+        document.getElementById('ext-date').value = AppState.extractedData.date;
+
+        appLogic.renderExtractedItems();
+        Utils.showToast("Presupuesto importado para facturar", "success");
     }
 };
 
@@ -1356,7 +1715,8 @@ const appState = {
         if (viewId === 'dashboard-view') appLogic.loadDashboard();
         if (viewId === 'crm-view') appLogic.loadCRM();
         if (viewId === 'expenses-view') appLogic.loadExpenses();
-        if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); }
+        if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); appLogic.loadQuotesForImport(); }
+        if (viewId === 'quotes-view') { appLogic.loadQuotes(); appLogic.loadCatalog(); }
         if (viewId === 'catalog-view') appLogic.loadCatalog();
         if (viewId === 'calendar-view') appLogic.loadCalendar();
     }
@@ -1419,7 +1779,7 @@ window.saveIRPFRate = async function () {
 
 
 // Start
-document.addEventListener('DOMContentLoaded', UI.init);
+UI.init();
 
 // ─── Period Selector Controls ─────────────────────────────────────────────
 window.setPeriodType = function (type) {
