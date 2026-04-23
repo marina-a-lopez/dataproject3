@@ -1779,7 +1779,7 @@ window.saveIRPFRate = async function () {
 
 
 // Start
-document.addEventListener('DOMContentLoaded', UI.init);
+UI.init();
 
 // ─── Period Selector Controls ─────────────────────────────────────────────
 window.setPeriodType = function (type) {
