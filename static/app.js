@@ -49,7 +49,7 @@ const Utils = {
 };
 
 // IMPORTANTE: Cuando despliegues el backend, pega su URL aquí
-const API_BASE_URL = "https://api-backend-jkxxdq53jq-no.a.run.app";
+const API_BASE_URL = "https://api-backend-4nrtuy3yca-no.a.run.app";
 
 const API = {
     request: async (endpoint, options = {}) => {

@@ -177,10 +177,23 @@ def get_user_by_id(db: Session, user_id: str):
 
 @app.post("/api/login")
 async def login(req: LoginRequest, db: Session = Depends(get_db)):
-    user = get_user_by_dni(db, req.dni)
-    if user and check_password_hash(user.password_hash, req.password):
-        return {"success": True, "user_id": str(user.id), "dni": user.nif_cif}
-    raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    print(f"DEBUG LOGIN - Given DNI: '{req.dni}', Given Pass: '{req.password}'")
+    try:
+        user = get_user_by_dni(db, req.dni)
+        print(f"DEBUG LOGIN - User found in DB: {user is not None}")
+        if user:
+            pwd_check = check_password_hash(user.password_hash, req.password)
+            print(f"DEBUG LOGIN - Password match: {pwd_check}")
+            if pwd_check:
+                return {"success": True, "user_id": str(user.id), "dni": user.nif_cif}
+        
+        print("DEBUG LOGIN - Returning 401 Unauthorized")
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"DEBUG LOGIN - Exception: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error interno durante el login: {str(e)}")
 
 @app.post("/api/register")
 async def register(req: RegisterRequest, db: Session = Depends(get_db)):
