@@ -1281,7 +1281,8 @@ const appLogic = {
                 document.getElementById('sidebar-user-name').textContent = res.profile.nombre;
                 const avatar = document.getElementById('sidebar-avatar');
                 if (res.profile.profile_picture) {
-                    avatar.innerHTML = `<img src="${res.profile.profile_picture}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
+                    const picUrl = res.profile.profile_picture.startsWith('http') ? res.profile.profile_picture : (API_BASE_URL.replace(/\/$/, "") + res.profile.profile_picture);
+                    avatar.innerHTML = `<img src="${picUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
                 }
             }
         } catch (e) { console.error("Error initProfileState:", e); }
@@ -1306,7 +1307,8 @@ const appLogic = {
                 document.getElementById('prof-cp').value = p.codigo_postal || '';
 
                 if (p.profile_picture) {
-                    document.getElementById('profile-avatar-preview').src = p.profile_picture;
+                    const picUrl = p.profile_picture.startsWith('http') ? p.profile_picture : (API_BASE_URL.replace(/\/$/, "") + p.profile_picture);
+                    document.getElementById('profile-avatar-preview').src = picUrl;
                     document.getElementById('profile-avatar-preview').style.display = 'block';
                     document.getElementById('profile-avatar-icon').style.display = 'none';
                 }
@@ -1362,7 +1364,8 @@ const appLogic = {
                 if (data.nombre) document.getElementById('sidebar-user-name').textContent = data.nombre;
                 if (data.profile_picture) {
                     const avatar = document.getElementById('sidebar-avatar');
-                    avatar.innerHTML = `<img src="${data.profile_picture}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
+                    const picUrl = data.profile_picture.startsWith('http') ? data.profile_picture : (API_BASE_URL.replace(/\/$/, "") + data.profile_picture);
+                    avatar.innerHTML = `<img src="${picUrl}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`;
                 }
             } else {
                 throw new Error(data.detail || "Error guardando el perfil");
