@@ -11,6 +11,7 @@ from pathlib import Path
 import os
 import tempfile
 from datetime import datetime, timezone
+from dotenv import load_dotenv
 
 # Importaciones locales
 from database import get_db, init_db, Usuario, Cliente, Factura, Producto, Gasto, CalendarioEvento
@@ -25,6 +26,9 @@ from email.mime.application import MIMEApplication
 from StorageManager import StorageManager
 
 sm = StorageManager()
+
+# Cargar variables de entorno desde el archivo .env local
+load_dotenv()
 
 app = FastAPI(title="AItonomo Pro API")
 
@@ -43,12 +47,15 @@ STATIC_DIR = BASE_DIR / "static"
 os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
 
-# Configuración de Gemini (poner API key hardcodeada)
-os.environ['GEMINI_API_KEY'] = 'AIzaSyDhNVU8VBbwkcHmLxbpoyYMyr_Ky6nlrl8'
-try:
-    proc.configure_gemini('AIzaSyDhNVU8VBbwkcHmLxbpoyYMyr_Ky6nlrl8')
-except Exception as e:
-    print(f"Failed to configure Gemini: {e}")
+# Configuración de Gemini (mediante variables de entorno)
+gemini_api_key = os.getenv('GEMINI_API_KEY')
+if gemini_api_key:
+    try:
+        proc.configure_gemini(gemini_api_key)
+    except Exception as e:
+        print(f"Failed to configure Gemini: {e}")
+else:
+    print("Advertencia: No se ha encontrado la variable de entorno GEMINI_API_KEY.")
 
 # Modelos Pydantic para peticiones JSON
 class LoginRequest(BaseModel):
