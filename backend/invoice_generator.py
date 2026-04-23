@@ -2,9 +2,10 @@ from fpdf import FPDF
 from datetime import datetime
 
 class PremiumInvoicePDF(FPDF):
-    def __init__(self, data):
+    def __init__(self, data, doc_type="FACTURA"):
         super().__init__()
         self.data = data
+        self.doc_type = doc_type
         self.set_auto_page_break(auto=True, margin=20)
         
         # Colores corporativos (Aura Finance / Aitonomo)
@@ -21,17 +22,21 @@ class PremiumInvoicePDF(FPDF):
         self.add_page()
 
     def header(self):
-        # Logo / Nombre emisor
-        self.set_y(15)
-        self.set_font('Helvetica', 'B', 24)
-        self.set_text_color(*self.c_primary)
-        sender = self.data.get('sender_name', 'AITONOMO').upper()
-        self.cell(100, 10, sender, ln=False, align='L')
-        
-        # Etiqueta FACTURA
-        self.set_font('Helvetica', 'B', 24)
-        self.set_text_color(*self.c_accent)
-        self.cell(0, 10, 'FACTURA', ln=True, align='R')
+        if self.doc_type.upper() != "PRESUPUESTO":
+            self.set_font('Helvetica', 'B', 14)
+            self.set_text_color(*self.c_primary)
+            sender = self.data.get('sender_name', 'AITONOMO').upper()
+            self.cell(100, 10, sender, ln=False, align='L')
+            
+            # Etiqueta FACTURA
+            self.set_font('Helvetica', 'B', 24)
+            self.set_text_color(*self.c_accent)
+            self.cell(0, 10, self.doc_type.upper(), ln=True, align='R')
+        else:
+            # Presupuesto a la izquierda
+            self.set_font('Helvetica', 'B', 24)
+            self.set_text_color(*self.c_accent)
+            self.cell(0, 10, self.doc_type.upper(), ln=True, align='L')
         
         # Linea separadora elegante
         self.set_draw_color(*self.c_primary)
@@ -67,7 +72,10 @@ class PremiumInvoicePDF(FPDF):
         self.cell(90, 5, 'DE:', ln=False)
         
         self.set_xy(x_client, y_current)
-        self.cell(90, 5, 'FACTURAR A:', ln=True)
+        if self.doc_type.upper() == "PRESUPUESTO":
+            self.cell(90, 5, 'CLIENTE:', ln=True)
+        else:
+            self.cell(90, 5, 'FACTURAR A:', ln=True)
         
         # Nombres
         self.set_font('Helvetica', 'B', 12)
@@ -100,8 +108,19 @@ class PremiumInvoicePDF(FPDF):
         # Cliente info
         self.set_xy(x_client, y_addrs)
         address = self.data.get('client_address', '')
+        client_nif = self.data.get('client_nif', '')
+        client_contact = self.data.get('client_contact', '')
+        
+        info_lines = []
         if address:
-            self.multi_cell(90, 5, address, align='L')
+            info_lines.append(address)
+        if client_nif:
+            info_lines.append(f"NIF/CIF: {client_nif}")
+        if client_contact:
+            info_lines.append(client_contact)
+            
+        if info_lines:
+            self.multi_cell(90, 5, "\n".join(info_lines).strip(), align='L')
         
         # Detalles de Factura (Fechas, numero) en formato tarjeta gris suave
         y_details = max(y_emisor_end, self.get_y()) + 8
@@ -116,7 +135,10 @@ class PremiumInvoicePDF(FPDF):
         self.set_text_color(*self.c_text_muted)
         
         self.set_x(15)
-        self.cell(50, 4, 'NO. FACTURA', ln=False)
+        if self.doc_type.upper() == "PRESUPUESTO":
+            self.cell(50, 4, 'NO. PRESUPUESTO', ln=False)
+        else:
+            self.cell(50, 4, 'NO. FACTURA', ln=False)
         self.set_x(80)
         self.cell(50, 4, 'FECHA DE EMISION', ln=False)
         self.set_x(140)
@@ -248,6 +270,7 @@ class PremiumInvoicePDF(FPDF):
         
         sender_name = self.data.get('sender_name', 'Aitonomo S.L.')
         sender_iban = self.data.get('sender_iban') or 'PENDIENTE DE CONFIGURAR EN PERFIL'
-        self.multi_cell(100, 5, f"Transferencia Bancaria a:\n{sender_name}\nIBAN: {sender_iban}\nRef: Factura #{self.data.get('invoice_number', 'DRAFT')}", align='L')
+        ref_texto = f"{self.doc_type.capitalize()} #{self.data.get('invoice_number', 'DRAFT')}"
+        self.multi_cell(100, 5, f"Transferencia Bancaria a:\n{sender_name}\nIBAN: {sender_iban}\nRef: {ref_texto}", align='L')
         
         self.output(output_path)
