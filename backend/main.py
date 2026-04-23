@@ -604,7 +604,9 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
         "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
         "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
         "client_name": client.nombre_empresa if client else "Cliente Registrado",
-        "client_address": client.direccion_fiscal if client else "",
+        "client_address": f"{client.direccion_fiscal or ''}\n{client.codigo_postal or ''} {client.poblacion or ''}".strip() if client else "",
+        "client_nif": client.nif_cif if client else "",
+        "client_contact": f"Email: {client.email or '-'}\nTel: {client.telefono or '-'}" if client else "",
         "items": mapped_items,
         "total_amount": factura.total_base,
         "sender_name": f"{user.nombre} {user.apellidos}",
@@ -780,11 +782,16 @@ async def save_quote(req: QuoteCreate, db: Session = Depends(get_db)):
         "date": presupuesto.fecha_expedicion.strftime("%Y-%m-%d"),
         "due_date": presupuesto.fecha_validez.strftime("%Y-%m-%d") if presupuesto.fecha_validez else None,
         "client_name": client.nombre_empresa if client else "Cliente Registrado",
-        "client_address": client.direccion_fiscal if client else "",
+        "client_address": f"{client.direccion_fiscal or ''}\n{client.codigo_postal or ''} {client.poblacion or ''}".strip() if client else "",
+        "client_nif": client.nif_cif if client else "",
+        "client_contact": f"Email: {client.email or '-'}\nTel: {client.telefono or '-'}" if client else "",
         "items": mapped_items,
         "total_amount": presupuesto.total_base,
         "sender_name": f"{user.nombre} {user.apellidos}",
-        "sender_iban": user.iban
+        "sender_iban": user.iban,
+        "sender_nif": user.nif_cif,
+        "sender_email": user.email,
+        "sender_address": f"{user.domicilio_fiscal or ''}\n{user.codigo_postal or ''} {user.poblacion or ''} {user.provincia or ''}".strip()
     }
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -1139,7 +1146,9 @@ async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depend
             "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
             "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
             "client_name": cliente.nombre_empresa,
-            "client_address": cliente.direccion_fiscal,
+            "client_address": f"{cliente.direccion_fiscal or ''}\n{cliente.codigo_postal or ''} {cliente.poblacion or ''}".strip(),
+            "client_nif": cliente.nif_cif,
+            "client_contact": f"Email: {cliente.email or '-'}\nTel: {cliente.telefono or '-'}",
             "items": mapped_items,
             "total_amount": float(factura.total_base),
             "sender_name": f"{user.nombre} {user.apellidos}",
