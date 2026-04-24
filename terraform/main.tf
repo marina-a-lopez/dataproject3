@@ -25,7 +25,7 @@ resource "google_pubsub_subscription" "topic-batch-upload-sub" {
 # }
 
 resource "google_sql_database_instance" "postgres_instance" {
-  name = "aitonomo-db"
+  name = "db-aitonomo"
   region = var.region
   database_version = "POSTGRES_17"
   deletion_protection = true
@@ -86,7 +86,7 @@ resource "google_artifact_registry_repository" "repo_aitonomo" {
 locals {
   backend_hash  = sha1(join("", [for f in fileset("${path.module}/../backend", "**") : filesha1("${path.module}/../backend/${f}")]))
   frontend_hash = sha1(join("", [for f in fileset("${path.module}/../static", "**") : filesha1("${path.module}/../static/${f}")]))
-  dashboard_hash = sha1(join("", [for f in fileset("${path.module}/../dashboard", "**") : filesha1("${path.module}/../dashboard/${f}")]))
+  dashboard_hash = sha1(join("", [for f in fileset("${path.module}/../dashboard-buss", "**") : filesha1("${path.module}/../dashboard-buss/${f}")]))
 }
 
 # ---------------------------------------------------------
@@ -193,7 +193,7 @@ resource "google_cloud_run_v2_service" "frontend_cloud_run" {
 resource "docker_image" "dashboard_image" {
   name = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.repo_aitonomo.name}/dashboard:${local.dashboard_hash}"
   build {
-    context    = "../dashboard/"
+    context    = "../dashboard-buss/"
     dockerfile = "Dockerfile"
     platform   = "linux/amd64"
   }

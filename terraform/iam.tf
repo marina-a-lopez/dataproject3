@@ -32,6 +32,19 @@ resource "google_pubsub_topic_iam_member" "backend_pubsub_publisher" {
   member = "serviceAccount:${google_service_account.backend_sa.email}"
 }
 
+# Permisos para que el Backend pueda consultar BigQuery (Dashboard Inversores)
+resource "google_project_iam_member" "backend_bigquery_viewer" {
+  project = var.project_id
+  role    = "roles/bigquery.dataViewer"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
+resource "google_project_iam_member" "backend_bigquery_jobUser" {
+  project = var.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
 # ---------------------------------------------------------
 # ACCESO PÚBLICO A INTERNET (Para que la gente vea la web)
 # ---------------------------------------------------------
@@ -45,6 +58,13 @@ resource "google_cloud_run_v2_service_iam_member" "acceso_publico_backend" {
 resource "google_cloud_run_v2_service_iam_member" "acceso_publico_frontend" {
   location = google_cloud_run_v2_service.frontend_cloud_run.location
   name     = google_cloud_run_v2_service.frontend_cloud_run.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+resource "google_cloud_run_v2_service_iam_member" "acceso_publico_dashboard" {
+  location = google_cloud_run_v2_service.dashboard_cloud_run.location
+  name     = google_cloud_run_v2_service.dashboard_cloud_run.name
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
