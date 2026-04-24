@@ -86,6 +86,7 @@ resource "google_artifact_registry_repository" "repo_aitonomo" {
 locals {
   backend_hash  = sha1(join("", [for f in fileset("${path.module}/../backend", "**") : filesha1("${path.module}/../backend/${f}")]))
   frontend_hash = sha1(join("", [for f in fileset("${path.module}/../static", "**") : filesha1("${path.module}/../static/${f}")]))
+  dashboard_hash = sha1(join("", [for f in fileset("${path.module}/../dashboard", "**") : filesha1("${path.module}/../dashboard/${f}")]))
 }
 
 # ---------------------------------------------------------
@@ -187,6 +188,40 @@ resource "google_cloud_run_v2_service" "frontend_cloud_run" {
 }
 
 # ---------------------------------------------------------
+# 4.5. DASHBOARD INVERSORES: Crear Imagen React y Desplegar
+# ---------------------------------------------------------
+resource "docker_image" "dashboard_image" {
+  name = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.repo_aitonomo.name}/dashboard:${local.dashboard_hash}"
+  build {
+    context    = "../dashboard/"
+    dockerfile = "Dockerfile"
+    platform   = "linux/amd64"
+  }
+}
+
+resource "docker_registry_image" "dashboard_push" {
+  name          = docker_image.dashboard_image.name
+  keep_remotely = true
+}
+
+resource "google_cloud_run_v2_service" "dashboard_cloud_run" {
+  name     = "investor-dashboard"
+  location = var.region
+  deletion_protection = false
+
+  template {
+    service_account = google_service_account.frontend_sa.email
+    containers {
+      image = docker_registry_image.dashboard_push.name
+      ports {
+        container_port = 80
+      }
+    }
+  }
+  depends_on = [docker_registry_image.dashboard_push]
+}
+
+# ---------------------------------------------------------
 # 5. OUTPUTS (Para ver las URLs al final)
 # ---------------------------------------------------------
 output "url_backend" {
@@ -195,6 +230,10 @@ output "url_backend" {
 
 output "url_frontend" {
   value = google_cloud_run_v2_service.frontend_cloud_run.uri
+}
+
+output "url_dashboard" {
+  value = google_cloud_run_v2_service.dashboard_cloud_run.uri
 }
 
 # ---------------------------------------------------------
@@ -230,4 +269,234 @@ resource "google_project_iam_member" "secret_accessor" {
   project = var.project_id
   role    = "roles/secretmanager.secretAccessor"
   member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
+# ---------------------------------------------------------
+# 7. BIGQUERY (Data Warehouse)
+# ---------------------------------------------------------
+
+resource "google_bigquery_dataset" "raw_dataset" {
+  dataset_id    = "aitonomo_raw"
+  description   = "Datos replicados directamente desde Cloud SQL via Datastream"
+  project = var.project_id
+  location      = var.region
+}
+
+resource "google_bigquery_table" "bq_usuarios" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "usuarios"
+  deletion_protection = false # Cambiar a true en producción
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "nombre", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "apellidos", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "nif_cif", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "domicilio_fiscal", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "poblacion", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "provincia", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "codigo_postal", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "email", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "telefono", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "password_hash", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "cnae", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "iban", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "profile_picture", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "gmail_token", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "irpf_rate", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "tarifa_hora", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "precio_servicio", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "desc_servicio", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "precio_producto", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "desc_producto", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]
+EOF
+}
+
+resource "google_bigquery_table" "bq_clientes" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "clientes"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "usuario_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "nombre_empresa", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "nif_cif", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "telefono", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "email", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "direccion_fiscal", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "poblacion", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "provincia", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "codigo_postal", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "direccion_comercial", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]
+EOF
+}
+
+resource "google_bigquery_table" "bq_productos" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "productos"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "usuario_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "nombre", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "descripcion", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "precio_unitario", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "tipo", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]
+EOF
+}
+
+resource "google_bigquery_table" "bq_gastos" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "gastos"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "usuario_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "fecha", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "proveedor", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "concepto", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "importe_total", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "url_ticket", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]
+EOF
+}
+
+resource "google_bigquery_table" "bq_facturas" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "facturas"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "usuario_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "cliente_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "numero_factura_secuencial", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "codigo_factura", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "fecha_expedicion", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "fecha_vencimiento", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "total_base", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "total_impuestos", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "importe_total", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "json_lineas", "type": "JSON", "mode": "NULLABLE"},
+  {"name": "url_pdf", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "hash_registro", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "hash_anterior", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "estado_verifactu", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]
+EOF
+}
+
+resource "google_bigquery_table" "bq_presupuestos" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "presupuestos"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "usuario_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "cliente_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "numero_presupuesto_secuencial", "type": "INTEGER", "mode": "NULLABLE"},
+  {"name": "codigo_presupuesto", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "fecha_expedicion", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "fecha_validez", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "total_base", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "total_impuestos", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "importe_total", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "json_lineas", "type": "JSON", "mode": "NULLABLE"},
+  {"name": "url_pdf", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "estado", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]
+EOF
+}
+
+
+#  ---------------------------------------------------------
+# 8. ANALÍTICA E INVERSORES (Business Dashboard)
+# ---------------------------------------------------------
+
+# Dataset para recibir los costes de infraestructura de GCP
+resource "google_bigquery_dataset" "billing_dataset" {
+  dataset_id    = "gcp_billing_export"
+  description   = "Dataset donde GCP volcará automáticamente los costes diarios de infraestructura"
+  project       = var.project_id
+  location      = var.region
+}
+
+# Dataset analítico que agrupa y calcula KPIs limpios para el Dashboard
+resource "google_bigquery_dataset" "analytics_dataset" {
+  dataset_id    = "aitonomo_analytics"
+  description   = "Vistas analíticas y KPIs pre-calculados para inversores"
+  project       = var.project_id
+  location      = var.region
+}
+
+# Vista SQL: Crecimiento de usuarios y Engagement (GMV)
+resource "google_bigquery_table" "view_investor_kpis" {
+  dataset_id          = google_bigquery_dataset.analytics_dataset.dataset_id
+  table_id            = "kpis_crecimiento_mensual"
+  deletion_protection = false
+
+  view {
+    use_legacy_sql = false
+    query = <<EOF
+      WITH usuarios_mensuales AS (
+        SELECT
+          DATE_TRUNC(DATE(created_at), MONTH) as mes,
+          COUNT(id) as nuevos_usuarios
+        FROM `${var.project_id}.${google_bigquery_dataset.raw_dataset.dataset_id}.usuarios`
+        GROUP BY 1
+      ),
+      actividad_facturas AS (
+        SELECT
+          DATE_TRUNC(DATE(created_at), MONTH) as mes,
+          COUNT(id) as facturas_generadas,
+          SUM(importe_total) as volumen_gestionado_eur
+        FROM `${var.project_id}.${google_bigquery_dataset.raw_dataset.dataset_id}.facturas`
+        GROUP BY 1
+      )
+      SELECT
+        COALESCE(u.mes, f.mes) as mes,
+        COALESCE(u.nuevos_usuarios, 0) as nuevos_usuarios,
+        COALESCE(f.facturas_generadas, 0) as facturas_generadas,
+        COALESCE(f.volumen_gestionado_eur, 0) as gmv_gestionado_eur
+      FROM usuarios_mensuales u
+      FULL OUTER JOIN actividad_facturas f ON u.mes = f.mes
+    EOF
+  }
 }
