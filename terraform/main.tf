@@ -32,7 +32,8 @@ resource "google_sql_database_instance" "postgres_instance" {
   settings {
     tier = "db-f1-micro"
     availability_type = "ZONAL"
-    disk_size = 100
+    disk_size = 250
+    disk_autoresize = true
     edition           = "ENTERPRISE"
 
     ip_configuration {
@@ -41,7 +42,18 @@ resource "google_sql_database_instance" "postgres_instance" {
         name  = "Admin-IP"
         value = var.admin_ip
       }
+      # Permitimos todas las IPs para que Datastream pueda conectarse sin VPC
+      authorized_networks {
+        name  = "Datastream-IPs"
+        value = "0.0.0.0/0"
+      }
       # private_network = data.google_compute_network.vpc_aitonomo.id
+    }
+
+    # Obligatorio para que Datastream pueda leer los cambios (CDC)
+    database_flags {
+      name  = "cloudsql.logical_decoding"
+      value = "on"
     }
    }
   }
@@ -284,11 +296,16 @@ resource "google_bigquery_dataset" "raw_dataset" {
 
 resource "google_bigquery_table" "bq_usuarios" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
-  table_id            = "usuarios"
+  table_id            = "public_usuarios"
   deletion_protection = false # Cambiar a true en producción
   time_partitioning {
     type  = "DAY"
     field = "created_at"
+  }
+  table_constraints {
+    primary_key {
+      columns = ["id"]
+    }
   }
   schema = <<EOF
 [
@@ -320,11 +337,16 @@ EOF
 
 resource "google_bigquery_table" "bq_clientes" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
-  table_id            = "clientes"
+  table_id            = "public_clientes"
   deletion_protection = false
   time_partitioning {
     type  = "DAY"
     field = "created_at"
+  }
+  table_constraints {
+    primary_key {
+      columns = ["id"]
+    }
   }
   schema = <<EOF
 [
@@ -346,11 +368,16 @@ EOF
 
 resource "google_bigquery_table" "bq_productos" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
-  table_id            = "productos"
+  table_id            = "public_productos"
   deletion_protection = false
   time_partitioning {
     type  = "DAY"
     field = "created_at"
+  }
+  table_constraints {
+    primary_key {
+      columns = ["id"]
+    }
   }
   schema = <<EOF
 [
@@ -367,11 +394,16 @@ EOF
 
 resource "google_bigquery_table" "bq_gastos" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
-  table_id            = "gastos"
+  table_id            = "public_gastos"
   deletion_protection = false
   time_partitioning {
     type  = "DAY"
     field = "created_at"
+  }
+  table_constraints {
+    primary_key {
+      columns = ["id"]
+    }
   }
   schema = <<EOF
 [
@@ -389,11 +421,16 @@ EOF
 
 resource "google_bigquery_table" "bq_facturas" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
-  table_id            = "facturas"
+  table_id            = "public_facturas"
   deletion_protection = false
   time_partitioning {
     type  = "DAY"
     field = "created_at"
+  }
+  table_constraints {
+    primary_key {
+      columns = ["id"]
+    }
   }
   schema = <<EOF
 [
@@ -419,11 +456,16 @@ EOF
 
 resource "google_bigquery_table" "bq_presupuestos" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
-  table_id            = "presupuestos"
+  table_id            = "public_presupuestos"
   deletion_protection = false
   time_partitioning {
     type  = "DAY"
     field = "created_at"
+  }
+  table_constraints {
+    primary_key {
+      columns = ["id"]
+    }
   }
   schema = <<EOF
 [
@@ -472,6 +514,11 @@ resource "google_bigquery_table" "view_investor_kpis" {
   table_id            = "kpis_crecimiento_mensual"
   deletion_protection = false
 
+  depends_on = [
+    google_bigquery_table.bq_usuarios,
+    google_bigquery_table.bq_facturas
+  ]
+
   view {
     use_legacy_sql = false
     query = <<EOF
@@ -479,7 +526,7 @@ resource "google_bigquery_table" "view_investor_kpis" {
         SELECT
           DATE_TRUNC(DATE(created_at), MONTH) as mes,
           COUNT(id) as nuevos_usuarios
-        FROM `${var.project_id}.${google_bigquery_dataset.raw_dataset.dataset_id}.usuarios`
+        FROM `${var.project_id}.${google_bigquery_dataset.raw_dataset.dataset_id}.public_usuarios`
         GROUP BY 1
       ),
       actividad_facturas AS (
@@ -487,7 +534,7 @@ resource "google_bigquery_table" "view_investor_kpis" {
           DATE_TRUNC(DATE(created_at), MONTH) as mes,
           COUNT(id) as facturas_generadas,
           SUM(importe_total) as volumen_gestionado_eur
-        FROM `${var.project_id}.${google_bigquery_dataset.raw_dataset.dataset_id}.facturas`
+        FROM `${var.project_id}.${google_bigquery_dataset.raw_dataset.dataset_id}.public_facturas`
         GROUP BY 1
       )
       SELECT
@@ -499,4 +546,64 @@ resource "google_bigquery_table" "view_investor_kpis" {
       FULL OUTER JOIN actividad_facturas f ON u.mes = f.mes
     EOF
   }
+}
+
+# ---------------------------------------------------------
+# 9. DATASTREAM (Replicación PostgreSQL -> BigQuery)
+# ---------------------------------------------------------
+
+resource "google_datastream_connection_profile" "postgres_cp" {
+  display_name          = "Conexion origen Postgres"
+  location              = var.region
+  connection_profile_id = "postgres-source-cp"
+
+  postgresql_profile {
+    hostname = google_sql_database_instance.postgres_instance.public_ip_address
+    port     = 5432
+    username = google_sql_user.postgres_user.name
+    password = google_sql_user.postgres_user.password
+    database = google_sql_database.aitonomo_db.name
+  }
+}
+
+resource "google_datastream_connection_profile" "bigquery_cp" {
+  display_name          = "Conexion destino BigQuery"
+  location              = var.region
+  connection_profile_id = "bigquery-dest-cp"
+
+  bigquery_profile {}
+}
+
+resource "google_datastream_stream" "postgres_to_bq" {
+  stream_id    = "postgres-to-bq-stream"
+  location     = var.region
+  display_name = "Replicacion Postgres a BigQuery"
+
+  source_config {
+    source_connection_profile = google_datastream_connection_profile.postgres_cp.id
+    postgresql_source_config {
+      publication      = "datastream_pub"
+      replication_slot = "datastream_slot"
+
+      include_objects {
+        postgresql_schemas {
+          schema = "public"
+        }
+      }
+    }
+  }
+
+  destination_config {
+    destination_connection_profile = google_datastream_connection_profile.bigquery_cp.id
+    bigquery_destination_config {
+      data_freshness = "900s"
+      single_target_dataset {
+        dataset_id = "${var.project_id}:${google_bigquery_dataset.raw_dataset.dataset_id}"
+      }
+    }
+  }
+
+  backfill_all {}
+
+  create_without_validation = true
 }

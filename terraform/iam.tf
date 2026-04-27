@@ -46,6 +46,22 @@ resource "google_project_iam_member" "backend_bigquery_jobUser" {
 }
 
 # ---------------------------------------------------------
+# PERMISOS PARA DATASTREAM (Escritura en BigQuery)
+# ---------------------------------------------------------
+resource "google_project_service_identity" "datastream_sa" {
+  provider = google-beta
+  project = var.project_id
+  service = "datastream.googleapis.com"
+}
+
+resource "google_bigquery_dataset_iam_member" "datastream_bq_editor" {
+  project    = var.project_id
+  dataset_id = google_bigquery_dataset.raw_dataset.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_project_service_identity.datastream_sa.email}"
+}
+
+# ---------------------------------------------------------
 # ACCESO PÚBLICO A INTERNET (Para que la gente vea la web)
 # ---------------------------------------------------------
 resource "google_cloud_run_v2_service_iam_member" "acceso_publico_backend" {

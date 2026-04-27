@@ -3,6 +3,7 @@ from fastapi import FastAPI, File, UploadFile, Form, Depends, HTTPException, sta
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
@@ -47,6 +48,38 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
+
+# Configurar base de datos para Datastream (Publication y Replication Slot)
+try:
+    db_session = next(get_db())
+    
+    # 0. Otorgar permisos de replicación al usuario (Obligatorio en Cloud SQL)
+    try:
+        db_session.execute(text("ALTER USER admin WITH REPLICATION;"))
+        db_session.commit()
+    except Exception as e:
+        print(f"Datastream Auth Error: {e}")
+        db_session.rollback()
+
+    # 1. Crear Publicación
+    try:
+        db_session.execute(text("CREATE PUBLICATION datastream_pub FOR ALL TABLES;"))
+        db_session.commit()
+    except Exception as e:
+        print(f"Datastream Pub Error: {e}")
+        db_session.rollback()
+        
+    # 2. Crear Slot de Replicación
+    try:
+        db_session.execute(text("SELECT pg_create_logical_replication_slot('datastream_slot', 'pgoutput');"))
+        db_session.commit()
+    except Exception as e:
+        print(f"Datastream Slot Error: {e}")
+        db_session.rollback()
+        
+    db_session.close()
+except Exception as e:
+    pass
 
 # Configuración de Gemini (mediante variables de entorno)
 gemini_api_key = os.getenv('GEMINI_API_KEY')
@@ -1526,7 +1559,6 @@ async def delete_calendar_event(user_id: str, event_id: str, db: Session = Depen
     db.delete(ev)
     db.commit()
     return {"success": True}
-
 
 # ─── Dashboard Inversores (Conexión BQ) ───────────────────────────────────────
 
