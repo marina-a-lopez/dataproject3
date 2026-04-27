@@ -14,3 +14,4 @@ python-dotenv
 psycopg2-binary>=2.9.9
 pandas
 google-cloud-bigquery
+pgvector

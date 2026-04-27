@@ -5,11 +5,12 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from dotenv import load_dotenv
 from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine
+    Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+from pgvector.sqlalchemy import Vector
 
 Base = declarative_base()
 
@@ -177,6 +178,17 @@ class Gasto(Base):
     
     usuario = relationship("Usuario", back_populates="gastos")
 
+class Subvencion(Base):
+    __tablename__ = 'subvenciones'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id_bdns = Column(String(100), unique=True, nullable=False)
+    titulo = Column(Text, nullable=False)
+    cnae_target = Column(String(50), nullable=True)
+    fecha_cierre = Column(DateTime, nullable=True)
+    texto_completo = Column(Text, nullable=False)
+    embedding = Column(Vector(768))
+
 # inicializar la bbdd
 # DB_PATH = "sqlite:///aitonomos.db"
 
@@ -197,6 +209,11 @@ except Exception as e:
 def init_db():
     if engine is not None:
         try:
+            # Habilitar la extensión pgvector en PostgreSQL antes de crear las tablas
+            with engine.connect() as conn:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+                conn.commit()
+                
             Base.metadata.create_all(bind=engine)
             print("Base de datos conectada y tablas sincronizadas con éxito.")
         except Exception as e:

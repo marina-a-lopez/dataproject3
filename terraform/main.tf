@@ -4,7 +4,6 @@ resource "google_storage_bucket" "document_bucket" {
   name          = "bucket-aitonomo-docs"
   location      = var.region
   force_destroy = false
-  # storage_class = "STANDARD"
 }
 
 #pubsub para enviar mensajes
@@ -491,6 +490,27 @@ resource "google_bigquery_table" "bq_presupuestos" {
 EOF
 }
 
+resource "google_bigquery_table" "bq_subvenciones" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "public_subvenciones"
+  deletion_protection = false
+  table_constraints {
+    primary_key {
+      columns = ["id"]
+    }
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "id_bdns", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "titulo", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "cnae_target", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "fecha_cierre", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "texto_completo", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "embedding", "type": "STRING", "mode": "NULLABLE"}
+]
+EOF
+}
 
 #  ---------------------------------------------------------
 # 8. ANALÍTICA E INVERSORES (Business Dashboard)
