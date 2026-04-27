@@ -596,7 +596,7 @@ resource "google_datastream_stream" "postgres_to_bq" {
   destination_config {
     destination_connection_profile = google_datastream_connection_profile.bigquery_cp.id
     bigquery_destination_config {
-      data_freshness = "900s"
+      data_freshness = "0s"
       single_target_dataset {
         dataset_id = "${var.project_id}:${google_bigquery_dataset.raw_dataset.dataset_id}"
       }
