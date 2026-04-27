@@ -228,6 +228,10 @@ resource "google_cloud_run_v2_service" "dashboard_cloud_run" {
       ports {
         container_port = 80
       }
+      env {
+        name  = "BACKEND_URL"
+        value = google_cloud_run_v2_service.backend_cloud_run.uri
+      }
     }
   }
   depends_on = [docker_registry_image.dashboard_push]
@@ -497,7 +501,7 @@ resource "google_bigquery_dataset" "billing_dataset" {
   dataset_id    = "gcp_billing_export"
   description   = "Dataset donde GCP volcará automáticamente los costes diarios de infraestructura"
   project       = var.project_id
-  location      = var.region
+  location      = "EU"
 }
 
 # Dataset analítico que agrupa y calcula KPIs limpios para el Dashboard

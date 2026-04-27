@@ -13,4 +13,4 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/bin/sh", "-c", "sed -i \"s|__API_BASE_URL__|$BACKEND_URL|g\" /usr/share/nginx/html/assets/*.js && nginx -g 'daemon off;'"]
