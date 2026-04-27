@@ -189,8 +189,6 @@ class Subvencion(Base):
     texto_completo = Column(Text, nullable=False)
     embedding = Column(Vector(768))
 
-# inicializar la bbdd
-# DB_PATH = "sqlite:///aitonomos.db"
 
 load_dotenv()
 DB_PATH = os.getenv("DATABASE_URL")
