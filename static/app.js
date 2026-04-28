@@ -906,8 +906,25 @@ const appLogic = {
             document.getElementById('btn-start-record').classList.add('hidden');
             document.getElementById('btn-stop-record').classList.remove('hidden');
             const statusBox = document.getElementById('recording-status');
-            statusBox.textContent = 'Grabación activa...';
+            statusBox.textContent = 'Grabación activa... (1:40 restante)';
             statusBox.classList.add('text-red', 'font-bold', 'blink');
+
+            // Max duration: 1 min 40 sec (100 seconds)
+            const MAX_RECORDING_SECONDS = 100;
+            let secondsElapsed = 0;
+            AppState._recordingInterval = setInterval(() => {
+                secondsElapsed++;
+                const remaining = MAX_RECORDING_SECONDS - secondsElapsed;
+                const mins = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                statusBox.textContent = `Grabación activa... (${mins}:${String(secs).padStart(2, '0')} restante)`;
+            }, 1000);
+            AppState._recordingTimeout = setTimeout(() => {
+                if (AppState.mediaRecorder && AppState.isRecording) {
+                    appLogic.stopRecording();
+                    Utils.showToast('Duración máxima alcanzada (1:40).', 'info');
+                }
+            }, MAX_RECORDING_SECONDS * 1000);
 
         } catch (err) {
             Utils.showToast('Acceso al micrófono denegado o no disponible.', 'error');
@@ -916,6 +933,8 @@ const appLogic = {
 
     stopRecording: () => {
         if (AppState.mediaRecorder && AppState.isRecording) {
+            clearTimeout(AppState._recordingTimeout);
+            clearInterval(AppState._recordingInterval);
             AppState.mediaRecorder.stop();
             AppState.isRecording = false;
         }
@@ -948,7 +967,25 @@ const appLogic = {
 
             document.getElementById('btn-crm-start-record').classList.add('hidden');
             document.getElementById('btn-crm-stop-record').classList.remove('hidden');
-            document.getElementById('crm-voice-status').textContent = 'Grabando detalles del cliente...';
+            const crmStatus = document.getElementById('crm-voice-status');
+            crmStatus.textContent = 'Grabando detalles del cliente... (1:40 restante)';
+
+            // Max duration: 1 min 40 sec (100 seconds)
+            const MAX_CRM_SECONDS = 100;
+            let crmSecondsElapsed = 0;
+            AppState._crmRecordingInterval = setInterval(() => {
+                crmSecondsElapsed++;
+                const remaining = MAX_CRM_SECONDS - crmSecondsElapsed;
+                const mins = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                crmStatus.textContent = `Grabando detalles del cliente... (${mins}:${String(secs).padStart(2, '0')} restante)`;
+            }, 1000);
+            AppState._crmRecordingTimeout = setTimeout(() => {
+                if (AppState.crmMediaRecorder && AppState.isCrmRecording) {
+                    appLogic.stopCrmRecording();
+                    Utils.showToast('Duración máxima alcanzada (1:40).', 'info');
+                }
+            }, MAX_CRM_SECONDS * 1000);
         } catch (e) {
             Utils.showToast('Acceso al micrófono denegado.', 'error');
         }
@@ -1062,6 +1099,8 @@ const appLogic = {
 
     stopCrmRecording: () => {
         if (AppState.crmMediaRecorder && AppState.isCrmRecording) {
+            clearTimeout(AppState._crmRecordingTimeout);
+            clearInterval(AppState._crmRecordingInterval);
             AppState.crmMediaRecorder.stop();
             AppState.isCrmRecording = false;
         }
@@ -1421,14 +1460,33 @@ const appLogic = {
             document.getElementById('btn-start-record-quote').classList.add('hidden');
             document.getElementById('btn-stop-record-quote').classList.remove('hidden');
             const statusBox = document.getElementById('recording-status-quote');
-            statusBox.textContent = 'Grabación activa...';
+            statusBox.textContent = 'Grabación activa... (1:40 restante)';
             statusBox.classList.add('text-red', 'font-bold', 'blink');
+
+            // Max duration: 1 min 40 sec (100 seconds)
+            const MAX_QUOTE_SECONDS = 100;
+            let quoteSecondsElapsed = 0;
+            AppState._quoteRecordingInterval = setInterval(() => {
+                quoteSecondsElapsed++;
+                const remaining = MAX_QUOTE_SECONDS - quoteSecondsElapsed;
+                const mins = Math.floor(remaining / 60);
+                const secs = remaining % 60;
+                statusBox.textContent = `Grabación activa... (${mins}:${String(secs).padStart(2, '0')} restante)`;
+            }, 1000);
+            AppState._quoteRecordingTimeout = setTimeout(() => {
+                if (AppState.mediaRecorder && AppState.isRecording) {
+                    appLogic.stopQuoteRecording();
+                    Utils.showToast('Duración máxima alcanzada (1:40).', 'info');
+                }
+            }, MAX_QUOTE_SECONDS * 1000);
         } catch (err) {
             Utils.showToast('Acceso al micrófono denegado o no disponible.', 'error');
         }
     },
     stopQuoteRecording: () => {
         if (AppState.mediaRecorder && AppState.isRecording) {
+            clearTimeout(AppState._quoteRecordingTimeout);
+            clearInterval(AppState._quoteRecordingInterval);
             AppState.mediaRecorder.stop();
             AppState.isRecording = false;
         }
