@@ -1,17 +1,13 @@
-
 import os
 import json
-from google import genai
-from google.genai import types
 from pydantic import BaseModel, Field
 from typing import Optional
 from dotenv import load_dotenv
 
-load_dotenv()
+from vertexai.generative_models import GenerativeModel, Part, GenerationConfig
+from dotenv import load_dotenv
 
-# Inicializar el cliente de Gemini
-def get_client():
-    return genai.Client()
+load_dotenv()
 
 class ClientExtraction(BaseModel):
     nombre_empresa: str = Field(description="Nombre o nombre de la empresa del cliente", default="")
@@ -31,17 +27,14 @@ class QuoteExtraction(BaseModel):
 
 def process_voice_to_text(audio_bytes: bytes, filename: str = "audio.wav") -> str:
     """Procesa el audio y lo transcribe a texto."""
-    client = get_client()
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=[
-            types.Part.from_bytes(
-                data=audio_bytes,
-                mime_type='audio/wav'
-            ),
-            "Por favor, transcribe exactamente este audio a texto."
-        ]
-    )
+    model = GenerativeModel('gemini-2.5-flash')
+    response = model.generate_content([
+        Part.from_data(
+            data=audio_bytes,
+            mime_type='audio/wav'
+        ),
+        "Por favor, transcribe exactamente este audio a texto."
+    ])
     return response.text
 
 def extract_client_data(text: str) -> dict:
@@ -52,16 +45,17 @@ def extract_client_data(text: str) -> dict:
     Asegúrate de formatear bien el NIF/CIF y las direcciones.
     Solo extrae lo que se menciona en el texto."""
     
-    client = get_client()
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=[
+    model = GenerativeModel('gemini-2.5-flash')
+    response = model.generate_content(
+        [
             system_prompt,
             text
         ],
-        config=types.GenerateContentConfig(
+        generation_config=GenerationConfig(
             response_mime_type="application/json",
-            response_schema=ClientExtraction,
+            # Nota: Si falla response_schema con Vertex, pasarlo en el prompt. 
+            # Pero en >=1.60 soporta dict de OpenAPI schema.
+            response_schema=ClientExtraction.model_json_schema(),
         )
     )
     
@@ -80,16 +74,15 @@ def extract_line_data(text: str, catalog_context: str = "") -> dict:
     {catalog_context}
     """
     
-    client = get_client()
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=[
+    model = GenerativeModel('gemini-2.5-flash')
+    response = model.generate_content(
+        [
             system_prompt,
             text
         ],
-        config=types.GenerateContentConfig(
+        generation_config=GenerationConfig(
             response_mime_type="application/json",
-            response_schema=QuoteExtraction,
+            response_schema=QuoteExtraction.model_json_schema(),
         )
     )
     
