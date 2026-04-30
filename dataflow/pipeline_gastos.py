@@ -195,33 +195,3 @@ if __name__ == "__main__":
 #   --region europe-southwest1 \
 #   --gemini_api_key "TU_API_KEY" \
 #   --runner DirectRunner
-
-
-# --- DESPLIEGUE EN GCP (DataflowRunner) ---
-# python pipeline_gastos.py \
-#   --project_id proyectodataia3 \
-#   --db_host 34.175.105.251 \
-#   --db_name aitonomo_db \
-#   --db_user admin \
-#   --db_pass "Edem2526." \
-#   --region europe-southwest1 \
-#   --gemini_api_key "TU_API_KEY" \
-#   --runner DataflowRunner \
-#   --region europe-southwest1 \
-#   --temp_location gs://proyectodataia3-dataflow-staging/temp \
-#   --staging_location gs://proyectodataia3-dataflow-staging/staging \
-#   --service_account_email dataflow-pipeline-sa@proyectodataia3.iam.gserviceaccount.com \
-#   --requirements_file requirements.txt \
-#   --job_name pipeline-gastos-streaming \
-#   --streaming
-
-# --- PRUEBA LOCAL (DirectRunner) ---
-# python pipeline_gastos.py \
-#   --project_id proyectodataia3 \
-#   --db_host 34.175.105.251 \
-#   --db_name aitonomo_db \
-#   --db_user admin \
-#   --db_pass "Edem2526." \
-#   --region europe-southwest1 \
-#   --gemini_api_key "TU_API_KEY" \
-#   --runner DirectRunner
