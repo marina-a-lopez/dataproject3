@@ -1116,7 +1116,7 @@ const appLogic = {
             <td>—</td>
             <td style="display:flex;gap:6px;">
                 <button class="btn btn-secondary text-sm" style="padding:4px 10px;"
-                    onclick="appLogic.resumePolling('${expenseId}')">
+                    onclick="appLogic.retryDraft('${expenseId}')">
                     <i class="fa-solid fa-rotate-right"></i> Reintentar
                 </button>
                 <button class="btn-icon text-red hover-animate" title="Eliminar"
@@ -1124,6 +1124,19 @@ const appLogic = {
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </td>`;
+    },
+
+    retryDraft: (expenseId) => {
+        const tr = document.getElementById(`draft-${expenseId}`);
+        if (!tr) return;
+        // Restaurar spinner en la fila existente sin reemplazarla
+        const firstTd = tr.querySelector('td');
+        const preview = firstTd ? firstTd.innerHTML : '';
+        tr.innerHTML = `
+            <td>${preview}</td>
+            <td colspan="3" class="text-muted text-sm"><i class="fa-solid fa-spinner fa-spin text-gold"></i> Reintentando...</td>
+            <td>—</td><td>—</td>`;
+        appLogic.resumePolling(expenseId);
     },
 
     saveExpense: async (e) => {
