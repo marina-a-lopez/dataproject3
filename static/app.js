@@ -955,7 +955,6 @@ const appLogic = {
     },
 
     processExpenseDocument: async (file) => {
-    processExpenseDocument: async (file) => {
         if (!file) {
             Utils.showToast('Selecciona un archivo primero', 'error');
             return;
