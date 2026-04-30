@@ -48,7 +48,8 @@ const Utils = {
     }
 };
 
-// IMPORTANTE: Cuando despliegues el backend, pega su URL aquí
+// IMPORTANTE: Cuando despliegues el backend, pega su 
+//  aquí
 const API_BASE_URL = "https://api-backend-4nrtuy3yca-no.a.run.app";
 
 const API = {
@@ -977,7 +978,22 @@ const appLogic = {
                 document.getElementById('exp-date').value = res.data.fecha || '';
                 document.getElementById('exp-concept').value = res.data.concepto || '';
                 document.getElementById('exp-amount').value = parseFloat(res.data.importe_total || 0).toFixed(2);
-                Utils.showToast('Detalles del gasto extraídos con éxito', 'success');
+                // Añadir a tabla de pendientes
+                const rowId = 'pend_' + Date.now();
+                document.getElementById('expense-form').dataset.pendingRow = rowId;
+                const previewUrl = URL.createObjectURL(file);
+                const isPdf = file.type === 'application/pdf';
+                const previewHtml = isPdf
+                    ? `<a href="${previewUrl}" target="_blank" title="${file.name}"><i class="fa-solid fa-file-pdf" style="font-size:2rem;color:var(--clr-accent-gold);"></i></a>`
+                    : `<a href="${previewUrl}" target="_blank" title="${file.name}"><img src="${previewUrl}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid var(--clr-border);"></a>`;
+                const tr = document.createElement('tr');
+                tr.id = rowId;
+                tr.innerHTML = `<td>${previewHtml}</td><td class="font-bold">${res.data.proveedor||'—'}</td><td>${res.data.fecha||'—'}</td><td class="text-muted text-sm">${res.data.concepto||'—'}</td><td class="text-accent font-bold">${parseFloat(res.data.importe_total||0).toFixed(2)}€</td><td><button class="btn btn-secondary text-sm" style="padding:4px 10px;" onclick="document.getElementById('exp-provider').value='${(res.data.proveedor||'').replace(/'/g,"\\'")}';document.getElementById('exp-date').value='${res.data.fecha||''}';document.getElementById('exp-concept').value='${(res.data.concepto||'').replace(/'/g,"\\'")}';document.getElementById('exp-amount').value='${parseFloat(res.data.importe_total||0).toFixed(2)}';document.getElementById('expense-form').dataset.pendingRow='${rowId}';"><i class="fa-solid fa-pen-to-square"></i> Revisar</button></td>`;
+                document.getElementById('expense-pending-list').appendChild(tr);
+                const count = document.getElementById('expense-pending-list').querySelectorAll('tr').length;
+                document.getElementById('expense-pending-count').textContent = `(${count})`;
+                document.getElementById('expense-pending-section').style.display = 'block';
+                Utils.showToast('Ticket procesado. Revisa los datos y confirma.', 'success');
             }
         } catch(e) {
             Utils.showToast(e.message || 'Error al procesar el ticket', 'error');
@@ -1010,6 +1026,15 @@ const appLogic = {
                 body: JSON.stringify(payload)
             });
             if (res && res.success) {
+                const rowId = document.getElementById('expense-form').dataset.pendingRow;
+                if (rowId) {
+                    const row = document.getElementById(rowId);
+                    if (row) row.remove();
+                    delete document.getElementById('expense-form').dataset.pendingRow;
+                    const count = document.getElementById('expense-pending-list').querySelectorAll('tr').length;
+                    document.getElementById('expense-pending-count').textContent = count ? `(${count})` : '';
+                    if (!count) document.getElementById('expense-pending-section').style.display = 'none';
+                }
                 Utils.showToast('Gasto registrado con éxito.', 'success');
                 appLogic.loadExpenses();
                 appLogic.loadDashboard(); // Refresh Net Balance
