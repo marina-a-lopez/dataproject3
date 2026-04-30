@@ -14,7 +14,8 @@ import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions, StandardOptions, SetupOptions
 from google.cloud import storage
 import psycopg2
-import google.generativeai as genai
+import vertexai
+from vertexai.generative_models import GenerativeModel, Part
 
 ETIQUETA_ERRORES = "errores"
 
@@ -43,15 +44,14 @@ def parsear_mensaje(message: bytes):
 class ExtraerConGemini(beam.DoFn):
     """Descarga el ticket de GCS, llama a Gemini y devuelve los datos extraídos."""
 
-    def __init__(self, project_id: str, gemini_api_key: str = ""):
+    def __init__(self, project_id: str):
         self.project_id = project_id
-        self.gemini_api_key = gemini_api_key
 
     def setup(self):
-        genai.configure(api_key=self.gemini_api_key)
-        self.model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+        vertexai.init(project=self.project_id)
+        self.model = GenerativeModel(model_name="gemini-2.5-flash")
         self.storage_client = storage.Client(project=self.project_id)
-        logging.info("[Gemini] Worker inicializado")
+        logging.info("[Vertex] Worker inicializado")
 
     def process(self, element: dict):
         expense_id = element.get("expense_id", "desconocido")
@@ -65,7 +65,7 @@ class ExtraerConGemini(beam.DoFn):
                 "Responde ÚNICAMENTE con un JSON con las claves: proveedor, fecha, concepto, importe_total."
             )
             response = reintentos(lambda: self.model.generate_content([
-                {"mime_type": element["mime_type"], "data": image_bytes},
+                Part.from_data(data=image_bytes, mime_type=element["mime_type"]),
                 prompt,
             ]))
 
@@ -146,7 +146,6 @@ def run():
     parser.add_argument("--db_name",        required=True)
     parser.add_argument("--db_user",        required=True)
     parser.add_argument("--db_pass",        required=True)
-    parser.add_argument("--gemini_api_key", required=True)
     args, pipeline_args = parser.parse_known_args()
 
     options = PipelineOptions(pipeline_args, project=args.project_id)
@@ -164,7 +163,7 @@ def run():
 
         resultado = (
             mensajes
-            | "ExtraerConGemini" >> beam.ParDo(ExtraerConGemini(args.project_id, args.gemini_api_key))
+            | "ExtraerConGemini" >> beam.ParDo(ExtraerConGemini(args.project_id))
                                         .with_outputs(ETIQUETA_ERRORES, main="ok")
         )
 

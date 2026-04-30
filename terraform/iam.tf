@@ -99,6 +99,7 @@ resource "google_project_iam_member" "dataflow_permissions" {
     "roles/pubsub.subscriber",
     "roles/storage.objectAdmin",
     "roles/cloudsql.client",
+    "roles/aiplatform.user",
   ])
   project = var.project_id
   role    = each.key

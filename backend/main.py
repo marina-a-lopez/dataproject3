@@ -84,15 +84,9 @@ try:
 except Exception as e:
     pass
 
-# Configuración de Gemini (mediante variables de entorno)
-gemini_api_key = os.getenv('GEMINI_API_KEY')
-if gemini_api_key:
-    try:
-        proc.configure_gemini(gemini_api_key)
-    except Exception as e:
-        print(f"Failed to configure Gemini: {e}")
-else:
-    print("Advertencia: No se ha encontrado la variable de entorno GEMINI_API_KEY.")
+# Inicialización de Vertex AI (usa ADC automáticamente en Cloud Run)
+import vertexai as _vertexai
+_vertexai.init(project=os.getenv('GCP_PROJECT_ID'))
 
 # Modelos Pydantic para peticiones JSON
 class LoginRequest(BaseModel):
