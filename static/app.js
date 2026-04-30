@@ -249,6 +249,8 @@ const UI = {
             if (v.id !== 'auth-view') v.classList.add('hidden');
         });
         document.getElementById(viewId).classList.remove('hidden');
+
+        if (viewId === 'expenses-view') appLogic.loadExpenseDrafts();
     }
 };
 
