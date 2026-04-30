@@ -11,6 +11,8 @@ import uvicorn
 from pathlib import Path
 import os
 import tempfile
+import uuid
+import json
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -25,6 +27,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from google.cloud import bigquery
+from google.cloud import pubsub_v1
+from google.cloud import firestore
 from StorageManager import StorageManager
 
 sm = StorageManager()
@@ -975,6 +979,18 @@ async def delete_expense(user_id: str, expense_id: str, db: Session = Depends(ge
 # Integraciones con IA
 
 
+@app.post("/api/process_expense_doc")
+async def process_expense_doc(file: UploadFile = File(...)):
+    """Procesa un ticket/recibo con Gemini y devuelve proveedor, fecha, concepto e importe."""
+    try:
+        contents = await file.read()
+        data = proc.extract_expense_data(contents, file.content_type)
+        if "error" in data:
+            raise HTTPException(status_code=500, detail=data["error"])
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/process_document")
 async def process_document(
     file: UploadFile = File(...), 
@@ -1032,32 +1048,71 @@ async def process_document(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/expense_status/{job_id}")
+async def expense_status(job_id: str):
+    try:
+        db_firestore = firestore.Client()
+        doc = db_firestore.collection("expense_extractions").document(job_id).get()
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="Job no encontrado")
+        return doc.to_dict()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/process_expense")
-async def process_expense(file: UploadFile = File(...)):
+async def process_expense(file: UploadFile = File(...), user_id: str = Form(default=""), fcm_token: str = Form(default="")):
+    """Sube el ticket a GCS, llama a Gemini y devuelve los datos extraídos."""
     try:
         contents = await file.read()
         mime_type = file.content_type
-        
-        # Enviamos el ticket al Bucket de Google ---
-        ext = os.path.splitext(file.filename)[1]
-        nombre_nube = f"expenses/ticket_{int(datetime.now().timestamp())}{ext}"
-        url_nube = sm.upload_file(contents, nombre_nube)
 
-        
+        ext = os.path.splitext(file.filename)[1]
+        object_name = f"expenses/ticket_{int(datetime.now().timestamp())}{ext}"
+        sm.upload_file(contents, object_name)
+
+        # Extraer datos con Gemini directamente
         data = proc.extract_expense_data(contents, mime_type)
         if "error" in data:
             raise HTTPException(status_code=500, detail=data["error"])
-            
+
         return {
             "success": True,
-            "data": {
-                "proveedor": data.get("proveedor", "Desconocido"),
-                "fecha": data.get("fecha", datetime.now().strftime("%Y-%m-%d")),
-                "concepto": data.get("concepto", "Gasto genérico"),
-                "importe_total": float(data.get("importe_total", 0.0)),
-                "url_ticket": url_nube
-            }
+            "ticket_url": f"gs://{sm.bucket_name}/{object_name}",
+            "data": data  # {proveedor, fecha, concepto, importe_total}
         }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class ConfirmExpenseRequest(BaseModel):
+    job_id: str
+    user_id: str
+    bucket_name: str
+    object_name: str
+    datos_extraidos: dict  # {proveedor, fecha, concepto, importe_total} — puede venir editado por el usuario
+
+
+@app.post("/api/confirm_expense")
+async def confirm_expense(req: ConfirmExpenseRequest):
+    """El usuario confirma (o corrige) los datos extraídos. Publica en topic-confirmaciones para INSERT en Postgres."""
+    try:
+        project_id = os.getenv("GCP_PROJECT_ID", "")
+        publisher = pubsub_v1.PublisherClient()
+        topic_path = publisher.topic_path(project_id, "topic-confirmaciones")
+        mensaje = {
+            "job_id":          req.job_id,
+            "user_id":         req.user_id,
+            "bucket_name":     req.bucket_name,
+            "object_name":     req.object_name,
+            "datos_extraidos": req.datos_extraidos,
+        }
+        publisher.publish(topic_path, json.dumps(mensaje).encode("utf-8"))
+        return {"success": True}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1339,6 +1394,8 @@ async def get_avatar(filename: str):
         return Response(content=avatar_bytes, media_type=media_type)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 @app.put("/api/profile/{user_id}/irpf")
 async def update_irpf_rate(user_id: str, req: IRPFUpdateRequest, db: Session = Depends(get_db)):

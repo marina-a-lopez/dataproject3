@@ -955,6 +955,7 @@ const appLogic = {
     },
 
     processExpenseDocument: async (file) => {
+    processExpenseDocument: async (file) => {
         if (!file) {
             Utils.showToast('Selecciona un archivo primero', 'error');
             return;
@@ -973,17 +974,17 @@ const appLogic = {
             });
 
             if (res.success && res.data) {
-                // Fill form
                 document.getElementById('exp-provider').value = res.data.proveedor || '';
                 document.getElementById('exp-date').value = res.data.fecha || '';
                 document.getElementById('exp-concept').value = res.data.concepto || '';
                 document.getElementById('exp-amount').value = parseFloat(res.data.importe_total || 0).toFixed(2);
-
                 Utils.showToast('Detalles del gasto extraídos con éxito', 'success');
             }
+        } catch(e) {
+            Utils.showToast(e.message || 'Error al procesar el ticket', 'error');
         } finally {
             btnStatus.classList.add('hidden');
-            document.getElementById('file-input-expense').value = ''; // Reset
+            document.getElementById('file-input-expense').value = '';
         }
     },
 

@@ -6,14 +6,27 @@ resource "google_storage_bucket" "document_bucket" {
   force_destroy = false
 }
 
-#pubsub para enviar mensajes
-resource "google_pubsub_topic" "topic-batch-upload" {
-  name = "topic-lote-facturas"
+resource "google_pubsub_topic" "topic_tickets" {
+  name = "topic-tickets"
 }
 
-resource "google_pubsub_subscription" "topic-batch-upload-sub" {
-  name  = "${google_pubsub_topic.topic-batch-upload.name}-sub"
-  topic = google_pubsub_topic.topic-batch-upload.name
+resource "google_pubsub_subscription" "sub_tickets" {
+  name  = "sub-tickets"
+  topic = google_pubsub_topic.topic_tickets.name
+
+  # Tiempo que tiene Dataflow para confirmar que ha procesado el mensaje antes de reintentar
+  ack_deadline_seconds       = 60
+  message_retention_duration = "604800s" # 7 días
+}
+
+resource "google_pubsub_topic" "topic_confirmaciones" {
+  name = "topic-confirmaciones"
+}
+
+resource "google_pubsub_subscription" "sub_confirmaciones" {
+  name  = "sub-confirmaciones"
+  topic = google_pubsub_topic.topic_confirmaciones.name
+  message_retention_duration = "604800s"
 }
 
 # bd en cloud sql con ip privada
@@ -158,6 +171,14 @@ resource "google_cloud_run_v2_service" "backend_cloud_run" {
             version = "latest"
           }
         }
+      }
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+      env {
+        name  = "GCP_BUCKET_NAME"
+        value = google_storage_bucket.document_bucket.name
       }
     }
   }
@@ -630,4 +651,25 @@ resource "google_datastream_stream" "postgres_to_bq" {
   backfill_all {}
 
   create_without_validation = true
+}
+
+# ---------------------------------------------------------
+# 10. FIRESTORE + FIREBASE WEB APP
+# ---------------------------------------------------------
+
+resource "google_firestore_database" "default" {
+  project          = var.project_id
+  name             = "(default)"
+  location_id      = var.region
+  type             = "FIRESTORE_NATIVE"
+  concurrency_mode = "OPTIMISTIC"
+}
+
+resource "google_firestore_field" "expense_extractions_ttl" {
+  project    = var.project_id
+  database   = google_firestore_database.default.name
+  collection = "expense_extractions"
+  field      = "ttl"
+
+  ttl_config {}
 }
