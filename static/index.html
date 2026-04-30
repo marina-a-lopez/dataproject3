@@ -14,7 +14,7 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/styles.css?v=7">
+    <link rel="stylesheet" href="/styles.css?v=8">
 </head>
 
 <body>
@@ -618,6 +618,11 @@
                             <div class="section-header">
                                 <h3>Registro de Facturas</h3>
                             </div>
+                            <div class="table-search-wrapper">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="search-invoices" class="table-search-input" placeholder="Buscar por cliente, ID o estado..." oninput="tableSearch('search-invoices', 'all-invoices-table')">
+                                <span class="search-count-badge" id="search-invoices-count"></span>
+                            </div>
                             <div class="table-responsive">
                                 <table class="corporate-table" id="all-invoices-table">
                                     <thead>
@@ -781,6 +786,11 @@
                         <div class="section-block box-shadow mt-4">
                             <div class="section-header">
                                 <h3>Registro de Presupuestos</h3>
+                            </div>
+                            <div class="table-search-wrapper">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="search-quotes" class="table-search-input" placeholder="Buscar por cliente, número o estado..." oninput="tableSearch('search-quotes', 'all-quotes-table')">
+                                <span class="search-count-badge" id="search-quotes-count"></span>
                             </div>
                             <div class="table-responsive">
                                 <table class="corporate-table" id="all-quotes-table">
@@ -1094,6 +1104,11 @@
                                 <div class="section-header">
                                     <h3>Directorio de Clientes</h3>
                                 </div>
+                                <div class="table-search-wrapper">
+                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                    <input type="text" id="search-crm" class="table-search-input" placeholder="Buscar por nombre, email o teléfono..." oninput="tableSearch('search-crm', 'crm-clients-table')">
+                                    <span class="search-count-badge" id="search-crm-count"></span>
+                                </div>
                                 <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                     <table class="corporate-table" id="crm-clients-table">
                                         <thead>
@@ -1160,6 +1175,11 @@
                             <div class="section-block box-shadow">
                                 <div class="section-header">
                                     <h3>Portafolio de Productos y Servicios</h3>
+                                </div>
+                                <div class="table-search-wrapper">
+                                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                    <input type="text" id="search-catalog" class="table-search-input" placeholder="Buscar por nombre o categoría..." oninput="tableSearch('search-catalog', 'catalog-table')">
+                                    <span class="search-count-badge" id="search-catalog-count"></span>
                                 </div>
                                 <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                     <table class="corporate-table" id="catalog-table">
@@ -1250,6 +1270,11 @@
                         <div class="section-block box-shadow mt-4">
                             <div class="section-header">
                                 <h3>Registro de Gastos</h3>
+                            </div>
+                            <div class="table-search-wrapper">
+                                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                                <input type="text" id="search-expenses" class="table-search-input" placeholder="Buscar por proveedor, concepto o fecha..." oninput="tableSearch('search-expenses', 'recent-expenses-table')">
+                                <span class="search-count-badge" id="search-expenses-count"></span>
                             </div>
                             <div class="table-responsive">
                                 <table class="corporate-table" id="recent-expenses-table">
@@ -1577,7 +1602,7 @@
             </div>
         </div>
 
-        <script src="/app.js?v=9"></script>
+        <script src="/app.js?v=10"></script>
 </body>
 
 </html>

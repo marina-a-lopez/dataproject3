@@ -2044,3 +2044,55 @@ window._calModalBgClick = function (e) {
         document.getElementById('add-event-modal').classList.add('hidden');
     }
 };
+
+// ================== TABLE SEARCH UTILITY ==================
+/**
+ * Filters table rows in real-time based on the search input value.
+ * @param {string} inputId   - The ID of the search <input> element
+ * @param {string} tableId   - The ID of the <table> to filter
+ */
+function tableSearch(inputId, tableId) {
+    const query = document.getElementById(inputId).value.trim().toLowerCase();
+    const rows = document.querySelectorAll(`#${tableId} tbody tr`);
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        // Ignore placeholder rows that span all columns (empty-state messages)
+        const isPlaceholder = row.querySelector('td[colspan]');
+        if (isPlaceholder) {
+            row.classList.remove('search-hidden');
+            return;
+        }
+
+        const text = row.textContent.toLowerCase();
+        const matches = !query || text.includes(query);
+        row.classList.toggle('search-hidden', !matches);
+        if (matches) visibleCount++;
+    });
+
+    // Update the count badge
+    const badge = document.getElementById(inputId + '-count');
+    if (badge) {
+        if (!query) {
+            badge.textContent = '';
+            badge.classList.remove('has-results');
+        } else {
+            badge.textContent = `${visibleCount} resultado${visibleCount !== 1 ? 's' : ''}`;
+            badge.classList.toggle('has-results', visibleCount > 0);
+        }
+    }
+}
+
+/**
+ * Clears the search input and resets the table filter for a given search bar.
+ * Call this after refreshing table data to avoid stale filter state.
+ * @param {string} inputId - The ID of the search <input> element
+ * @param {string} tableId - The ID of the <table>
+ */
+function resetTableSearch(inputId, tableId) {
+    const input = document.getElementById(inputId);
+    if (input && input.value) {
+        input.value = '';
+        tableSearch(inputId, tableId);
+    }
+}
