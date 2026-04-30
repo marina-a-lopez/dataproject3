@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS gastos (
     concepto VARCHAR(255),
     importe_total FLOAT NOT NULL DEFAULT 0.0,
     url_ticket VARCHAR(500),
+    status VARCHAR(20) NOT NULL DEFAULT 'confirmed',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

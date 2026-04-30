@@ -28,7 +28,6 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from google.cloud import bigquery
 from google.cloud import pubsub_v1
-from google.cloud import firestore
 from StorageManager import StorageManager
 
 sm = StorageManager()
@@ -932,7 +931,7 @@ async def fetch_and_generate_pdf_quote(quote_id: str, db: Session = Depends(get_
 # Gastos
 @app.get("/api/expenses/{user_id}")
 async def get_expenses(user_id: str, db: Session = Depends(get_db)):
-    gastos = db.query(Gasto).filter(Gasto.usuario_id == user_id).order_by(Gasto.fecha.desc()).all()
+    gastos = db.query(Gasto).filter(Gasto.usuario_id == user_id, Gasto.status == 'confirmed').order_by(Gasto.fecha.desc()).all()
     return [{
         "id": str(g.id),
         "fecha": g.fecha.strftime("%Y-%m-%d"),
@@ -940,6 +939,27 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
         "concepto": g.concepto or "Gasto genérico",
         "importe_total": float(g.importe_total)
     } for g in gastos]
+
+@app.get("/api/expense_drafts/{user_id}")
+async def get_expense_drafts(user_id: str, db: Session = Depends(get_db)):
+    drafts = db.query(Gasto).filter(Gasto.usuario_id == user_id, Gasto.status == 'draft').order_by(Gasto.created_at.desc()).all()
+    return [{"id": str(g.id), "fecha": g.fecha.strftime("%Y-%m-%d"), "proveedor": g.proveedor or "", "concepto": g.concepto or "", "importe_total": float(g.importe_total), "url_ticket": g.url_ticket or ""} for g in drafts]
+
+@app.patch("/api/expenses/{expense_id}/confirm")
+async def confirm_expense_patch(expense_id: str, req: ExpenseCreate, db: Session = Depends(get_db)):
+    gasto = db.query(Gasto).filter(Gasto.id == expense_id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    try:
+        gasto.fecha = datetime.strptime(req.fecha, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    except:
+        pass
+    gasto.proveedor = req.proveedor
+    gasto.concepto = req.concepto
+    gasto.importe_total = req.importe_total
+    gasto.status = 'confirmed'
+    db.commit()
+    return {"success": True}
 
 @app.post("/api/expenses")
 async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
@@ -1048,73 +1068,64 @@ async def process_document(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/expense_status/{job_id}")
-async def expense_status(job_id: str):
-    try:
-        db_firestore = firestore.Client()
-        doc = db_firestore.collection("expense_extractions").document(job_id).get()
-        if not doc.exists:
-            raise HTTPException(status_code=404, detail="Job no encontrado")
-        return doc.to_dict()
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.post("/api/process_expense")
-async def process_expense(file: UploadFile = File(...), user_id: str = Form(default=""), fcm_token: str = Form(default="")):
-    """Sube el ticket a GCS, llama a Gemini y devuelve los datos extraídos."""
+async def process_expense(file: UploadFile = File(...), user_id: str = Form(default=""), fcm_token: str = Form(default=""), db: Session = Depends(get_db)):
+    """Sube el ticket a GCS, guarda draft en PostgreSQL y publica en Pub/Sub para que Dataflow procese con Gemini."""
     try:
         contents = await file.read()
         mime_type = file.content_type
-
         ext = os.path.splitext(file.filename)[1]
         object_name = f"expenses/ticket_{int(datetime.now().timestamp())}{ext}"
         sm.upload_file(contents, object_name)
+        ticket_url = f"gs://{sm.bucket_name}/{object_name}"
 
-        # Extraer datos con Gemini directamente
-        data = proc.extract_expense_data(contents, mime_type)
-        if "error" in data:
-            raise HTTPException(status_code=500, detail=data["error"])
+        user = db.query(Usuario).filter(Usuario.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        return {
-            "success": True,
-            "ticket_url": f"gs://{sm.bucket_name}/{object_name}",
-            "data": data  # {proveedor, fecha, concepto, importe_total}
-        }
+        draft = Gasto(
+            usuario_id=user.id,
+            fecha=datetime.now(timezone.utc),
+            importe_total=0.0,
+            url_ticket=ticket_url,
+            status='draft'
+        )
+        db.add(draft)
+        db.commit()
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class ConfirmExpenseRequest(BaseModel):
-    job_id: str
-    user_id: str
-    bucket_name: str
-    object_name: str
-    datos_extraidos: dict  # {proveedor, fecha, concepto, importe_total} — puede venir editado por el usuario
-
-
-@app.post("/api/confirm_expense")
-async def confirm_expense(req: ConfirmExpenseRequest):
-    """El usuario confirma (o corrige) los datos extraídos. Publica en topic-confirmaciones para INSERT en Postgres."""
-    try:
         project_id = os.getenv("GCP_PROJECT_ID", "")
         publisher = pubsub_v1.PublisherClient()
-        topic_path = publisher.topic_path(project_id, "topic-confirmaciones")
-        mensaje = {
-            "job_id":          req.job_id,
-            "user_id":         req.user_id,
-            "bucket_name":     req.bucket_name,
-            "object_name":     req.object_name,
-            "datos_extraidos": req.datos_extraidos,
-        }
-        publisher.publish(topic_path, json.dumps(mensaje).encode("utf-8"))
-        return {"success": True}
+        publisher.publish(
+            publisher.topic_path(project_id, "topic-tickets"),
+            json.dumps({
+                "expense_id": str(draft.id),
+                "user_id": user_id,
+                "fcm_token": fcm_token,
+                "bucket_name": sm.bucket_name,
+                "object_name": object_name,
+                "mime_type": mime_type,
+            }).encode("utf-8")
+        )
+
+        return {"success": True, "expense_id": str(draft.id), "ticket_url": ticket_url}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/expense_status/{expense_id}")
+async def expense_status(expense_id: str, db: Session = Depends(get_db)):
+    gasto = db.query(Gasto).filter(Gasto.id == expense_id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    return {
+        "status": gasto.status,
+        "data": {
+            "proveedor": gasto.proveedor or "",
+            "fecha": gasto.fecha.strftime("%Y-%m-%d") if gasto.proveedor else "",
+            "concepto": gasto.concepto or "",
+            "importe_total": float(gasto.importe_total)
+        } if gasto.status == 'draft' and gasto.proveedor else {}
+    }
 
 @app.post("/api/process_client_voice")
 async def process_client_voice(file: UploadFile = File(...)):
@@ -1392,6 +1403,22 @@ async def get_avatar(filename: str):
             
         from fastapi import Response
         return Response(content=avatar_bytes, media_type=media_type)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ticket/{object_path:path}")
+async def get_ticket(object_path: str):
+    try:
+        from fastapi import Response
+        file_bytes = sm.download_file(object_path)
+        if not file_bytes:
+            raise HTTPException(status_code=404, detail="Ticket no encontrado")
+        ext = os.path.splitext(object_path)[1].lower()
+        media_type = "image/jpeg"
+        if ext == ".png": media_type = "image/png"
+        elif ext == ".pdf": media_type = "application/pdf"
+        elif ext in [".webp", ".gif"]: media_type = f"image/{ext[1:]}"
+        return Response(content=file_bytes, media_type=media_type)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
