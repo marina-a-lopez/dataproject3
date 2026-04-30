@@ -1916,3 +1916,160 @@ input {
     border-radius: 8px;
     color: #ef4444;
 }
+
+/* ================== DASHBOARD TABS ================== */
+.dashboard-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 1.5rem;
+    background: var(--clr-surface);
+    padding: 6px;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--clr-border, #e2e8f0);
+}
+
+.dash-tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0.625rem 1.25rem;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--clr-text-muted);
+    transition: var(--transition);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+}
+
+.dash-tab-btn:hover {
+    color: var(--clr-primary-900);
+    background: var(--clr-bg-main);
+}
+
+.dash-tab-btn.active {
+    background: var(--clr-primary-900);
+    color: white;
+    box-shadow: var(--shadow-md);
+}
+
+.dash-tab-btn.active i {
+    color: var(--clr-accent-gold);
+}
+
+/* ================== CHART CARDS ================== */
+.chart-card {
+    padding: 1.5rem;
+}
+
+.chart-card .section-header {
+    margin-bottom: 1.25rem;
+}
+
+.chart-container {
+    position: relative;
+    width: 100%;
+}
+
+.chart-donut-wrap {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding: 0.5rem 0;
+}
+
+.chart-donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 140px;
+}
+
+.chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--clr-text-body);
+    font-weight: 500;
+}
+
+.chart-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* ================== KPI CARDS ROW ================== */
+.charts-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.kpi-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.25rem;
+    transition: var(--transition);
+}
+
+.kpi-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+}
+
+.kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.kpi-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.kpi-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--clr-text-muted);
+    font-weight: 600;
+}
+
+.kpi-value {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--clr-text-dark);
+}
+
+/* Responsive adjustments for charts */
+@media (max-width: 768px) {
+    .charts-kpi-row {
+        grid-template-columns: 1fr 1fr;
+    }
+    .chart-donut-wrap {
+        flex-direction: column;
+    }
+    .chart-donut-legend {
+        flex-direction: row;
+        flex-wrap: wrap;
+        min-width: unset;
+    }
+}

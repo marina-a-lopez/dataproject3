@@ -14,7 +14,9 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/styles.css?v=7">
+    <link rel="stylesheet" href="/styles.css?v=8">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -372,93 +374,202 @@
                 <div class="main-content-scroll">
                     <!-- Dashboard View -->
                     <main id="dashboard-view" class="view hidden fade-in">
-                        <!-- Period Selector -->
-                        <div class="period-selector" id="period-selector-dash">
-                            <div class="period-tabs">
-                                <button class="period-tab" data-period="mensual"
-                                    onclick="setPeriodType('mensual')">Mensual</button>
-                                <button class="period-tab" data-period="trimestral"
-                                    onclick="setPeriodType('trimestral')">Trimestral</button>
-                                <button class="period-tab active" data-period="anual"
-                                    onclick="setPeriodType('anual')">Anual</button>
-                            </div>
-                            <div class="period-nav">
-                                <button class="period-nav-btn" onclick="shiftPeriod(-1)" title="Período anterior"><i
-                                        class="fa-solid fa-chevron-left"></i></button>
-                                <span class="period-label-display">2026</span>
-                                <button class="period-nav-btn btn-period-next" id="btn-period-next-dash"
-                                    onclick="shiftPeriod(1)" title="Período siguiente" disabled><i
-                                        class="fa-solid fa-chevron-right"></i></button>
-                            </div>
+
+                        <!-- Dashboard Tab Switcher -->
+                        <div class="dashboard-tabs" id="dashboard-tab-bar">
+                            <button class="dash-tab-btn active" id="dash-tab-resumen" onclick="switchDashTab('resumen')">
+                                <i class="fa-solid fa-chart-pie"></i> Resumen Financiero
+                            </button>
+                            <button class="dash-tab-btn" id="dash-tab-graficos" onclick="switchDashTab('graficos')">
+                                <i class="fa-solid fa-chart-line"></i> Gráficos de Evolución
+                            </button>
                         </div>
-                        <div class="grid-2-col gap-3">
-                            <div class="hero-balance box-shadow">
-                                <p class="hero-label">Ingresos Totales (Facturas)</p>
-                                <h1 class="hero-amount font-heading" id="dash-total-revenue">€0.00</h1>
-                                <div class="hero-delta positive" id="dash-delta-revenue">+0.0%</div>
+
+                        <!-- ===== PANEL: RESUMEN FINANCIERO ===== -->
+                        <div id="dash-panel-resumen">
+                            <!-- Period Selector -->
+                            <div class="period-selector" id="period-selector-dash">
+                                <div class="period-tabs">
+                                    <button class="period-tab" data-period="mensual"
+                                        onclick="setPeriodType('mensual')">Mensual</button>
+                                    <button class="period-tab" data-period="trimestral"
+                                        onclick="setPeriodType('trimestral')">Trimestral</button>
+                                    <button class="period-tab active" data-period="anual"
+                                        onclick="setPeriodType('anual')">Anual</button>
+                                </div>
+                                <div class="period-nav">
+                                    <button class="period-nav-btn" onclick="shiftPeriod(-1)" title="Período anterior"><i
+                                            class="fa-solid fa-chevron-left"></i></button>
+                                    <span class="period-label-display">2026</span>
+                                    <button class="period-nav-btn btn-period-next" id="btn-period-next-dash"
+                                        onclick="shiftPeriod(1)" title="Período siguiente" disabled><i
+                                            class="fa-solid fa-chevron-right"></i></button>
+                                </div>
                             </div>
-                            <div class="hero-balance box-shadow"
-                                style="background: linear-gradient(135deg, rgba(10, 25, 47, 0.9), rgba(10, 25, 47, 1)); border: 1px solid var(--clr-gold);">
-                                <p class="hero-label text-gold">Beneficio Neto (Base sin IVA)</p>
-                                <h1 class="hero-amount font-heading text-white" id="dash-net-balance">€0.00</h1>
-                                <div class="hero-delta positive text-accent"><i class="fa-solid fa-scale-balanced"></i>
-                                    Cálculo en Vivo</div>
+                            <div class="grid-2-col gap-3">
+                                <div class="hero-balance box-shadow">
+                                    <p class="hero-label">Ingresos Totales (Facturas)</p>
+                                    <h1 class="hero-amount font-heading" id="dash-total-revenue">€0.00</h1>
+                                    <div class="hero-delta positive" id="dash-delta-revenue">+0.0%</div>
+                                </div>
+                                <div class="hero-balance box-shadow"
+                                    style="background: linear-gradient(135deg, rgba(10, 25, 47, 0.9), rgba(10, 25, 47, 1)); border: 1px solid var(--clr-gold);">
+                                    <p class="hero-label text-gold">Beneficio Neto (Base sin IVA)</p>
+                                    <h1 class="hero-amount font-heading text-white" id="dash-net-balance">€0.00</h1>
+                                    <div class="hero-delta positive text-accent"><i class="fa-solid fa-scale-balanced"></i>
+                                        Cálculo en Vivo</div>
+                                </div>
+                            </div>
+
+                            <div class="stats-grid">
+                                <div class="stat-card box-shadow">
+                                    <div class="stat-icon amber-bg"><i class="fa-solid fa-clock"></i></div>
+                                    <div class="stat-details">
+                                        <p class="stat-label">Ingresos Pendientes</p>
+                                        <h3 class="stat-value" id="dash-pending">€0.00</h3>
+                                    </div>
+                                </div>
+                                <div class="stat-card box-shadow">
+                                    <div class="stat-icon red-bg"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                                    <div class="stat-details">
+                                        <p class="stat-label">Ingresos Vencidos</p>
+                                        <h3 class="stat-value" id="dash-overdue">€0.00</h3>
+                                    </div>
+                                </div>
+                                <div class="stat-card box-shadow" style="border-left: 4px solid var(--clr-red);">
+                                    <div class="stat-icon red-bg"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                                    <div class="stat-details">
+                                        <p class="stat-label">Gastos Totales</p>
+                                        <h3 class="stat-value text-red" id="dash-expenses">€0.00</h3>
+                                    </div>
+                                </div>
+                                <div class="stat-card box-shadow">
+                                    <div class="stat-icon blue-bg"><i class="fa-solid fa-building-user"></i></div>
+                                    <div class="stat-details">
+                                        <p class="stat-label">Clientes Activos</p>
+                                        <h3 class="stat-value" id="dash-clients">0</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="section-block box-shadow mt-4">
+                                <div class="section-header">
+                                    <h3>Transacciones Recientes</h3>
+                                    <button class="btn btn-text" onclick="appState.navigate('invoicing-view')">Ver
+                                        Todas</button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="corporate-table" id="recent-transactions-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Fecha</th>
+                                                <th>Cliente</th>
+                                                <th>Importe</th>
+                                                <th>Estado</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Populated via JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="stats-grid">
-                            <div class="stat-card box-shadow">
-                                <div class="stat-icon amber-bg"><i class="fa-solid fa-clock"></i></div>
-                                <div class="stat-details">
-                                    <p class="stat-label">Ingresos Pendientes</p>
-                                    <h3 class="stat-value" id="dash-pending">€0.00</h3>
+                        <!-- ===== PANEL: GRÁFICOS DE EVOLUCIÓN ===== -->
+                        <div id="dash-panel-graficos" class="hidden">
+                            <!-- Charts Period Selector -->
+                            <div class="period-selector" id="period-selector-charts">
+                                <div class="period-tabs">
+                                    <button class="period-tab" data-period="mensual" onclick="setChartPeriod('mensual')">Mensual</button>
+                                    <button class="period-tab active" data-period="anual" onclick="setChartPeriod('anual')">Anual (12m)</button>
+                                </div>
+                                <div class="period-nav">
+                                    <button class="period-nav-btn" onclick="shiftChartPeriod(-1)" title="Período anterior"><i class="fa-solid fa-chevron-left"></i></button>
+                                    <span class="period-label-display" id="chart-period-label">2026</span>
+                                    <button class="period-nav-btn" id="btn-chart-next" onclick="shiftChartPeriod(1)" title="Período siguiente" disabled><i class="fa-solid fa-chevron-right"></i></button>
                                 </div>
                             </div>
-                            <div class="stat-card box-shadow">
-                                <div class="stat-icon red-bg"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                                <div class="stat-details">
-                                    <p class="stat-label">Ingresos Vencidos</p>
-                                    <h3 class="stat-value" id="dash-overdue">€0.00</h3>
+
+                            <!-- Row 1: Main line chart (full width) -->
+                            <div class="section-block box-shadow chart-card">
+                                <div class="section-header">
+                                    <h3><i class="fa-solid fa-chart-line text-gold"></i> Evolución de Ingresos y Gastos</h3>
+                                    <span class="text-muted text-sm" id="chart-period-subtitle">Vista anual</span>
+                                </div>
+                                <div class="chart-container" style="height: 280px;">
+                                    <canvas id="chart-evolution" aria-label="Gráfico de evolución financiera"></canvas>
                                 </div>
                             </div>
-                            <div class="stat-card box-shadow" style="border-left: 4px solid var(--clr-red);">
-                                <div class="stat-icon red-bg"><i class="fa-solid fa-arrow-trend-down"></i></div>
-                                <div class="stat-details">
-                                    <p class="stat-label">Gastos Totales</p>
-                                    <h3 class="stat-value text-red" id="dash-expenses">€0.00</h3>
+
+                            <!-- Row 2: Two smaller charts side by side -->
+                            <div class="grid-2-col gap-3 mt-3">
+                                <!-- Bar chart: monthly comparison -->
+                                <div class="section-block box-shadow chart-card">
+                                    <div class="section-header">
+                                        <h3><i class="fa-solid fa-chart-bar text-gold"></i> Balance Mensual</h3>
+                                    </div>
+                                    <div class="chart-container" style="height: 220px;">
+                                        <canvas id="chart-balance" aria-label="Gráfico de balance mensual"></canvas>
+                                    </div>
+                                </div>
+
+                                <!-- Donut chart: IVA breakdown -->
+                                <div class="section-block box-shadow chart-card">
+                                    <div class="section-header">
+                                        <h3><i class="fa-solid fa-circle-half-stroke text-gold"></i> Distribución Financiera</h3>
+                                    </div>
+                                    <div class="chart-donut-wrap">
+                                        <canvas id="chart-donut" aria-label="Gráfico de distribución financiera" style="max-height:200px;"></canvas>
+                                        <div class="chart-donut-legend" id="chart-donut-legend"></div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="stat-card box-shadow">
-                                <div class="stat-icon blue-bg"><i class="fa-solid fa-building-user"></i></div>
-                                <div class="stat-details">
-                                    <p class="stat-label">Clientes Activos</p>
-                                    <h3 class="stat-value" id="dash-clients">0</h3>
+
+                            <!-- Row 3: Expense categories -->
+                            <div class="section-block box-shadow chart-card mt-3">
+                                <div class="section-header">
+                                    <h3><i class="fa-solid fa-receipt text-gold"></i> Top Proveedores / Gastos por Categoría</h3>
+                                    <span class="text-muted text-sm">Mayores gastos del período</span>
+                                </div>
+                                <div class="chart-container" style="height: 220px;">
+                                    <canvas id="chart-expenses-cat" aria-label="Gráfico de gastos por categoría"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- KPI Row -->
+                            <div class="charts-kpi-row mt-3">
+                                <div class="kpi-card box-shadow">
+                                    <div class="kpi-icon" style="background: rgba(16,185,129,0.12); color: #10B981;"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                                    <div class="kpi-info">
+                                        <span class="kpi-label">Mejor Mes (Ingresos)</span>
+                                        <span class="kpi-value" id="kpi-best-month">–</span>
+                                    </div>
+                                </div>
+                                <div class="kpi-card box-shadow">
+                                    <div class="kpi-icon" style="background: rgba(239,68,68,0.12); color: #EF4444;"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                                    <div class="kpi-info">
+                                        <span class="kpi-label">Mayor Gasto Mes</span>
+                                        <span class="kpi-value" id="kpi-worst-month">–</span>
+                                    </div>
+                                </div>
+                                <div class="kpi-card box-shadow">
+                                    <div class="kpi-icon" style="background: rgba(212,175,55,0.12); color: #D4AF37;"><i class="fa-solid fa-scale-balanced"></i></div>
+                                    <div class="kpi-info">
+                                        <span class="kpi-label">Margen Promedio</span>
+                                        <span class="kpi-value" id="kpi-avg-margin">–</span>
+                                    </div>
+                                </div>
+                                <div class="kpi-card box-shadow">
+                                    <div class="kpi-icon" style="background: rgba(59,130,246,0.12); color: #3B82F6;"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                                    <div class="kpi-info">
+                                        <span class="kpi-label">Facturas en Período</span>
+                                        <span class="kpi-value" id="kpi-invoice-count">–</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="section-block box-shadow mt-4">
-                            <div class="section-header">
-                                <h3>Transacciones Recientes</h3>
-                                <button class="btn btn-text" onclick="appState.navigate('invoicing-view')">Ver
-                                    Todas</button>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="corporate-table" id="recent-transactions-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Fecha</th>
-                                            <th>Cliente</th>
-                                            <th>Importe</th>
-                                            <th>Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <!-- Populated via JS -->
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
                     </main>
 
                     <!-- Invoicing View -->

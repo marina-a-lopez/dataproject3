@@ -2044,3 +2044,515 @@ window._calModalBgClick = function (e) {
         document.getElementById('add-event-modal').classList.add('hidden');
     }
 };
+
+// ─── Dashboard Tab Switcher ─────────────────────────────────────────────────
+
+window.switchDashTab = function (tab) {
+    const panels = { resumen: 'dash-panel-resumen', graficos: 'dash-panel-graficos' };
+    const btns   = { resumen: 'dash-tab-resumen',   graficos: 'dash-tab-graficos'   };
+
+    Object.keys(panels).forEach(key => {
+        const panel = document.getElementById(panels[key]);
+        const btn   = document.getElementById(btns[key]);
+        if (!panel || !btn) return;
+        if (key === tab) {
+            panel.classList.remove('hidden');
+            btn.classList.add('active');
+        } else {
+            panel.classList.add('hidden');
+            btn.classList.remove('active');
+        }
+    });
+
+    // Lazy-load charts when first switched to
+    if (tab === 'graficos') {
+        ChartEngine.loadAndRender();
+    }
+};
+
+// ─── Chart Engine ────────────────────────────────────────────────────────────
+
+const ChartEngine = (() => {
+    // Internal state
+    const state = {
+        period: 'anual',   // 'mensual' | 'anual'
+        offset: 0,         // 0 = current, -1 = previous, etc.
+        instances: {}      // Chart.js instances keyed by canvas id
+    };
+
+    const MONTH_LABELS_ES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                             'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+    // Color palette aligned with design system
+    const COLORS = {
+        gold:         'rgba(212, 175, 55, 1)',
+        goldFill:     'rgba(212, 175, 55, 0.15)',
+        navy:         'rgba(10, 25, 47, 1)',
+        navyFill:     'rgba(10, 25, 47, 0.12)',
+        red:          'rgba(239, 68, 68, 1)',
+        redFill:      'rgba(239, 68, 68, 0.15)',
+        green:        'rgba(16, 185, 129, 1)',
+        greenFill:    'rgba(16, 185, 129, 0.15)',
+        blue:         'rgba(59, 130, 246, 1)',
+        blueFill:     'rgba(59, 130, 246, 0.15)',
+        purple:       'rgba(139, 92, 246, 1)',
+        purpleFill:   'rgba(139, 92, 246, 0.15)',
+        palette: [
+            'rgba(212,175,55,0.85)',
+            'rgba(10,25,47,0.80)',
+            'rgba(239,68,68,0.80)',
+            'rgba(16,185,129,0.80)',
+            'rgba(59,130,246,0.80)',
+            'rgba(139,92,246,0.80)',
+            'rgba(245,158,11,0.80)',
+            'rgba(236,72,153,0.80)',
+        ]
+    };
+
+    // Shared Chart.js default options
+    const defaultFontColor = '#334155';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.font.size   = 11;
+    Chart.defaults.color       = defaultFontColor;
+
+    function destroyChart(id) {
+        if (state.instances[id]) {
+            state.instances[id].destroy();
+            delete state.instances[id];
+        }
+    }
+
+    // ── Build data from the backend ────────────────────────────────────────
+    // We call the dashboard API multiple times (one per month/period slice)
+    // to build a multi-period series, then render all charts.
+
+    async function fetchMultiPeriodData() {
+        if (!AppState.userId) return null;
+
+        if (state.period === 'anual') {
+            // Fetch 12 monthly slices for the selected year
+            const year = new Date().getFullYear() + state.offset;
+            const results = [];
+            for (let m = 1; m <= 12; m++) {
+                try {
+                    // Use periodOffset to align with the chosen year
+                    // We compute offset relative to "current month"
+                    const now = new Date();
+                    const targetMonth = new Date(year, m - 1, 1);
+                    // offset in months from now
+                    const monthOffset = (year - now.getFullYear()) * 12 + (m - 1 - now.getMonth());
+                    const params = new URLSearchParams({ period: 'mensual', offset: monthOffset });
+                    const d = await API.request(`/api/dashboard/${AppState.userId}?${params}`);
+                    results.push({ month: m, year, label: MONTH_LABELS_ES[m - 1], metrics: d.metrics, period: d.period });
+                } catch (_) {
+                    results.push({ month: m, year, label: MONTH_LABELS_ES[m - 1], metrics: {}, period: {} });
+                }
+            }
+            return { type: 'anual', year, slices: results };
+
+        } else {
+            // Fetch a single month with offset
+            const now = new Date();
+            const targetDate = new Date(now.getFullYear(), now.getMonth() + state.offset, 1);
+            const params = new URLSearchParams({ period: 'mensual', offset: state.offset });
+            const d = await API.request(`/api/dashboard/${AppState.userId}?${params}`);
+            const label = d.period?.label || `${MONTH_LABELS_ES[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
+            return { type: 'mensual', label, slices: [{ label, metrics: d.metrics }] };
+        }
+    }
+
+    // ── Render all charts ──────────────────────────────────────────────────
+    async function loadAndRender() {
+        // Show loading state
+        updatePeriodLabel();
+
+        const raw = await fetchMultiPeriodData();
+        if (!raw) return;
+
+        renderEvolutionChart(raw);
+        renderBalanceChart(raw);
+        renderDonutChart(raw);
+        renderExpensesCatChart(raw);
+        updateKPIs(raw);
+    }
+
+    // ── 1. Line chart: Ingresos vs Gastos evolution ───────────────────────
+    function renderEvolutionChart(raw) {
+        destroyChart('chart-evolution');
+        const canvas = document.getElementById('chart-evolution');
+        if (!canvas) return;
+
+        let labels, revenueData, expenseData;
+
+        if (raw.type === 'anual') {
+            labels      = raw.slices.map(s => s.label);
+            revenueData = raw.slices.map(s => s.metrics.total_revenue || 0);
+            expenseData = raw.slices.map(s => s.metrics.total_expenses || 0);
+        } else {
+            labels      = [raw.label];
+            revenueData = [raw.slices[0]?.metrics?.total_revenue || 0];
+            expenseData = [raw.slices[0]?.metrics?.total_expenses || 0];
+        }
+
+        const subtitle = document.getElementById('chart-period-subtitle');
+        if (subtitle) subtitle.textContent = raw.type === 'anual' ? `Año ${raw.year}` : raw.label;
+
+        state.instances['chart-evolution'] = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Ingresos (€)',
+                        data: revenueData,
+                        borderColor: COLORS.gold,
+                        backgroundColor: COLORS.goldFill,
+                        borderWidth: 2.5,
+                        pointBackgroundColor: COLORS.gold,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.4,
+                        fill: true,
+                    },
+                    {
+                        label: 'Gastos (€)',
+                        data: expenseData,
+                        borderColor: COLORS.red,
+                        backgroundColor: COLORS.redFill,
+                        borderWidth: 2.5,
+                        pointBackgroundColor: COLORS.red,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.4,
+                        fill: true,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, padding: 16, font: { weight: '600' } } },
+                    tooltip: {
+                        backgroundColor: '#0A192F',
+                        titleColor: '#D4AF37',
+                        bodyColor: '#F8FAFC',
+                        padding: 12,
+                        callbacks: {
+                            label: ctx => ` ${ctx.dataset.label}: ${Utils.formatCurrency(ctx.parsed.y)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: { color: 'rgba(0,0,0,0.04)' } },
+                    y: {
+                        grid: { color: 'rgba(0,0,0,0.04)' },
+                        ticks: { callback: v => Utils.formatCurrency(v) }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── 2. Bar chart: Net balance per period ──────────────────────────────
+    function renderBalanceChart(raw) {
+        destroyChart('chart-balance');
+        const canvas = document.getElementById('chart-balance');
+        if (!canvas) return;
+
+        let labels, balanceData;
+
+        if (raw.type === 'anual') {
+            labels      = raw.slices.map(s => s.label);
+            balanceData = raw.slices.map(s => (s.metrics.net_balance || 0));
+        } else {
+            labels      = [raw.label];
+            balanceData = [raw.slices[0]?.metrics?.net_balance || 0];
+        }
+
+        const barColors = balanceData.map(v => v >= 0 ? 'rgba(16,185,129,0.8)' : 'rgba(239,68,68,0.8)');
+        const barBorders = balanceData.map(v => v >= 0 ? COLORS.green : COLORS.red);
+
+        state.instances['chart-balance'] = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Beneficio Neto (€)',
+                    data: balanceData,
+                    backgroundColor: barColors,
+                    borderColor: barBorders,
+                    borderWidth: 1.5,
+                    borderRadius: 5,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0A192F',
+                        titleColor: '#D4AF37',
+                        bodyColor: '#F8FAFC',
+                        padding: 10,
+                        callbacks: {
+                            label: ctx => ` Neto: ${Utils.formatCurrency(ctx.parsed.y)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: {
+                        grid: { color: 'rgba(0,0,0,0.04)' },
+                        ticks: { callback: v => Utils.formatCurrency(v) }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── 3. Doughnut: Financial distribution ──────────────────────────────
+    function renderDonutChart(raw) {
+        destroyChart('chart-donut');
+        const canvas = document.getElementById('chart-donut');
+        const legendEl = document.getElementById('chart-donut-legend');
+        if (!canvas) return;
+
+        // Aggregate totals across all slices
+        const totalRevenue  = raw.slices.reduce((a, s) => a + (s.metrics.total_revenue  || 0), 0);
+        const totalExpenses = raw.slices.reduce((a, s) => a + (s.metrics.total_expenses || 0), 0);
+        const netBalance    = Math.max(0, totalRevenue - totalExpenses);
+        const ivaRep        = raw.slices.reduce((a, s) => a + (s.metrics.iva_repercutido || 0), 0);
+        const ivaSop        = raw.slices.reduce((a, s) => a + (s.metrics.iva_soportado   || 0), 0);
+
+        const items = [
+            { label: 'Ingresos netos',  value: netBalance,    color: COLORS.palette[3] },
+            { label: 'Gastos totales',  value: totalExpenses, color: COLORS.palette[2] },
+            { label: 'IVA repercutido', value: ivaRep,        color: COLORS.palette[0] },
+            { label: 'IVA soportado',   value: ivaSop,        color: COLORS.palette[4] },
+        ].filter(i => i.value > 0);
+
+        // Render legend
+        if (legendEl) {
+            legendEl.innerHTML = items.map(i => `
+                <div class="chart-legend-item">
+                    <span class="chart-legend-dot" style="background:${i.color}"></span>
+                    <span>${i.label}</span>
+                </div>
+            `).join('');
+        }
+
+        if (items.length === 0) {
+            if (legendEl) legendEl.innerHTML = '<span class="text-muted text-sm">Sin datos para mostrar</span>';
+            return;
+        }
+
+        state.instances['chart-donut'] = new Chart(canvas, {
+            type: 'doughnut',
+            data: {
+                labels: items.map(i => i.label),
+                datasets: [{
+                    data: items.map(i => i.value),
+                    backgroundColor: items.map(i => i.color),
+                    borderColor: '#fff',
+                    borderWidth: 3,
+                    hoverOffset: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0A192F',
+                        titleColor: '#D4AF37',
+                        bodyColor: '#F8FAFC',
+                        padding: 10,
+                        callbacks: {
+                            label: ctx => ` ${ctx.label}: ${Utils.formatCurrency(ctx.parsed)}`
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ── 4. Horizontal bar: top expense providers / categories ─────────────
+    async function renderExpensesCatChart(raw) {
+        destroyChart('chart-expenses-cat');
+        const canvas = document.getElementById('chart-expenses-cat');
+        if (!canvas) return;
+
+        // Fetch all expenses to compute top providers
+        let expenses = [];
+        try {
+            expenses = await API.request(`/api/expenses/${AppState.userId}`) || [];
+        } catch (_) { expenses = []; }
+
+        // Filter by current year if anual, or by month if mensual
+        const now = new Date();
+        const targetYear = raw.type === 'anual' ? (now.getFullYear() + state.offset) : now.getFullYear();
+
+        if (raw.type === 'anual') {
+            expenses = expenses.filter(e => {
+                const d = new Date(e.fecha);
+                return d.getFullYear() === targetYear;
+            });
+        } else {
+            const targetMonth = now.getMonth() + state.offset;
+            expenses = expenses.filter(e => {
+                const d = new Date(e.fecha);
+                return d.getFullYear() === targetYear && d.getMonth() === ((targetMonth % 12 + 12) % 12);
+            });
+        }
+
+        // Aggregate by provider
+        const provMap = {};
+        expenses.forEach(e => {
+            const key = e.proveedor || 'Sin proveedor';
+            provMap[key] = (provMap[key] || 0) + (e.importe_total || 0);
+        });
+
+        // Sort and take top 8
+        const sorted = Object.entries(provMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        const labels = sorted.map(([k]) => k);
+        const values = sorted.map(([, v]) => v);
+
+        if (values.length === 0) {
+            canvas.parentElement.innerHTML = '<p class="text-center text-muted" style="padding: 2rem;">Sin gastos en este período</p>';
+            return;
+        }
+
+        const bgColors = values.map((_, i) => COLORS.palette[i % COLORS.palette.length]);
+
+        state.instances['chart-expenses-cat'] = new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Importe (€)',
+                    data: values,
+                    backgroundColor: bgColors,
+                    borderRadius: 5,
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0A192F',
+                        titleColor: '#D4AF37',
+                        bodyColor: '#F8FAFC',
+                        padding: 10,
+                        callbacks: {
+                            label: ctx => ` ${Utils.formatCurrency(ctx.parsed.x)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(0,0,0,0.04)' },
+                        ticks: { callback: v => Utils.formatCurrency(v) }
+                    },
+                    y: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // ── KPI computations ─────────────────────────────────────────────────
+    function updateKPIs(raw) {
+        if (raw.type !== 'anual') {
+            ['kpi-best-month', 'kpi-worst-month', 'kpi-avg-margin', 'kpi-invoice-count']
+                .forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = '–';
+                });
+            return;
+        }
+
+        const revenues  = raw.slices.map(s => s.metrics.total_revenue  || 0);
+        const expenses  = raw.slices.map(s => s.metrics.total_expenses || 0);
+        const balances  = raw.slices.map((s, i) => revenues[i] - expenses[i]);
+
+        // Best revenue month
+        const maxRev = Math.max(...revenues);
+        const bestIdx = revenues.indexOf(maxRev);
+        const bestEl = document.getElementById('kpi-best-month');
+        if (bestEl) bestEl.textContent = `${MONTH_LABELS_ES[bestIdx]}: ${Utils.formatCurrency(maxRev)}`;
+
+        // Worst expense month
+        const maxExp = Math.max(...expenses);
+        const worstIdx = expenses.indexOf(maxExp);
+        const worstEl = document.getElementById('kpi-worst-month');
+        if (worstEl) worstEl.textContent = `${MONTH_LABELS_ES[worstIdx]}: ${Utils.formatCurrency(maxExp)}`;
+
+        // Average margin (exclude months with no revenue)
+        const activeMonths = revenues.filter(r => r > 0);
+        const avgMargin = activeMonths.length > 0
+            ? balances.filter((_, i) => revenues[i] > 0).reduce((a, b) => a + b, 0) / activeMonths.length
+            : 0;
+        const marginEl = document.getElementById('kpi-avg-margin');
+        if (marginEl) marginEl.textContent = Utils.formatCurrency(avgMargin);
+
+        // Total invoice count (use pending + paid proxy from recent_transactions not directly available;
+        // use a rough sum from data we have)
+        const invoiceCountEl = document.getElementById('kpi-invoice-count');
+        if (invoiceCountEl) {
+            // We don't have per-month invoice count from the API directly — show total months active
+            const activeCount = revenues.filter(r => r > 0).length;
+            invoiceCountEl.textContent = `${activeCount} mes${activeCount !== 1 ? 'es' : ''} activo${activeCount !== 1 ? 's' : ''}`;
+        }
+    }
+
+    // ── Period label update ───────────────────────────────────────────────
+    function updatePeriodLabel() {
+        const now = new Date();
+        let label = '';
+        if (state.period === 'anual') {
+            label = String(now.getFullYear() + state.offset);
+        } else {
+            const t = new Date(now.getFullYear(), now.getMonth() + state.offset, 1);
+            label = `${MONTH_LABELS_ES[t.getMonth()]} ${t.getFullYear()}`;
+        }
+        const el = document.getElementById('chart-period-label');
+        if (el) el.textContent = label;
+
+        // Disable "next" btn if at current period
+        const nextBtn = document.getElementById('btn-chart-next');
+        if (nextBtn) nextBtn.disabled = (state.offset >= 0);
+    }
+
+    // Public API
+    return {
+        loadAndRender,
+        setPeriod(p) { state.period = p; state.offset = 0; },
+        shiftOffset(dir) { const n = state.offset + dir; if (n > 0) return; state.offset = n; },
+        getState() { return state; }
+    };
+})();
+
+// ── Chart period controls (wired from HTML onclick) ─────────────────────────
+
+window.setChartPeriod = function (type) {
+    ChartEngine.setPeriod(type);
+    // Update period tab active state inside charts panel
+    document.querySelectorAll('#period-selector-charts .period-tab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.period === type);
+    });
+    ChartEngine.loadAndRender();
+};
+
+window.shiftChartPeriod = function (dir) {
+    ChartEngine.shiftOffset(dir);
+    ChartEngine.loadAndRender();
+};
+
