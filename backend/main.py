@@ -344,7 +344,7 @@ async def get_dashboard(
 
     # Fetch ALL invoices (for overdue check + recent transactions) then split
     all_invoices = db.query(Factura).filter(Factura.usuario_id == user.id).all()
-    all_gastos = db.query(Gasto).filter(Gasto.usuario_id == user.id).all()
+    all_gastos = db.query(Gasto).filter(Gasto.usuario_id == user.id, Gasto.status == 'confirmed').all()
 
     # Overdue check (always global - not period-filtered)
     current_date = datetime.now(timezone.utc)
@@ -998,18 +998,6 @@ async def delete_expense(user_id: str, expense_id: str, db: Session = Depends(ge
 
 # Integraciones con IA
 
-
-@app.post("/api/process_expense_doc")
-async def process_expense_doc(file: UploadFile = File(...)):
-    """Procesa un ticket/recibo con Gemini y devuelve proveedor, fecha, concepto e importe."""
-    try:
-        contents = await file.read()
-        data = proc.extract_expense_data(contents, file.content_type)
-        if "error" in data:
-            raise HTTPException(status_code=500, detail=data["error"])
-        return data
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process_document")
 async def process_document(

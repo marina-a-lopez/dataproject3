@@ -19,16 +19,6 @@ resource "google_pubsub_subscription" "sub_tickets" {
   message_retention_duration = "604800s" # 7 días
 }
 
-resource "google_pubsub_topic" "topic_confirmaciones" {
-  name = "topic-confirmaciones"
-}
-
-resource "google_pubsub_subscription" "sub_confirmaciones" {
-  name  = "sub-confirmaciones"
-  topic = google_pubsub_topic.topic_confirmaciones.name
-  message_retention_duration = "604800s"
-}
-
 # bd en cloud sql con ip privada
 
 # data "google_compute_network" "vpc_aitonomo" {
@@ -654,22 +644,5 @@ resource "google_datastream_stream" "postgres_to_bq" {
 }
 
 # ---------------------------------------------------------
-# 10. FIRESTORE + FIREBASE WEB APP
+# 10. (Firestore eliminado — se usa PostgreSQL para drafts)
 # ---------------------------------------------------------
-
-resource "google_firestore_database" "default" {
-  project          = var.project_id
-  name             = "(default)"
-  location_id      = var.region
-  type             = "FIRESTORE_NATIVE"
-  concurrency_mode = "OPTIMISTIC"
-}
-
-resource "google_firestore_field" "expense_extractions_ttl" {
-  project    = var.project_id
-  database   = google_firestore_database.default.name
-  collection = "expense_extractions"
-  field      = "ttl"
-
-  ttl_config {}
-}

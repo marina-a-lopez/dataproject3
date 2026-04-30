@@ -32,18 +32,6 @@ resource "google_pubsub_topic_iam_member" "backend_pubsub_publisher_tickets" {
   member = "serviceAccount:${google_service_account.backend_sa.email}"
 }
 
-resource "google_pubsub_topic_iam_member" "backend_pubsub_publisher_confirmaciones" {
-  topic  = google_pubsub_topic.topic_confirmaciones.name
-  role   = "roles/pubsub.publisher"
-  member = "serviceAccount:${google_service_account.backend_sa.email}"
-}
-
-resource "google_project_iam_member" "backend_firestore" {
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${google_service_account.backend_sa.email}"
-}
-
 # Permisos para que el Backend pueda consultar BigQuery (Dashboard Inversores)
 resource "google_project_iam_member" "backend_bigquery_viewer" {
   project = var.project_id
