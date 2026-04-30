@@ -86,6 +86,34 @@ resource "google_cloud_run_v2_service_iam_member" "acceso_publico_dashboard" {
 }
 
 # ---------------------------------------------------------
+# SERVICE ACCOUNT PARA DATAFLOW (Pipeline de Gastos)
+# ---------------------------------------------------------
+resource "google_service_account" "dataflow_sa" {
+  account_id   = "dataflow-pipeline-sa"
+  display_name = "Service Account para Dataflow pipeline de gastos"
+}
+
+resource "google_project_iam_member" "dataflow_permissions" {
+  for_each = toset([
+    "roles/dataflow.worker",
+    "roles/pubsub.subscriber",
+    "roles/storage.objectAdmin",
+    "roles/cloudsql.client",
+  ])
+  project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.dataflow_sa.email}"
+}
+
+# Bucket de staging para los workers de Dataflow
+resource "google_storage_bucket" "dataflow_staging" {
+  name          = "${var.project_id}-dataflow-staging"
+  location      = var.region
+  force_destroy = true
+}
+
+
+# ---------------------------------------------------------
 # GITHUB ACTIONS CI/CD
 # ---------------------------------------------------------
 resource "google_service_account" "github_actions_sa" {

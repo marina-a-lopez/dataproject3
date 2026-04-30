@@ -43,9 +43,8 @@ def parsear_mensaje(message: bytes):
 class ExtraerConGemini(beam.DoFn):
     """Descarga el ticket de GCS, llama a Gemini y devuelve los datos extraídos."""
 
-    def __init__(self, project_id: str, region: str = "europe-west1", gemini_api_key: str = ""):
+    def __init__(self, project_id: str, gemini_api_key: str = ""):
         self.project_id = project_id
-        self.region = region
         self.gemini_api_key = gemini_api_key
 
     def setup(self):
@@ -147,7 +146,6 @@ def run():
     parser.add_argument("--db_name",        required=True)
     parser.add_argument("--db_user",        required=True)
     parser.add_argument("--db_pass",        required=True)
-    parser.add_argument("--region",         default="europe-west1")
     parser.add_argument("--gemini_api_key", required=True)
     args, pipeline_args = parser.parse_known_args()
 
@@ -166,7 +164,7 @@ def run():
 
         resultado = (
             mensajes
-            | "ExtraerConGemini" >> beam.ParDo(ExtraerConGemini(args.project_id, args.region, args.gemini_api_key))
+            | "ExtraerConGemini" >> beam.ParDo(ExtraerConGemini(args.project_id, args.gemini_api_key))
                                         .with_outputs(ETIQUETA_ERRORES, main="ok")
         )
 
@@ -187,6 +185,37 @@ if __name__ == "__main__":
     logging.info("[Pipeline] Iniciando pipeline de extracción de gastos")
     run()
 
+# local:
+# python pipeline_gastos.py \
+#   --project_id proyectodataia3 \
+#   --db_host 34.175.105.251 \
+#   --db_name aitonomo_db \
+#   --db_user admin \
+#   --db_pass "Edem2526." \
+#   --region europe-southwest1 \
+#   --gemini_api_key "TU_API_KEY" \
+#   --runner DirectRunner
+
+
+# --- DESPLIEGUE EN GCP (DataflowRunner) ---
+# python pipeline_gastos.py \
+#   --project_id proyectodataia3 \
+#   --db_host 34.175.105.251 \
+#   --db_name aitonomo_db \
+#   --db_user admin \
+#   --db_pass "Edem2526." \
+#   --region europe-southwest1 \
+#   --gemini_api_key "TU_API_KEY" \
+#   --runner DataflowRunner \
+#   --region europe-southwest1 \
+#   --temp_location gs://proyectodataia3-dataflow-staging/temp \
+#   --staging_location gs://proyectodataia3-dataflow-staging/staging \
+#   --service_account_email dataflow-pipeline-sa@proyectodataia3.iam.gserviceaccount.com \
+#   --requirements_file requirements.txt \
+#   --job_name pipeline-gastos-streaming \
+#   --streaming
+
+# --- PRUEBA LOCAL (DirectRunner) ---
 # python pipeline_gastos.py \
 #   --project_id proyectodataia3 \
 #   --db_host 34.175.105.251 \

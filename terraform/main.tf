@@ -644,5 +644,41 @@ resource "google_datastream_stream" "postgres_to_bq" {
 }
 
 # ---------------------------------------------------------
-# 10. (Firestore eliminado — se usa PostgreSQL para drafts)
+# 11. DATAFLOW JOB (Pipeline Streaming de Gastos)
 # ---------------------------------------------------------
+resource "null_resource" "lanzar_dataflow" {
+  triggers = {
+    db_host    = google_sql_database_instance.postgres_instance.public_ip_address
+    db_pass    = var.postgres_password
+    gemini_key = var.gemini_api_key
+  }
+
+  provisioner "local-exec" {
+    command = <<EOT
+python ../dataflow/pipeline_gastos.py \
+  --project_id=${var.project_id} \
+  --db_host=${google_sql_database_instance.postgres_instance.public_ip_address} \
+  --db_name=aitonomo_db \
+  --db_user=admin \
+  --db_pass="${var.postgres_password}" \
+  --region=${var.region} \
+  --gemini_api_key="${var.gemini_api_key}" \
+  --runner=DataflowRunner \
+  --temp_location=gs://${google_storage_bucket.dataflow_staging.name}/temp \
+  --staging_location=gs://${google_storage_bucket.dataflow_staging.name}/staging \
+  --service_account_email=${google_service_account.dataflow_sa.email} \
+  --requirements_file=../dataflow/requirements.txt \
+  --job_name=pipeline-gastos-streaming \
+  --streaming \
+  --no_wait_until_finish
+EOT
+  }
+
+  depends_on = [
+    google_service_account.dataflow_sa,
+    google_project_iam_member.dataflow_permissions,
+    google_storage_bucket.dataflow_staging,
+    google_pubsub_subscription.sub_tickets,
+    google_sql_database_instance.postgres_instance,
+  ]
+}
