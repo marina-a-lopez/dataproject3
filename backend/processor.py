@@ -1,9 +1,11 @@
-import google.generativeai as genai
+
 import os
 import json
 import ast
 from datetime import datetime
 import tempfile
+import vertexai
+from vertexai.generative_models import GenerativeModel, Part
 
 def configure_gemini(api_key):
     """Configura la API de Gemini con la clave que le hemos proporcionado."""
