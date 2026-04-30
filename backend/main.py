@@ -1123,7 +1123,8 @@ async def expense_status(expense_id: str, db: Session = Depends(get_db)):
             "proveedor": gasto.proveedor or "",
             "fecha": gasto.fecha.strftime("%Y-%m-%d") if gasto.proveedor else "",
             "concepto": gasto.concepto or "",
-            "importe_total": float(gasto.importe_total)
+            "importe_total": float(gasto.importe_total),
+            "url_ticket": gasto.url_ticket or ""
         } if gasto.status == 'draft' and gasto.proveedor else {}
     }
 

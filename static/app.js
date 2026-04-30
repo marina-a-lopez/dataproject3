@@ -995,7 +995,7 @@ const appLogic = {
                         Utils.showToast(`Ticket listo: ${estado.data.proveedor}`, 'success');
                     } else if (intentos >= 30) {
                         clearInterval(poll);
-                        Utils.showToast('Tiempo de espera agotado. Revisa el ticket manualmente.', 'error');
+                        appLogic.markDraftError(res.expense_id);
                     }
                 } catch (_) {}
             }, 3000);
@@ -1081,8 +1081,49 @@ const appLogic = {
         try {
             const drafts = await API.request(`/api/expense_drafts/${AppState.userId}`);
             if (!drafts || !drafts.length) return;
-            drafts.forEach(d => appLogic.addDraftRow(d.id, null, d));
+            drafts.forEach(d => {
+                const processing = !d.proveedor; // sin datos = Dataflow aún procesando
+                appLogic.addDraftRow(d.id, null, d, processing);
+                if (processing) appLogic.resumePolling(d.id);
+            });
         } catch(_) {}
+    },
+
+    resumePolling: (expenseId) => {
+        let intentos = 0;
+        const poll = setInterval(async () => {
+            intentos++;
+            try {
+                const estado = await API.request(`/api/expense_status/${expenseId}`);
+                if (estado.status === 'draft' && estado.data && estado.data.proveedor) {
+                    clearInterval(poll);
+                    appLogic.addDraftRow(expenseId, null, { ...estado.data }, false);
+                    Utils.showToast(`Ticket listo: ${estado.data.proveedor}`, 'success');
+                } else if (intentos >= 30) {
+                    clearInterval(poll);
+                    appLogic.markDraftError(expenseId);
+                }
+            } catch (_) {}
+        }, 3000);
+    },
+
+    markDraftError: (expenseId) => {
+        const tr = document.getElementById(`draft-${expenseId}`);
+        if (!tr) return;
+        tr.innerHTML = `
+            <td><i class="fa-solid fa-circle-exclamation text-red" style="font-size:1.5rem;"></i></td>
+            <td colspan="3" class="text-red text-sm">Error al procesar. Dataflow no respondió a tiempo.</td>
+            <td>—</td>
+            <td style="display:flex;gap:6px;">
+                <button class="btn btn-secondary text-sm" style="padding:4px 10px;"
+                    onclick="appLogic.resumePolling('${expenseId}')">
+                    <i class="fa-solid fa-rotate-right"></i> Reintentar
+                </button>
+                <button class="btn-icon text-red hover-animate" title="Eliminar"
+                    onclick="appLogic.deleteDraft('${expenseId}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>`;
     },
 
     saveExpense: async (e) => {
