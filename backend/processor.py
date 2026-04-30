@@ -12,7 +12,7 @@ def configure_gemini(api_key):
     if not api_key:
         return False
     try:
-        genai.configure(api_key=api_key)
+        vertexai.init()  # usa ADC automaticamente
         return True
     except Exception as e:
         print(f"Error configuring Gemini: {e}")
@@ -29,7 +29,7 @@ def extract_invoice_data(content, mime_type="image/jpeg"):
     Devuelve:
         dict: Extrae los datos de una factura o nota de entrega a partir de un archivo JSON.
     """
-    model = genai.GenerativeModel('gemini-2.5-flash')
+    model = GenerativeModel('gemini-2.5-flash')
     
     if mime_type == "video/mp4":
         mime_type = "audio/mp4" # Fuerza el procesamiento de audio para notas de voz
@@ -109,7 +109,7 @@ def extract_invoice_data(content, mime_type="image/jpeg"):
 
 def extract_expense_data(file_bytes, mime_type):
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = GenerativeModel('gemini-2.5-flash')
         
         prompt = """
         Analyze this receipt or expense document.
@@ -123,21 +123,10 @@ def extract_expense_data(file_bytes, mime_type):
         Return ONLY the raw JSON string. Do not include markdown tags.
         """
         
-        import mimetypes
-        ext = mimetypes.guess_extension(mime_type) or ''
-        if not ext and 'jpg' in mime_type: ext = '.jpg'
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-            tmp.write(file_bytes)
-            tmp_path = tmp.name
-            
-        try:
-            uploaded_file = genai.upload_file(tmp_path)
-            response = model.generate_content([uploaded_file, prompt])
-            uploaded_file.delete()
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+        response = model.generate_content([
+            Part.from_data(data=file_bytes, mime_type=mime_type),
+            prompt
+        ])
         # Salida del parseo
         text = response.text.replace('```json', '').replace('```', '').strip()
         return json.loads(text)
@@ -147,7 +136,7 @@ def extract_expense_data(file_bytes, mime_type):
 
 def ask_ai_consultant(user_data, question):
     try:
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = GenerativeModel('gemini-2.5-flash')
         
         cnae_code = user_data.get('cnae', 'Desconocido')
         prompt = f"""
