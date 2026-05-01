@@ -21,6 +21,7 @@ from database import get_db, init_db, Usuario, Cliente, Factura, Presupuesto, Pr
 from voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
 import processor as proc
+from agents.extraction_agent import extraction_agent_instance
 from werkzeug.security import generate_password_hash, check_password_hash
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -1109,6 +1110,46 @@ async def expense_status(expense_id: str, db: Session = Depends(get_db)):
             "url_ticket": gasto.url_ticket or ""
         } if gasto.status == 'draft' and gasto.proveedor else {}
     }
+
+@app.post("/api/v1/expenses/extract")
+async def extract_expense_v1(file: UploadFile = File(...), user_id: str = Form(...), db: Session = Depends(get_db)):
+    """
+    Endpoint de la Fase 1 (Group 1: Data Extraction & Profiling).
+    Recibe un ticket, consulta el perfil del usuario, valida contextualmente
+    con Gemini 2.5 y retorna los datos y si necesita HITL (Human In The Loop).
+    """
+    try:
+        # 1. Validar que el usuario existe en DB principal
+        user_id_int = int(user_id) # O manejar como int/str según sea el ID de la BD
+        user = db.query(Usuario).filter(Usuario.id == user_id_int).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        # 2. Leer contenido y mimetype
+        contents = await file.read()
+        mime_type = file.content_type
+
+        # 3. Procesar mediante el Data Extraction Agent
+        result = extraction_agent_instance.process_receipt_with_context(
+            file_bytes=contents, 
+            mime_type=mime_type, 
+            user_id=user_id_int
+        )
+        
+        if result.get("status") == "error":
+            raise HTTPException(status_code=500, detail=result.get("error"))
+
+        return {
+            "success": True,
+            "extracted_data": result.get("extracted_data"),
+            "user_context_applied": result.get("user_context_applied"),
+            "hitl_required": result.get("hitl_required")
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="user_id debe ser un entero válido para el mock")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/process_client_voice")
 async def process_client_voice(file: UploadFile = File(...)):
