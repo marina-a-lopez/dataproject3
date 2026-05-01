@@ -175,6 +175,7 @@ class Gasto(Base):
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     url_ticket = Column(String(500), nullable=True)
+    status = Column(String(20), default='confirmed', nullable=False)
     
     usuario = relationship("Usuario", back_populates="gastos")
 

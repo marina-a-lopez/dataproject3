@@ -1,0 +1,4 @@
+apache-beam[gcp]==2.72.0
+google-cloud-storage==2.19.0
+google-cloud-aiplatform==1.91.0
+psycopg2-binary==2.9.9

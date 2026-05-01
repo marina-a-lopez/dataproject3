@@ -48,7 +48,8 @@ const Utils = {
     }
 };
 
-// IMPORTANTE: Cuando despliegues el backend, pega su URL aquí
+// IMPORTANTE: Cuando despliegues el backend, pega su 
+//  aquí
 const API_BASE_URL = "https://api-backend-4nrtuy3yca-no.a.run.app";
 
 const API = {
@@ -248,6 +249,8 @@ const UI = {
             if (v.id !== 'auth-view') v.classList.add('hidden');
         });
         document.getElementById(viewId).classList.remove('hidden');
+
+        if (viewId === 'expenses-view') appLogic.loadExpenseDrafts();
     }
 };
 
@@ -342,6 +345,7 @@ const appLogic = {
         document.getElementById('sidebar-user-id').textContent = `ID: ${AppState.dni}`;
         appLogic.initProfileState();
         appLogic.loadExpenses();
+        appLogic.loadExpenseDrafts();
         appState.navigate('dashboard-view');
     },
 
@@ -1000,39 +1004,191 @@ const appLogic = {
         const btnStatus = document.getElementById('expense-upload-status');
         btnStatus.classList.remove('hidden');
 
+        const previewUrl = URL.createObjectURL(file);
+        const isPdf = file.type === 'application/pdf';
+        const previewHtml = isPdf
+            ? `<a href="${previewUrl}" target="_blank"><i class="fa-solid fa-file-pdf" style="font-size:2rem;color:var(--clr-accent-gold);"></i></a>`
+            : `<a href="${previewUrl}" target="_blank"><img src="${previewUrl}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid var(--clr-border);"></a>`;
+
         try {
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('user_id', AppState.userId);
 
-            const res = await API.request('/api/process_expense', {
-                method: 'POST',
-                body: formData
-            });
+            const res = await API.request('/api/process_expense', { method: 'POST', body: formData });
+            if (!res.success) throw new Error('Error al subir el ticket');
 
-            if (res.success && res.data) {
-                // Fill form
-                document.getElementById('exp-provider').value = res.data.proveedor || '';
-                document.getElementById('exp-date').value = res.data.fecha || '';
-                document.getElementById('exp-concept').value = res.data.concepto || '';
-                document.getElementById('exp-amount').value = parseFloat(res.data.importe_total || 0).toFixed(2);
+            // Añadir fila como "procesando" inmediatamente
+            appLogic.addDraftRow(res.expense_id, previewHtml, {}, true);
+            Utils.showToast('Ticket enviado. Procesando con IA...', 'success');
 
-                Utils.showToast('Detalles del gasto extraídos con éxito', 'success');
-            }
+            // Polling hasta que Dataflow actualice el draft en PostgreSQL
+            let intentos = 0;
+            const poll = setInterval(async () => {
+                intentos++;
+                try {
+                    const estado = await API.request(`/api/expense_status/${res.expense_id}`);
+                    if (estado.status === 'draft' && estado.data && estado.data.proveedor) {
+                        clearInterval(poll);
+                        appLogic.addDraftRow(res.expense_id, previewHtml, estado.data, false);
+                        Utils.showToast(`Ticket listo: ${estado.data.proveedor}`, 'success');
+                    } else if (intentos >= 30) {
+                        clearInterval(poll);
+                        appLogic.markDraftError(res.expense_id);
+                    }
+                } catch (_) {}
+            }, 3000);
+
+        } catch(e) {
+            Utils.showToast(e.message || 'Error al procesar el ticket', 'error');
         } finally {
             btnStatus.classList.add('hidden');
-            document.getElementById('file-input-expense').value = ''; // Reset
+            document.getElementById('file-input-expense').value = '';
         }
+    },
+
+    addDraftRow: (expenseId, previewHtml, data, processing = false) => {
+        const tbody = document.getElementById('expense-pending-list');
+        const existing = document.getElementById(`draft-${expenseId}`);
+        if (existing) existing.remove();
+
+        // Si no hay previewHtml pero hay url_ticket, construir desde el backend
+        if (!previewHtml && data.url_ticket) {
+            const objectPath = data.url_ticket.replace('gs://', '').split('/').slice(1).join('/');
+            const isPdf = objectPath.toLowerCase().endsWith('.pdf');
+            const imgUrl = `${API_BASE_URL}/api/ticket/${objectPath}`;
+            previewHtml = isPdf
+                ? `<a href="${imgUrl}" target="_blank"><i class="fa-solid fa-file-pdf" style="font-size:2rem;color:var(--clr-accent-gold);"></i></a>`
+                : `<a href="${imgUrl}" target="_blank"><img src="${imgUrl}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;border:1px solid var(--clr-border);"></a>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.id = `draft-${expenseId}`;
+        const p = data.proveedor || '—';
+        const f = data.fecha || '—';
+        const c = data.concepto || '—';
+        const i = parseFloat(data.importe_total || 0).toFixed(2);
+        tr.innerHTML = processing ? `
+            <td>${previewHtml || ''}</td>
+            <td colspan="3" class="text-muted text-sm"><i class="fa-solid fa-spinner fa-spin text-gold"></i> Analizando con IA...</td>
+            <td>—</td><td>—</td>` : `
+            <td>${previewHtml || '<i class="fa-solid fa-receipt text-gold"></i>'}</td>
+            <td class="font-bold">${p}</td>
+            <td>${f}</td>
+            <td class="text-muted text-sm">${c}</td>
+            <td class="text-accent font-bold">${i}€</td>
+            <td style="display:flex;gap:6px;">
+                <button class="btn btn-secondary text-sm hover-animate" style="padding:4px 10px;"
+                    onclick="appLogic.loadDraftIntoForm('${expenseId}')">
+                    <i class="fa-solid fa-pen-to-square"></i> Revisar
+                </button>
+                <button class="btn-icon text-red hover-animate" title="Eliminar"
+                    onclick="appLogic.deleteDraft('${expenseId}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>`;
+        tbody.appendChild(tr);
+        const count = tbody.querySelectorAll('tr').length;
+        document.getElementById('expense-pending-count').textContent = `(${count})`;
+    },
+
+    deleteDraft: async (expenseId) => {
+        if (!confirm('¿Eliminar este ticket pendiente?')) return;
+        const res = await API.request(`/api/expenses/${AppState.userId}/${expenseId}`, { method: 'DELETE' });
+        if (res && res.success) {
+            const row = document.getElementById(`draft-${expenseId}`);
+            if (row) row.remove();
+            const count = document.getElementById('expense-pending-list').querySelectorAll('tr').length;
+            document.getElementById('expense-pending-count').textContent = count ? `(${count})` : '';
+        }
+    },
+
+    loadDraftIntoForm: (expenseId) => {
+        const tr = document.getElementById(`draft-${expenseId}`);
+        if (!tr) return;
+        const cells = tr.querySelectorAll('td');
+        document.getElementById('exp-provider').value = cells[1].textContent.trim();
+        document.getElementById('exp-date').value = cells[2].textContent.trim();
+        document.getElementById('exp-concept').value = cells[3].textContent.trim();
+        document.getElementById('exp-amount').value = parseFloat(cells[4].textContent).toFixed(2);
+        document.getElementById('expense-form').dataset.expenseId = expenseId;
+        document.getElementById('expenses-view').querySelector('.section-header').scrollIntoView({ behavior: 'smooth' });
+    },
+
+    loadExpenseDrafts: async () => {
+        if (!AppState.userId) return;
+        try {
+            const drafts = await API.request(`/api/expense_drafts/${AppState.userId}`);
+            if (!drafts || !drafts.length) return;
+            drafts.forEach(d => {
+                const processing = !d.proveedor; // sin datos = Dataflow aún procesando
+                appLogic.addDraftRow(d.id, null, d, processing);
+                if (processing) appLogic.resumePolling(d.id);
+            });
+        } catch(_) {}
+    },
+
+    resumePolling: (expenseId) => {
+        let intentos = 0;
+        const poll = setInterval(async () => {
+            intentos++;
+            try {
+                const estado = await API.request(`/api/expense_status/${expenseId}`);
+                if (estado.status === 'draft' && estado.data && estado.data.proveedor) {
+                    clearInterval(poll);
+                    appLogic.addDraftRow(expenseId, null, { ...estado.data }, false);
+                    Utils.showToast(`Ticket listo: ${estado.data.proveedor}`, 'success');
+                } else if (intentos >= 30) {
+                    clearInterval(poll);
+                    appLogic.markDraftError(expenseId);
+                }
+            } catch (_) {}
+        }, 3000);
+    },
+
+    markDraftError: (expenseId) => {
+        const tr = document.getElementById(`draft-${expenseId}`);
+        if (!tr) return;
+        tr.innerHTML = `
+            <td><i class="fa-solid fa-circle-exclamation text-red" style="font-size:1.5rem;"></i></td>
+            <td colspan="3" class="text-red text-sm">Error al procesar. Dataflow no respondió a tiempo.</td>
+            <td>—</td>
+            <td style="display:flex;gap:6px;">
+                <button class="btn btn-secondary text-sm" style="padding:4px 10px;"
+                    onclick="appLogic.retryDraft('${expenseId}')">
+                    <i class="fa-solid fa-rotate-right"></i> Reintentar
+                </button>
+                <button class="btn-icon text-red hover-animate" title="Eliminar"
+                    onclick="appLogic.deleteDraft('${expenseId}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>`;
+    },
+
+    retryDraft: (expenseId) => {
+        const tr = document.getElementById(`draft-${expenseId}`);
+        if (!tr) return;
+        // Restaurar spinner en la fila existente sin reemplazarla
+        const firstTd = tr.querySelector('td');
+        const preview = firstTd ? firstTd.innerHTML : '';
+        tr.innerHTML = `
+            <td>${preview}</td>
+            <td colspan="3" class="text-muted text-sm"><i class="fa-solid fa-spinner fa-spin text-gold"></i> Reintentando...</td>
+            <td>—</td><td>—</td>`;
+        appLogic.resumePolling(expenseId);
     },
 
     saveExpense: async (e) => {
         if (e) e.preventDefault();
 
+        const expenseId = document.getElementById('expense-form').dataset.expenseId;
         const payload = {
             user_id: AppState.userId,
             proveedor: document.getElementById('exp-provider').value,
             fecha: document.getElementById('exp-date').value,
             concepto: document.getElementById('exp-concept').value,
-            importe_total: parseFloat(document.getElementById('exp-amount').value)
+            importe_total: parseFloat(document.getElementById('exp-amount').value),
+            url_ticket: ''
         };
 
         const btn = document.getElementById('btn-save-expense');
@@ -1041,15 +1197,31 @@ const appLogic = {
         btn.disabled = true;
 
         try {
-            const res = await API.request('/api/expenses', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            let res;
+            if (expenseId) {
+                res = await API.request(`/api/expenses/${expenseId}/confirm`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } else {
+                res = await API.request('/api/expenses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }
             if (res && res.success) {
-                Utils.showToast('Gasto registrado con éxito.', 'success');
+                if (expenseId) {
+                    const row = document.getElementById(`draft-${expenseId}`);
+                    if (row) row.remove();
+                    delete document.getElementById('expense-form').dataset.expenseId;
+                    const count = document.getElementById('expense-pending-list').querySelectorAll('tr').length;
+                    document.getElementById('expense-pending-count').textContent = count ? `(${count})` : '';
+                }
+                Utils.showToast('Gasto confirmado y registrado.', 'success');
                 appLogic.loadExpenses();
-                appLogic.loadDashboard(); // Refresh Net Balance
+                appLogic.loadDashboard();
                 document.getElementById('expense-form').reset();
             }
         } finally {
