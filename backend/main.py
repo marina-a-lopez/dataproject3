@@ -3,6 +3,7 @@ from fastapi import FastAPI, File, UploadFile, Form, Depends, HTTPException, sta
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
@@ -23,6 +24,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from google.cloud import bigquery
 from StorageManager import StorageManager
 
 sm = StorageManager()
@@ -46,6 +48,38 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
+
+# Configurar base de datos para Datastream (Publication y Replication Slot)
+try:
+    db_session = next(get_db())
+    
+    # 0. Otorgar permisos de replicación al usuario (Obligatorio en Cloud SQL)
+    try:
+        db_session.execute(text("ALTER USER admin WITH REPLICATION;"))
+        db_session.commit()
+    except Exception as e:
+        print(f"Datastream Auth Error: {e}")
+        db_session.rollback()
+
+    # 1. Crear Publicación
+    try:
+        db_session.execute(text("CREATE PUBLICATION datastream_pub FOR ALL TABLES;"))
+        db_session.commit()
+    except Exception as e:
+        print(f"Datastream Pub Error: {e}")
+        db_session.rollback()
+        
+    # 2. Crear Slot de Replicación
+    try:
+        db_session.execute(text("SELECT pg_create_logical_replication_slot('datastream_slot', 'pgoutput');"))
+        db_session.commit()
+    except Exception as e:
+        print(f"Datastream Slot Error: {e}")
+        db_session.rollback()
+        
+    db_session.close()
+except Exception as e:
+    pass
 
 # Configuración de Gemini (mediante variables de entorno)
 gemini_api_key = os.getenv('GEMINI_API_KEY')
@@ -1526,6 +1560,56 @@ async def delete_calendar_event(user_id: str, event_id: str, db: Session = Depen
     db.commit()
     return {"success": True}
 
+# ─── Dashboard Inversores (Conexión BQ) ───────────────────────────────────────
+
+@app.get("/api/investor-metrics")
+async def get_investor_metrics():
+    try:
+        client = bigquery.Client()
+        project_id = client.project # Coge tu proyecto automáticamente
+        
+        # 1. Obtener KPIs de negocio
+        query_kpis = f"""
+            SELECT * FROM `{project_id}.aitonomo_analytics.kpis_crecimiento_mensual`
+            ORDER BY mes ASC
+        """
+        results_kpis = client.query(query_kpis).result()
+        
+        kpis = []
+        for row in results_kpis:
+            kpis.append({
+                "mes": row.mes.strftime("%Y-%m") if row.mes else "Desconocido",
+                "nuevos_usuarios": row.nuevos_usuarios,
+                "facturas_generadas": row.facturas_generadas,
+                "gmv_gestionado_eur": float(row.gmv_gestionado_eur) if row.gmv_gestionado_eur else 0.0
+            })
+            
+        # 2. Obtener costes reales de GCP (Burn Rate)
+        billing_data = []
+        try:
+            # Usamos un wildcard (*) porque el nombre final depende del ID de tu cuenta de facturación
+            query_billing = f"""
+                SELECT 
+                    FORMAT_TIMESTAMP('%Y-%m', usage_start_time) as mes,
+                    SUM(cost) as coste_gcp
+                FROM `{project_id}.gcp_billing_export.gcp_billing_export_v1_*`
+                GROUP BY 1
+                ORDER BY 1 ASC
+            """
+            results_billing = client.query(query_billing).result()
+            for row in results_billing:
+                billing_data.append({
+                    "mes": row.mes,
+                    "coste_gcp": float(row.coste_gcp) if row.coste_gcp else 0.0
+                })
+        except Exception as e:
+            # Si GCP aún no ha volcado los primeros datos, devolvemos array vacío para que no crashee
+            print(f"Aviso: La tabla de facturación aún no está lista en BQ: {e}")
+            pass
+        
+        return {"success": True, "kpis": kpis, "billing": billing_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- Servicio de archivos estáticos (Frontend SPA) ---
 app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

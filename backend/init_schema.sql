@@ -117,3 +117,14 @@ CREATE TABLE IF NOT EXISTS presupuestos (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT _usuario_num_presupuesto_uc UNIQUE (usuario_id, numero_presupuesto_secuencial)
 );
+
+-- 8. TABLA: subvenciones (Para RAG y búsquedas semánticas)
+CREATE TABLE IF NOT EXISTS subvenciones (
+    id UUID PRIMARY KEY,
+    id_bdns VARCHAR(100) UNIQUE NOT NULL,
+    titulo TEXT NOT NULL,
+    cnae_target VARCHAR(50),
+    fecha_cierre TIMESTAMP WITH TIME ZONE,
+    texto_completo TEXT NOT NULL,
+    embedding vector(768)
+);

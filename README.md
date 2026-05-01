@@ -13,7 +13,7 @@ La solución centraliza las operaciones más comunes de un autónomo mediante la
 - **Generador de Facturas PDF**: Exporta las facturas a un documento PDF directamente utilizable con diseño corporativo avanzado.
 
 ## ¿Cómo lo hace?
-La aplicación está construida sobre un servidor **API REST (FastAPI)** que se encarga de guardar la información en una base de datos local (SQLite). El front-end del aplicativo está formado por archivos estáticos en una SPA (Single Page Application, guardada en `static/`).
+La aplicación está construida sobre un servidor **API REST (FastAPI) alojado en Google Cloud Run** que se encarga de guardar la información operativa en una base de datos **PostgreSQL (Cloud SQL)**. Además, los datos se replican en tiempo real hacia **BigQuery** mediante **Datastream**, alimentando dashboards analíticos avanzados.
 
 Cuando el usuario sube un archivo (como un ticket) o envía una nota de voz, FastAPI llama de forma asíncrona a un modelo de IA (Google Gemini). El sistema genera un _prompt_ contextual donde se configuran directrices estrictas para que la IA extraiga los valores de interés (como cliente, fecha, conceptos, precios e importe final) y los retorne en un formato JSON limpio y estructurado. Si el usuario ya contaba con un catálogo previo de productos, el sistema envía temporalmente el catálogo a la IA para buscar coincidencias exactas de lo dictado.
 
