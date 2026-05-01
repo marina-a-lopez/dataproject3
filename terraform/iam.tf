@@ -32,6 +32,13 @@ resource "google_pubsub_topic_iam_member" "backend_pubsub_publisher_tickets" {
   member = "serviceAccount:${google_service_account.backend_sa.email}"
 }
 
+# Permisos para llamar a Vertex AI (Gemini)
+resource "google_project_iam_member" "backend_vertex_ai_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
 # Permisos para que el Backend pueda consultar BigQuery (Dashboard Inversores)
 resource "google_project_iam_member" "backend_bigquery_viewer" {
   project = var.project_id

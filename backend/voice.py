@@ -9,6 +9,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def _clean_schema(schema: dict) -> dict:
+    """Elimina anyOf con null que Vertex AI no soporta. Convierte Optional[X] -> X."""
+    if isinstance(schema, dict):
+        if "anyOf" in schema:
+            non_null = [s for s in schema["anyOf"] if s.get("type") != "null"]
+            if len(non_null) == 1:
+                cleaned = {**schema, **non_null[0]}
+                cleaned.pop("anyOf")
+                return _clean_schema(cleaned)
+        return {k: _clean_schema(v) for k, v in schema.items()}
+    if isinstance(schema, list):
+        return [_clean_schema(i) for i in schema]
+    return schema
+
+
 class ClientExtraction(BaseModel):
     nombre_empresa: str = Field(description="Nombre o nombre de la empresa del cliente", default="")
     nif_cif: str = Field(description="NIF, DNI o CIF del cliente", default="")
@@ -55,7 +70,7 @@ def extract_client_data(text: str) -> dict:
             response_mime_type="application/json",
             # Nota: Si falla response_schema con Vertex, pasarlo en el prompt. 
             # Pero en >=1.60 soporta dict de OpenAPI schema.
-            response_schema=ClientExtraction.model_json_schema(),
+            response_schema=_clean_schema(ClientExtraction.model_json_schema()),
         )
     )
     
@@ -82,7 +97,7 @@ def extract_line_data(text: str, catalog_context: str = "") -> dict:
         ],
         generation_config=GenerationConfig(
             response_mime_type="application/json",
-            response_schema=QuoteExtraction.model_json_schema(),
+            response_schema=_clean_schema(QuoteExtraction.model_json_schema()),
         )
     )
     
