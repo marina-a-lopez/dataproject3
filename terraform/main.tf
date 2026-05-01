@@ -6,14 +6,17 @@ resource "google_storage_bucket" "document_bucket" {
   force_destroy = false
 }
 
-#pubsub para enviar mensajes
-resource "google_pubsub_topic" "topic-batch-upload" {
-  name = "topic-lote-facturas"
+resource "google_pubsub_topic" "topic_tickets" {
+  name = "topic-tickets"
 }
 
-resource "google_pubsub_subscription" "topic-batch-upload-sub" {
-  name  = "${google_pubsub_topic.topic-batch-upload.name}-sub"
-  topic = google_pubsub_topic.topic-batch-upload.name
+resource "google_pubsub_subscription" "sub_tickets" {
+  name  = "sub-tickets"
+  topic = google_pubsub_topic.topic_tickets.name
+
+  # Tiempo que tiene Dataflow para confirmar que ha procesado el mensaje antes de reintentar
+  ack_deadline_seconds       = 60
+  message_retention_duration = "604800s" # 7 días
 }
 
 # bd en cloud sql con ip privada
@@ -158,6 +161,14 @@ resource "google_cloud_run_v2_service" "backend_cloud_run" {
             version = "latest"
           }
         }
+      }
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+      env {
+        name  = "GCP_BUCKET_NAME"
+        value = google_storage_bucket.document_bucket.name
       }
     }
   }
@@ -631,3 +642,41 @@ resource "google_datastream_stream" "postgres_to_bq" {
 
   create_without_validation = true
 }
+
+# ---------------------------------------------------------
+# 11. DATAFLOW JOB (Pipeline Streaming de Gastos)
+# ---------------------------------------------------------
+# resource "null_resource" "lanzar_dataflow" {
+#   triggers = {
+#     db_host       = google_sql_database_instance.postgres_instance.public_ip_address
+#     pipeline_hash = filesha1("${path.module}/../dataflow/pipeline_gastos.py")
+#   }
+
+#   provisioner "local-exec" {
+#     command = <<EOT
+# python ../dataflow/pipeline_gastos.py \
+#   --project_id=${var.project_id} \
+#   --db_host=${google_sql_database_instance.postgres_instance.public_ip_address} \
+#   --db_name=aitonomo_db \
+#   --db_user=admin \
+#   --db_pass="${var.postgres_password}" \
+#   --runner=DataflowRunner \
+#   --region=${var.region} \
+#   --temp_location=gs://${google_storage_bucket.dataflow_staging.name}/temp \
+#   --staging_location=gs://${google_storage_bucket.dataflow_staging.name}/staging \
+#   --service_account_email=${google_service_account.dataflow_sa.email} \
+#   --requirements_file=../dataflow/requirements.txt \
+#   --job_name=pipeline-gastos-${substr(filesha1("${path.module}/../dataflow/pipeline_gastos.py"), 0, 6)} \
+#   --streaming \
+#   --no_wait_until_finish
+# EOT
+#   }
+
+#   depends_on = [
+#     google_service_account.dataflow_sa,
+#     google_project_iam_member.dataflow_permissions,
+#     google_storage_bucket.dataflow_staging,
+#     google_pubsub_subscription.sub_tickets,
+#     google_sql_database_instance.postgres_instance,
+#   ]
+# }

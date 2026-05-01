@@ -26,10 +26,17 @@ resource "google_storage_bucket_iam_member" "backend_storage_admin" {
   member = "serviceAccount:${google_service_account.backend_sa.email}"
 }
 
-resource "google_pubsub_topic_iam_member" "backend_pubsub_publisher" {
-  topic  = google_pubsub_topic.topic-batch-upload.name
+resource "google_pubsub_topic_iam_member" "backend_pubsub_publisher_tickets" {
+  topic  = google_pubsub_topic.topic_tickets.name
   role   = "roles/pubsub.publisher"
   member = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
+# Permisos para llamar a Vertex AI (Gemini)
+resource "google_project_iam_member" "backend_vertex_ai_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
 }
 
 # Permisos para que el Backend pueda consultar BigQuery (Dashboard Inversores)
@@ -84,6 +91,35 @@ resource "google_cloud_run_v2_service_iam_member" "acceso_publico_dashboard" {
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
+
+# ---------------------------------------------------------
+# SERVICE ACCOUNT PARA DATAFLOW (Pipeline de Gastos)
+# ---------------------------------------------------------
+resource "google_service_account" "dataflow_sa" {
+  account_id   = "dataflow-pipeline-sa"
+  display_name = "Service Account para Dataflow pipeline de gastos"
+}
+
+resource "google_project_iam_member" "dataflow_permissions" {
+  for_each = toset([
+    "roles/dataflow.worker",
+    "roles/pubsub.subscriber",
+    "roles/storage.objectAdmin",
+    "roles/cloudsql.client",
+    "roles/aiplatform.user",
+  ])
+  project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.dataflow_sa.email}"
+}
+
+# Bucket de staging para los workers de Dataflow
+resource "google_storage_bucket" "dataflow_staging" {
+  name          = "${var.project_id}-dataflow-staging"
+  location      = var.region
+  force_destroy = true
+}
+
 
 # ---------------------------------------------------------
 # GITHUB ACTIONS CI/CD

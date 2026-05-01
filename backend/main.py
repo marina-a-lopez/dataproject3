@@ -11,6 +11,8 @@ import uvicorn
 from pathlib import Path
 import os
 import tempfile
+import uuid
+import json
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -25,6 +27,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from google.cloud import bigquery
+from google.cloud import pubsub_v1
 from StorageManager import StorageManager
 
 sm = StorageManager()
@@ -81,15 +84,9 @@ try:
 except Exception as e:
     pass
 
-# Configuración de Gemini (mediante variables de entorno)
-gemini_api_key = os.getenv('GEMINI_API_KEY')
-if gemini_api_key:
-    try:
-        proc.configure_gemini(gemini_api_key)
-    except Exception as e:
-        print(f"Failed to configure Gemini: {e}")
-else:
-    print("Advertencia: No se ha encontrado la variable de entorno GEMINI_API_KEY.")
+# Inicialización de Vertex AI (usa ADC automáticamente en Cloud Run)
+import vertexai as _vertexai
+_vertexai.init(project=os.getenv('GCP_PROJECT_ID'))
 
 # Modelos Pydantic para peticiones JSON
 class LoginRequest(BaseModel):
@@ -341,7 +338,7 @@ async def get_dashboard(
 
     # Fetch ALL invoices (for overdue check + recent transactions) then split
     all_invoices = db.query(Factura).filter(Factura.usuario_id == user.id).all()
-    all_gastos = db.query(Gasto).filter(Gasto.usuario_id == user.id).all()
+    all_gastos = db.query(Gasto).filter(Gasto.usuario_id == user.id, Gasto.status == 'confirmed').all()
 
     # Overdue check (always global - not period-filtered)
     current_date = datetime.now(timezone.utc)
@@ -928,7 +925,7 @@ async def fetch_and_generate_pdf_quote(quote_id: str, db: Session = Depends(get_
 # Gastos
 @app.get("/api/expenses/{user_id}")
 async def get_expenses(user_id: str, db: Session = Depends(get_db)):
-    gastos = db.query(Gasto).filter(Gasto.usuario_id == user_id).order_by(Gasto.fecha.desc()).all()
+    gastos = db.query(Gasto).filter(Gasto.usuario_id == user_id, Gasto.status == 'confirmed').order_by(Gasto.fecha.desc()).all()
     return [{
         "id": str(g.id),
         "fecha": g.fecha.strftime("%Y-%m-%d"),
@@ -936,6 +933,27 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
         "concepto": g.concepto or "Gasto genérico",
         "importe_total": float(g.importe_total)
     } for g in gastos]
+
+@app.get("/api/expense_drafts/{user_id}")
+async def get_expense_drafts(user_id: str, db: Session = Depends(get_db)):
+    drafts = db.query(Gasto).filter(Gasto.usuario_id == user_id, Gasto.status == 'draft').order_by(Gasto.created_at.desc()).all()
+    return [{"id": str(g.id), "fecha": g.fecha.strftime("%Y-%m-%d"), "proveedor": g.proveedor or "", "concepto": g.concepto or "", "importe_total": float(g.importe_total), "url_ticket": g.url_ticket or ""} for g in drafts]
+
+@app.patch("/api/expenses/{expense_id}/confirm")
+async def confirm_expense_patch(expense_id: str, req: ExpenseCreate, db: Session = Depends(get_db)):
+    gasto = db.query(Gasto).filter(Gasto.id == expense_id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    try:
+        gasto.fecha = datetime.strptime(req.fecha, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    except:
+        pass
+    gasto.proveedor = req.proveedor
+    gasto.concepto = req.concepto
+    gasto.importe_total = req.importe_total
+    gasto.status = 'confirmed'
+    db.commit()
+    return {"success": True}
 
 @app.post("/api/expenses")
 async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
@@ -1033,33 +1051,64 @@ async def process_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/process_expense")
-async def process_expense(file: UploadFile = File(...)):
+async def process_expense(file: UploadFile = File(...), user_id: str = Form(default=""), fcm_token: str = Form(default=""), db: Session = Depends(get_db)):
+    """Sube el ticket a GCS, guarda draft en PostgreSQL y publica en Pub/Sub para que Dataflow procese con Gemini."""
     try:
         contents = await file.read()
         mime_type = file.content_type
-        
-        # Enviamos el ticket al Bucket de Google ---
         ext = os.path.splitext(file.filename)[1]
-        nombre_nube = f"expenses/ticket_{int(datetime.now().timestamp())}{ext}"
-        url_nube = sm.upload_file(contents, nombre_nube)
+        object_name = f"expenses/ticket_{int(datetime.now().timestamp())}{ext}"
+        sm.upload_file(contents, object_name)
+        ticket_url = f"gs://{sm.bucket_name}/{object_name}"
 
-        
-        data = proc.extract_expense_data(contents, mime_type)
-        if "error" in data:
-            raise HTTPException(status_code=500, detail=data["error"])
-            
-        return {
-            "success": True,
-            "data": {
-                "proveedor": data.get("proveedor", "Desconocido"),
-                "fecha": data.get("fecha", datetime.now().strftime("%Y-%m-%d")),
-                "concepto": data.get("concepto", "Gasto genérico"),
-                "importe_total": float(data.get("importe_total", 0.0)),
-                "url_ticket": url_nube
-            }
-        }
+        user = db.query(Usuario).filter(Usuario.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        draft = Gasto(
+            usuario_id=user.id,
+            fecha=datetime.now(timezone.utc),
+            importe_total=0.0,
+            url_ticket=ticket_url,
+            status='draft'
+        )
+        db.add(draft)
+        db.commit()
+
+        project_id = os.getenv("GCP_PROJECT_ID", "")
+        publisher = pubsub_v1.PublisherClient()
+        publisher.publish(
+            publisher.topic_path(project_id, "topic-tickets"),
+            json.dumps({
+                "expense_id": str(draft.id),
+                "user_id": user_id,
+                "fcm_token": fcm_token,
+                "bucket_name": sm.bucket_name,
+                "object_name": object_name,
+                "mime_type": mime_type,
+            }).encode("utf-8")
+        )
+
+        return {"success": True, "expense_id": str(draft.id), "ticket_url": ticket_url}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/expense_status/{expense_id}")
+async def expense_status(expense_id: str, db: Session = Depends(get_db)):
+    gasto = db.query(Gasto).filter(Gasto.id == expense_id).first()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado")
+    return {
+        "status": gasto.status,
+        "data": {
+            "proveedor": gasto.proveedor or "",
+            "fecha": gasto.fecha.strftime("%Y-%m-%d") if gasto.proveedor else "",
+            "concepto": gasto.concepto or "",
+            "importe_total": float(gasto.importe_total),
+            "url_ticket": gasto.url_ticket or ""
+        } if gasto.status == 'draft' and gasto.proveedor else {}
+    }
 
 @app.post("/api/process_client_voice")
 async def process_client_voice(file: UploadFile = File(...)):
@@ -1339,6 +1388,24 @@ async def get_avatar(filename: str):
         return Response(content=avatar_bytes, media_type=media_type)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/ticket/{object_path:path}")
+async def get_ticket(object_path: str):
+    try:
+        from fastapi import Response
+        file_bytes = sm.download_file(object_path)
+        if not file_bytes:
+            raise HTTPException(status_code=404, detail="Ticket no encontrado")
+        ext = os.path.splitext(object_path)[1].lower()
+        media_type = "image/jpeg"
+        if ext == ".png": media_type = "image/png"
+        elif ext == ".pdf": media_type = "application/pdf"
+        elif ext in [".webp", ".gif"]: media_type = f"image/{ext[1:]}"
+        return Response(content=file_bytes, media_type=media_type)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 @app.put("/api/profile/{user_id}/irpf")
 async def update_irpf_rate(user_id: str, req: IRPFUpdateRequest, db: Session = Depends(get_db)):

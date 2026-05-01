@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 7.0"
     }
+    google-beta = {
+      source  = "hashicorp/google-beta"
+      version = "~> 7.0"
+    }
     docker = {
       source  = "kreuzwerker/docker"
       version = "~> 3.0"
@@ -12,9 +16,15 @@ terraform {
 }
 
 provider "google" {
-    project = var.project_id
-    region = var.region
-    user_project_override = true
+  project               = var.project_id
+  region                = var.region
+  user_project_override = true
+}
+
+provider "google-beta" {
+  project               = var.project_id
+  region                = var.region
+  user_project_override = true
 }
 
 # Configuración para que el provider de Docker pueda subir imágenes a Google Artifact Registry

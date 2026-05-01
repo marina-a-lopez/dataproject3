@@ -6,8 +6,7 @@ sqlalchemy
 pydantic[email]
 psycopg2-binary
 cloud-sql-python-connector[pg8000]
-google-generativeai
-google-genai
+google-cloud-aiplatform>=1.60
 google-cloud-storage
 fpdf2
 python-dotenv
@@ -15,3 +14,4 @@ psycopg2-binary>=2.9.9
 pandas
 google-cloud-bigquery
 pgvector
+google-cloud-pubsub
