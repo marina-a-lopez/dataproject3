@@ -22,6 +22,9 @@ from voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
 import processor as proc
 from agents.extraction_agent import extraction_agent_instance
+from agents.subsidies_agent import subsidies_agent_instance
+from agents.subsidies_extractor import subsidies_extractor_instance
+from utils.cnae_mapping import CNAE_MAPPING
 from werkzeug.security import generate_password_hash, check_password_hash
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -250,6 +253,8 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Este Email ya está registrado y tiene una cuenta activa.")
         
     hashed_pwd = generate_password_hash(req.password, method='pbkdf2:sha256')
+    cnae_desc = CNAE_MAPPING.get(req.cnae, "Producto") if req.cnae else "Producto"
+
     new_user = Usuario(
         nombre=req.nombre,
         apellidos=req.apellidos,
@@ -262,7 +267,8 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         iae=req.iae,
         email=req.email,
         telefono=req.telefono,
-        password_hash=hashed_pwd
+        password_hash=hashed_pwd,
+        desc_producto=cnae_desc
     )
     db.add(new_user)
     db.commit()
@@ -1428,9 +1434,39 @@ async def get_profile(user_id: str, db: Session = Depends(get_db)):
             "gmail_token": user.gmail_token,
             "email": user.email,
             "telefono": user.telefono,
-            "profile_picture": user.profile_picture
+            "profile_picture": user.profile_picture,
+            "desc_producto": user.desc_producto
         }
     }
+
+@app.get("/api/subsidies/{user_id}")
+async def get_subsidies(user_id: str, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    response = subsidies_agent_instance.get_subsidies_for_user(user, db)
+    if response.get("status") == "error":
+        raise HTTPException(status_code=500, detail=response.get("error"))
+        
+    return response
+
+class ScrapedTextRequest(BaseModel):
+    texto_sucio: str
+
+@app.post("/api/extract-subsidies")
+async def extract_subsidies(req: ScrapedTextRequest):
+    """
+    Recibe texto en bruto extraído mediante web scraping y usa Gemini
+    para devolver las subvenciones en un formato estructurado de texto plano.
+    """
+    if not req.texto_sucio or not req.texto_sucio.strip():
+        raise HTTPException(status_code=400, detail="El texto a procesar no puede estar vacío.")
+        
+    resultado = subsidies_extractor_instance.process_scraped_text(req.texto_sucio)
+    return {"resultado": resultado}
+
+
 
 @app.get("/api/avatars/{filename}")
 async def get_avatar(filename: str):
@@ -1513,6 +1549,9 @@ async def update_profile(
     user.iae = iae if iae else None
     user.iban = iban if iban else None
     user.gmail_token = gmail_token if gmail_token else None
+    
+    if user.cnae:
+        user.desc_producto = CNAE_MAPPING.get(user.cnae, "Producto")
     
     if avatar and avatar.filename:
         # Save file
