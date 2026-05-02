@@ -372,8 +372,10 @@ async def get_dashboard(
     total_base_ingresos = sum(f.total_base for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
     total_iva_repercutido = sum(f.total_impuestos for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
 
-    total_base_gastos = sum(g.importe_total / 1.21 for g in gastos)
-    total_iva_soportado = sum(g.importe_total - (g.importe_total / 1.21) for g in gastos)
+    gastos_deducibles = [g for g in gastos if g.is_deducible]
+
+    total_base_gastos = sum(g.importe_total / 1.21 for g in gastos_deducibles)
+    total_iva_soportado = sum(g.importe_total - (g.importe_total / 1.21) for g in gastos_deducibles)
 
     net_balance = total_base_ingresos - total_base_gastos
     iva_a_pagar = total_iva_repercutido - total_iva_soportado

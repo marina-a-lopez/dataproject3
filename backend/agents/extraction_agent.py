@@ -4,7 +4,6 @@ from vertexai.generative_models import GenerativeModel, Part
 from vertexai.language_models import TextEmbeddingModel
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from .user_context import get_user_context
 
 class ExtractionAgent:
     def __init__(self):
