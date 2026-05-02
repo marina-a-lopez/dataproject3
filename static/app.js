@@ -48,9 +48,8 @@ const Utils = {
     }
 };
 
-// IMPORTANTE: Cuando despliegues el backend, pega su 
-//  aquí
-const API_BASE_URL = "https://api-backend-4nrtuy3yca-no.a.run.app";
+// IMPORTANTE: URL del Backend
+const API_BASE_URL = "https://api-backend-jkxxdq53jq-no.a.run.app"; //https://api-backend-4nrtuy3yca-no.a.run.app
 
 const API = {
     request: async (endpoint, options = {}) => {
@@ -309,6 +308,7 @@ const appLogic = {
             provincia: document.getElementById('reg-provincia').value || "",
             codigo_postal: document.getElementById('reg-cp').value || "",
             cnae: document.getElementById('reg-cnae').value || "",
+            iae: document.getElementById('reg-iae').value || "",
             password: document.getElementById('reg-pwd').value
         };
 
@@ -978,31 +978,41 @@ const appLogic = {
             formData.append('file', file);
             formData.append('user_id', AppState.userId);
 
-            const res = await API.request('/api/process_expense', { method: 'POST', body: formData });
-            if (!res.success) throw new Error('Error al subir el ticket');
+            Utils.showToast('Analizando ticket con Agente RAG...', 'success');
 
-            // Añadir fila como "procesando" inmediatamente
-            appLogic.addDraftRow(res.expense_id, previewHtml, {}, true);
-            Utils.showToast('Ticket enviado. Procesando con IA...', 'success');
+            const res = await API.request('/api/v1/expenses/extract', { method: 'POST', body: formData });
+            if (!res.success) throw new Error('Error al procesar el ticket');
 
-            // Polling hasta que Dataflow actualice el draft en PostgreSQL
-            let intentos = 0;
-            const poll = setInterval(async () => {
-                intentos++;
-                try {
-                    const estado = await API.request(`/api/expense_status/${res.expense_id}`);
-                    if (estado.status === 'draft' && estado.data && estado.data.proveedor) {
-                        clearInterval(poll);
-                        appLogic.addDraftRow(res.expense_id, previewHtml, estado.data, false);
-                        Utils.showToast(`Ticket listo: ${estado.data.proveedor}`, 'success');
-                    } else if (intentos >= 30) {
-                        clearInterval(poll);
-                        appLogic.markDraftError(res.expense_id);
-                    }
-                } catch (_) {}
-            }, 3000);
+            const extData = res.extracted_data;
+            const hitl = res.hitl_required;
+            const reason = extData.clarification_reason || '';
 
-        } catch(e) {
+            // Si requiere revisión (HITL), lo marcamos con un aviso
+            const conceptWithReason = hitl ? `${extData.concepto} ⚠️ (Revisión requerida: ${reason})` : extData.concepto;
+
+            // Guardamos el gasto extraído síncronamente enviando la razón y el estado correcto
+            const saveRes = await API.request('/api/expenses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: AppState.userId,
+                    fecha: extData.fecha || new Date().toISOString().split('T')[0],
+                    proveedor: extData.proveedor || 'Desconocido',
+                    concepto: extData.concepto || 'Gasto general',
+                    importe_total: extData.importe_total || 0,
+                    url_ticket: '', 
+                    status: 'draft', // Todo lo que viene de IA va a revisión manual
+                    is_deducible: extData.is_deducible !== false,
+                    clarification_reason: reason
+                })
+            });
+
+            if (saveRes.success) {
+                Utils.showToast(`Gasto analizado. Por favor, revísalo en la lista de pendientes.`, 'success');
+                appLogic.loadExpenseDrafts();
+            }
+
+        } catch (e) {
             Utils.showToast(e.message || 'Error al procesar el ticket', 'error');
         } finally {
             btnStatus.classList.add('hidden');
@@ -1088,7 +1098,7 @@ const appLogic = {
                 appLogic.addDraftRow(d.id, null, d, processing);
                 if (processing) appLogic.resumePolling(d.id);
             });
-        } catch(_) {}
+        } catch (_) { }
     },
 
     resumePolling: (expenseId) => {
@@ -1105,7 +1115,7 @@ const appLogic = {
                     clearInterval(poll);
                     appLogic.markDraftError(expenseId);
                 }
-            } catch (_) {}
+            } catch (_) { }
         }, 3000);
     },
 
@@ -1205,11 +1215,22 @@ const appLogic = {
         }
 
         res.forEach(exp => {
+            const isDeducible = !exp.clarification_reason || !exp.clarification_reason.toLowerCase().includes('no es deducible');
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${exp.fecha.split('T')[0]}</td>
                 <td class="font-bold">${exp.proveedor}</td>
-                <td class="text-muted text-sm">${exp.concepto}</td>
+                <td>
+                    <div class="font-medium">${exp.concepto}</div>
+                    ${exp.clarification_reason ? `<div class="text-xs text-muted mt-1" style="max-width: 350px; font-style: italic;">
+                        ${exp.clarification_reason.substring(0, 150)}...
+                    </div>` : ''}
+                </td>
+                <td style="text-align: center;">
+                    ${exp.is_deducible ? 
+                        `<i class="fa-solid fa-circle-check text-green" title="${exp.clarification_reason || 'Gasto validado'}"></i>` : 
+                        `<i class="fa-solid fa-circle-xmark text-red" title="${exp.clarification_reason || 'Gasto no deducible'}"></i>`}
+                </td>
                 <td class="text-accent font-bold">${Utils.formatCurrency(exp.importe_total)}</td>
                 <td>
                     <button class="btn-icon text-red hover-animate" onclick="appLogic.deleteExpense('${exp.id}')" title="Eliminar Gasto">
@@ -1471,6 +1492,7 @@ const appLogic = {
                 document.getElementById('prof-telefono').value = p.telefono || '';
                 document.getElementById('prof-nif').value = p.nif_cif || '';
                 document.getElementById('prof-cnae').value = p.cnae || '';
+                document.getElementById('prof-iae').value = p.iae || '';
                 document.getElementById('prof-iban').value = p.iban || '';
                 document.getElementById('prof-gmail-token').value = p.gmail_token || '';
                 document.getElementById('prof-domicilio').value = p.domicilio || '';
@@ -1509,6 +1531,7 @@ const appLogic = {
             formData.append("telefono", document.getElementById('prof-telefono').value);
             formData.append("nif_cif", document.getElementById('prof-nif').value);
             formData.append("cnae", document.getElementById('prof-cnae').value);
+            formData.append("iae", document.getElementById('prof-iae').value);
             formData.append("iban", document.getElementById('prof-iban').value);
             formData.append("gmail_token", document.getElementById('prof-gmail-token').value);
             formData.append("domicilio", document.getElementById('prof-domicilio').value);

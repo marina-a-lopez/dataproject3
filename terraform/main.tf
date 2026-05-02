@@ -1,7 +1,21 @@
 #storage bucket para almacenar pdfs, etc
 
+resource "google_project_service" "enabled_apis" {
+  for_each = toset([
+    "secretmanager.googleapis.com",
+    "datastream.googleapis.com",
+    "sqladmin.googleapis.com",
+    "run.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "bigquery.googleapis.com"
+  ])
+  project = var.project_id
+  service = each.key
+  disable_on_destroy = false
+}
+
 resource "google_storage_bucket" "document_bucket" {
-  name          = "bucket-aitonomo-docs"
+  name          = "bucket-aitonomo-docs-${var.project_id}"
   location      = var.region
   force_destroy = false
 }

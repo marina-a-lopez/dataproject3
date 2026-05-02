@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from dotenv import load_dotenv
 from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text
+    Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text, Boolean
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.types import TypeDecorator, CHAR
@@ -29,6 +29,7 @@ class Usuario(Base):
     telefono = Column(String(20), nullable=False)
     password_hash = Column(String(255), nullable=False) # Contraseña encriptada
     cnae = Column(String(10), nullable=True)
+    iae = Column(String(20), nullable=True)
     iban = Column(String(50), nullable=True)
     profile_picture = Column(String(255), nullable=True)
     gmail_token = Column(String(255), nullable=True)
@@ -170,12 +171,14 @@ class Gasto(Base):
     
     fecha = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     proveedor = Column(String(255), nullable=True)
-    concepto = Column(String(255), nullable=True)
+    concepto = Column(Text, nullable=True)
     importe_total = Column(Float, nullable=False, default=0.0)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     url_ticket = Column(String(500), nullable=True)
     status = Column(String(20), default='confirmed', nullable=False)
+    clarification_reason = Column(Text, nullable=True)
+    is_deducible = Column(Boolean, default=True)
     
     usuario = relationship("Usuario", back_populates="gastos")
 
@@ -188,6 +191,15 @@ class Subvencion(Base):
     cnae_target = Column(String(50), nullable=True)
     fecha_cierre = Column(DateTime, nullable=True)
     texto_completo = Column(Text, nullable=False)
+    embedding = Column(Vector(768))
+
+class ReglaDeduccion(Base):
+    __tablename__ = 'reglas_deduccion'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    contenido = Column(Text, nullable=False)
+    fuente = Column(String(255), nullable=False)
+    iae_contexto = Column(String(50), nullable=True)
     embedding = Column(Vector(768))
 
 

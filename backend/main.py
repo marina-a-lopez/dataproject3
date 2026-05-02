@@ -103,6 +103,7 @@ class RegisterRequest(BaseModel):
     provincia: str = ""
     codigo_postal: str = ""
     cnae: Optional[str] = None
+    iae: Optional[str] = None
     email: EmailStr
     telefono: str = Field(pattern=r"^\+?[0-9]{9,15}$")
     password: str
@@ -132,6 +133,9 @@ class ExpenseCreate(BaseModel):
     concepto: str
     importe_total: float
     url_ticket: str = ""
+    status: str = "confirmed"
+    is_deducible: bool = True
+    clarification_reason: Optional[str] = None
 
 class InvoiceStatusUpdate(BaseModel):
     status: str
@@ -227,6 +231,14 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
         print(f"DEBUG LOGIN - Exception: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error interno durante el login: {str(e)}")
 
+@app.get("/api/health")
+async def health_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        return {"status": "error", "database": str(e)}
+
 @app.post("/api/register")
 async def register(req: RegisterRequest, db: Session = Depends(get_db)):
     existing_user_nif = get_user_by_dni(db, req.nif_cif)
@@ -247,6 +259,7 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         provincia=req.provincia,
         codigo_postal=req.codigo_postal,
         cnae=req.cnae,
+        iae=req.iae,
         email=req.email,
         telefono=req.telefono,
         password_hash=hashed_pwd
@@ -932,7 +945,9 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
         "fecha": g.fecha.strftime("%Y-%m-%d"),
         "proveedor": g.proveedor or "Varios",
         "concepto": g.concepto or "Gasto genérico",
-        "importe_total": float(g.importe_total)
+        "importe_total": float(g.importe_total),
+        "is_deducible": g.is_deducible,
+        "clarification_reason": g.clarification_reason
     } for g in gastos]
 
 @app.get("/api/expense_drafts/{user_id}")
@@ -974,7 +989,10 @@ async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
             proveedor=req.proveedor,
             concepto=req.concepto,
             importe_total=req.importe_total,
-            url_ticket=req.url_ticket
+            url_ticket=req.url_ticket,
+            status=req.status,
+            is_deducible=req.is_deducible,
+            clarification_reason=req.clarification_reason
         )
         db.add(nuevo_gasto)
         db.commit()
@@ -1120,8 +1138,7 @@ async def extract_expense_v1(file: UploadFile = File(...), user_id: str = Form(.
     """
     try:
         # 1. Validar que el usuario existe en DB principal
-        user_id_int = int(user_id) # O manejar como int/str según sea el ID de la BD
-        user = db.query(Usuario).filter(Usuario.id == user_id_int).first()
+        user = db.query(Usuario).filter(Usuario.id == user_id).first()
         if not user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
@@ -1133,7 +1150,8 @@ async def extract_expense_v1(file: UploadFile = File(...), user_id: str = Form(.
         result = extraction_agent_instance.process_receipt_with_context(
             file_bytes=contents, 
             mime_type=mime_type, 
-            user_id=user_id_int
+            user=user,
+            db=db
         )
         
         if result.get("status") == "error":
@@ -1405,6 +1423,7 @@ async def get_profile(user_id: str, db: Session = Depends(get_db)):
             "provincia": user.provincia,
             "codigo_postal": user.codigo_postal,
             "cnae": user.cnae,
+            "iae": user.iae,
             "iban": user.iban,
             "gmail_token": user.gmail_token,
             "email": user.email,
@@ -1471,6 +1490,7 @@ async def update_profile(
     provincia: str = Form(""),
     codigo_postal: str = Form(""),
     cnae: str = Form(""),
+    iae: str = Form(""),
     iban: str = Form(""),
     gmail_token: str = Form(""),
     avatar: Optional[UploadFile] = File(None),
@@ -1490,6 +1510,7 @@ async def update_profile(
     user.provincia = provincia
     user.codigo_postal = codigo_postal
     user.cnae = cnae if cnae else None
+    user.iae = iae if iae else None
     user.iban = iban if iban else None
     user.gmail_token = gmail_token if gmail_token else None
     

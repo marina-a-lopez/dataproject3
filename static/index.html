@@ -280,6 +280,10 @@
                                     <input type="text" id="reg-cnae" placeholder="Ej: 6201">
                                 </div>
                             </div>
+                            <div class="input-group mt-2">
+                                <label for="reg-iae">IAE (Epígrafe)</label>
+                                <input type="number" step="any" id="reg-iae" placeholder="Ej: 849">
+                            </div>
                             <div class="input-group">
                                 <label for="reg-pwd">Nueva Contraseña <span class="text-red">*</span></label>
                                 <input type="password" id="reg-pwd" required placeholder="Mín 6 caracteres">
@@ -1281,6 +1285,7 @@
                                             <th>Fecha</th>
                                             <th>Proveedor</th>
                                             <th>Concepto</th>
+                                            <th style="text-align: center;">Deducible</th>
                                             <th>Importe</th>
                                             <th>Acciones</th>
                                         </tr>
@@ -1390,6 +1395,11 @@
                             <label>CNAE</label>
                             <input type="text" id="prof-cnae">
                         </div>
+                    </div>
+
+                    <div class="input-group mt-2">
+                        <label>IAE (Epígrafe)</label>
+                        <input type="number" step="any" id="prof-iae">
                     </div>
 
                     <div class="input-group mt-2">

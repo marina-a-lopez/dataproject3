@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     telefono VARCHAR(20) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     cnae VARCHAR(10),
+    iae VARCHAR(20),
     iban VARCHAR(50),
     profile_picture VARCHAR(255),
     gmail_token VARCHAR(255),
@@ -72,10 +73,11 @@ CREATE TABLE IF NOT EXISTS gastos (
     usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     fecha TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     proveedor VARCHAR(255),
-    concepto VARCHAR(255),
+    concepto TEXT,
     importe_total FLOAT NOT NULL DEFAULT 0.0,
     url_ticket VARCHAR(500),
     status VARCHAR(20) NOT NULL DEFAULT 'confirmed',
+    clarification_reason TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -127,5 +129,14 @@ CREATE TABLE IF NOT EXISTS subvenciones (
     cnae_target VARCHAR(50),
     fecha_cierre TIMESTAMP WITH TIME ZONE,
     texto_completo TEXT NOT NULL,
+    embedding vector(768)
+);
+
+-- 9. TABLA: reglas_deduccion (Para RAG de IAE y gastos)
+CREATE TABLE IF NOT EXISTS reglas_deduccion (
+    id UUID PRIMARY KEY,
+    contenido TEXT NOT NULL,
+    fuente VARCHAR(255) NOT NULL,
+    iae_contexto VARCHAR(50),
     embedding vector(768)
 );
