@@ -1007,13 +1007,37 @@
                                 <button class="period-nav-btn" id="cal-next-btn" onclick="calShiftMonth(1)"><i
                                         class="fa-solid fa-chevron-right"></i></button>
                             </div>
-                            <div class="calendar-controls">
+                            <div class="calendar-controls" style="display:flex; align-items:center; gap: 16px; flex-wrap:wrap;">
                                 <label class="cal-toggle-label">
                                     <input type="checkbox" id="cal-invoice-toggle" checked
                                         onchange="calToggleInvoices(this.checked)">
                                     <span>Ver vencimientos de facturas</span>
                                 </label>
+                                <!-- Botón principal: dictar evento por audio directamente -->
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <button id="btn-cal-voice-start" class="btn btn-outline hover-animate"
+                                        style="color:#e74c3c; border-color:#e74c3c; padding: 6px 14px; font-size:0.85rem;"
+                                        onclick="startCalendarVoiceRecording()">
+                                        <i class="fa-solid fa-microphone"></i> Dictar Evento con IA
+                                    </button>
+                                    <button id="btn-cal-voice-stop"
+                                        class="btn hover-animate hidden text-white"
+                                        style="background:#e74c3c; border:none; padding: 6px 14px; font-size:0.85rem;"
+                                        onclick="stopCalendarVoiceRecording()">
+                                        <i class="fa-solid fa-square"></i> Detener Grabación
+                                    </button>
+                                    <button class="btn btn-secondary hover-animate"
+                                        style="padding: 6px 14px; font-size:0.85rem;"
+                                        onclick="AppState.calSelectedDate = null; openAddEventModal()">
+                                        <i class="fa-solid fa-plus"></i> Añadir Manual
+                                    </button>
+                                </div>
                             </div>
+                        </div>
+                        <!-- Estado de grabación de voz del calendario -->
+                        <div id="cal-voice-status" style="display:none; margin: 8px 0; padding: 10px 16px; border-radius: 8px; background: rgba(231,76,60,0.1); border: 1px solid rgba(231,76,60,0.3); color: var(--clr-text); font-size: 0.88rem;">
+                            <i class="fa-solid fa-spinner fa-spin" style="margin-right:6px; color:#e74c3c;"></i>
+                            <span id="cal-voice-status-text">Procesando audio...</span>
                         </div>
                         <div class="calendar-grid-wrapper">
                             <div class="calendar-weekdays">
@@ -1571,8 +1595,17 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Descripción (opcional)</label>
-                        <textarea class="form-input" id="event-desc-input" rows="3"
+                        <textarea class="form-input" id="event-desc-input" rows="2"
                             placeholder="Detalles adicionales..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tipo de Evento</label>
+                        <select class="form-input" id="event-type-input" onchange="updateEventColorHint(this.value)">
+                            <option value="personal">🔵 Personal</option>
+                            <option value="fiscal">🔴 Fiscal / Impuestos</option>
+                            <option value="reunion">🟢 Reunión / Cliente</option>
+                        </select>
+                        <input type="hidden" id="event-color-input" value="#4a90e2">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1600,7 +1633,7 @@
             </div>
         </div>
 
-        <script src="/app.js?v=9"></script>
+        <script src="/app.js?v=10"></script>
 </body>
 
 </html>

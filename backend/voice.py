@@ -2,6 +2,7 @@ import os
 import json
 from pydantic import BaseModel, Field
 from typing import Optional
+from datetime import datetime
 from dotenv import load_dotenv
 
 from vertexai.generative_models import GenerativeModel, Part, GenerationConfig
@@ -39,6 +40,13 @@ class QuoteLine(BaseModel):
 
 class QuoteExtraction(BaseModel):
     lineas: list[QuoteLine] = Field(description="Lista de líneas o conceptos a facturar", default=[])
+
+class CalendarExtraction(BaseModel):
+    titulo: str = Field(description="Título corto y profesional del evento, máximo 5 palabras", default="Nuevo Evento")
+    fecha: str = Field(description="Fecha del evento en formato ISO YYYY-MM-DD", default="")
+    descripcion: Optional[str] = Field(description="Detalles adicionales, lugar, personas involucradas o notas del evento", default=None)
+    tipo: str = Field(description="Categoría del evento: 'personal', 'fiscal' (impuestos, IVA, gestoría) o 'reunion' (clientes, Zoom, citas)", default="personal")
+    color: str = Field(description="Color hexadecimal para la UI: #4a90e2 personal, #e74c3c fiscal, #27ae60 reunion", default="#4a90e2")
 
 def process_voice_to_text(audio_bytes: bytes, filename: str = "audio.wav") -> str:
     """Procesa el audio y lo transcribe a texto."""
@@ -106,3 +114,54 @@ def extract_line_data(text: str, catalog_context: str = "") -> dict:
     except Exception as e:
         print("Error parsing json from Gemini: ", response.text)
         return {}
+
+def extract_calendar_event(text: str) -> dict:
+    """Extrae los datos de un evento de calendario a partir de un texto libre (transcripción de audio).
+    Razona sobre fechas relativas (mañana, el lunes, esta semana) usando la fecha de hoy como anclaje."""
+    today_iso = datetime.now().strftime("%Y-%m-%d")
+    day_names_es = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+    today_weekday = day_names_es[datetime.now().weekday()]
+    today_formatted = f"{today_weekday}, {datetime.now().strftime('%d/%m/%Y')}"
+
+    system_prompt = f"""Eres un Agente de Gestión del Tiempo experto para autónomos en España.
+Tu misión es extraer eventos de calendario a partir de notas de voz transcritas.
+
+CONTEXTO TEMPORAL CRÍTICO:
+- Hoy es: {today_formatted} (ISO: {today_iso})
+- Si el usuario dice "mañana", calcula la fecha exacta sumando 1 día a hoy.
+- Si menciona un día de la semana (ej. "el lunes"), se refiere al próximo lunes más cercano en el futuro.
+- Si menciona "esta semana" sin día concreto, usa el viernes de esta semana.
+- Si no menciona el año, asume el año actual a menos que la fecha ya haya pasado (usa el año siguiente).
+- Si no se menciona ninguna fecha, usa la fecha de hoy ({today_iso}) y añade "Revisar fecha" en la descripción.
+
+REGLAS DE EXTRACCIÓN:
+1. TITULO: Crea un título ejecutivo conciso (máximo 5 palabras).
+   Transforma lenguaje coloquial: "Tengo que ir al médico" → "Cita médica".
+   "Reunión con el cliente Pepsi" → "Reunión Pepsi".
+2. DESCRIPCIÓN: Incluye detalles relevantes: hora si se menciona, lugar, personas, notas importantes.
+3. TIPO Y COLOR (elige uno):
+   - 'fiscal' + '#e74c3c': Si menciona impuestos, IVA, IRPF, modelo 303/130/347, gestoría, hacienda, declaración.
+   - 'reunion' + '#27ae60': Si menciona clientes, reunión, llamada, Zoom, Teams, visita comercial, presentación.
+   - 'personal' + '#4a90e2': Citas médicas, formación, viajes, tareas personales o cualquier otro evento.
+4. FECHA: Devuelve siempre en formato YYYY-MM-DD estricto.
+
+Devuelve ÚNICAMENTE un JSON válido con los campos del esquema. Sin markdown, sin explicaciones."""
+
+    client = get_client()
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=[
+            system_prompt,
+            f"Texto de la nota de voz: {text}"
+        ],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=CalendarExtraction,
+        )
+    )
+
+    try:
+        return json.loads(response.text)
+    except Exception as e:
+        print("Error parsing calendar json from Gemini: ", response.text)
+        return {"titulo": "Nuevo Evento", "fecha": today_iso, "tipo": "personal", "color": "#4a90e2"}

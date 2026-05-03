@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 
 # Importaciones locales
 from database import get_db, init_db, Usuario, Cliente, Factura, Presupuesto, Producto, Gasto, CalendarioEvento
-from voice import process_voice_to_text, extract_line_data, extract_client_data
+from voice import process_voice_to_text, extract_line_data, extract_client_data, extract_calendar_event
 from invoice_generator import PremiumInvoicePDF
 import processor as proc
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1626,6 +1626,34 @@ async def delete_calendar_event(user_id: str, event_id: str, db: Session = Depen
     db.delete(ev)
     db.commit()
     return {"success": True}
+
+
+@app.post("/api/process_calendar_voice")
+async def process_calendar_voice(file: UploadFile = File(...)):
+    """Recibe un audio, lo transcribe y extrae los datos del evento con IA.
+    No guarda en base de datos — el frontend lo hace en un segundo paso si el usuario confirma."""
+    try:
+        contents = await file.read()
+
+        # 1. Transcribir el audio a texto
+        transcript = process_voice_to_text(contents)
+
+        # 2. Extraer datos del evento con el agente de razonamiento temporal
+        event_data = extract_calendar_event(transcript)
+
+        return {
+            "success": True,
+            "transcript": transcript,
+            "event": {
+                "titulo": event_data.get("titulo", "Nuevo Evento"),
+                "fecha": event_data.get("fecha", datetime.now().strftime("%Y-%m-%d")),
+                "descripcion": event_data.get("descripcion"),
+                "tipo": event_data.get("tipo", "personal"),
+                "color": event_data.get("color", "#4a90e2")
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error procesando el audio: {str(e)}")
 
 # ─── Dashboard Inversores (Conexión BQ) ───────────────────────────────────────
 

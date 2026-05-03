@@ -2122,13 +2122,33 @@ window.openAddEventModal = function () {
     document.getElementById('event-date-display').value = `${parseInt(d)} de ${MONTH_NAMES_ES[parseInt(m)]} de ${y}`;
     document.getElementById('event-title-input').value = '';
     document.getElementById('event-desc-input').value = '';
+    
+    // Reset type and color hints
+    const typeSelect = document.getElementById('event-type-input');
+    if (typeSelect) typeSelect.value = 'personal';
+    const colorInput = document.getElementById('event-color-input');
+    if (colorInput) colorInput.value = '#4a90e2';
+
     document.getElementById('add-event-modal').classList.remove('hidden');
+};
+
+window.updateEventColorHint = function(type) {
+    const colors = {
+        'personal': '#4a90e2',
+        'fiscal': '#e74c3c',
+        'reunion': '#27ae60'
+    };
+    const colorInput = document.getElementById('event-color-input');
+    if (colorInput) colorInput.value = colors[type] || '#4a90e2';
 };
 
 window.saveCalendarEvent = async function () {
     const titulo = document.getElementById('event-title-input').value.trim();
     const fecha = document.getElementById('event-date-input').value;
     const descripcion = document.getElementById('event-desc-input').value.trim();
+    const tipo = document.getElementById('event-type-input')?.value || 'personal';
+    const color = document.getElementById('event-color-input')?.value || '#4a90e2';
+
     if (!titulo) { Utils.showToast('El título del evento es obligatorio.', 'warning'); return; }
 
     const btn = document.getElementById('btn-save-event');
@@ -2138,7 +2158,7 @@ window.saveCalendarEvent = async function () {
         await API.request(`/api/calendar/${AppState.userId}/evento`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fecha, titulo, descripcion })
+            body: JSON.stringify({ fecha, titulo, descripcion, tipo, color })
         });
         document.getElementById('add-event-modal').classList.add('hidden');
         Utils.showToast('Evento añadido correctamente.', 'success');
@@ -2168,7 +2188,94 @@ window.deleteCalendarEvent = async function (eventId) {
     }
 };
 
-// Voice input via Web Speech API
+// ─── Calendar Voice Recording (AI Agent) ──────────────────────────────────────
+let _calMediaRecorder = null;
+let _calAudioChunks = [];
+
+window.startCalendarVoiceRecording = async function () {
+    if (_calMediaRecorder && _calMediaRecorder.state === 'recording') return;
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        _calAudioChunks = [];
+        _calMediaRecorder = new MediaRecorder(stream);
+
+        _calMediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) _calAudioChunks.push(e.data);
+        };
+
+        _calMediaRecorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+
+            const blob = new Blob(_calAudioChunks, { type: 'audio/webm' });
+            const file = new File([blob], 'calendar_voice.webm', { type: 'audio/webm' });
+
+            const statusEl = document.getElementById('cal-voice-status');
+            const statusTextEl = document.getElementById('cal-voice-status-text');
+            statusEl.style.display = 'block';
+            statusTextEl.textContent = 'Procesando audio con IA...';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await API.request('/api/process_calendar_voice', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (res.success && res.event) {
+                    const ev = res.event;
+
+                    // Pre-fill the manual event modal with the AI-extracted data
+                    // Set date
+                    const dateStr = ev.fecha || new Date().toISOString().split('T')[0];
+                    const [y, m, d] = dateStr.split('-');
+                    document.getElementById('event-date-input').value = dateStr;
+                    document.getElementById('event-date-display').value = `${parseInt(d)} de ${MONTH_NAMES_ES[parseInt(m)]} de ${y}`;
+
+                    // Set title, description, type, color
+                    document.getElementById('event-title-input').value = ev.titulo || '';
+                    document.getElementById('event-desc-input').value = ev.descripcion || '';
+
+                    const typeSelect = document.getElementById('event-type-input');
+                    if (typeSelect) typeSelect.value = ev.tipo || 'personal';
+                    const colorInput = document.getElementById('event-color-input');
+                    if (colorInput) colorInput.value = ev.color || '#4a90e2';
+
+                    // Hide status bar and open modal for confirmation
+                    statusEl.style.display = 'none';
+                    document.getElementById('add-event-modal').classList.remove('hidden');
+
+                    Utils.showToast('🎙️ Evento detectado. Revisa y guarda.', 'success');
+                }
+            } catch (err) {
+                statusTextEl.textContent = 'Error al procesar el audio. Inténtalo de nuevo.';
+                setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+            }
+        };
+
+        _calMediaRecorder.start();
+
+        document.getElementById('btn-cal-voice-start')?.classList.add('hidden');
+        document.getElementById('btn-cal-voice-stop')?.classList.remove('hidden');
+
+        Utils.showToast('🎙️ Grabando... Dicta tu evento y pulsa Detener.', 'info');
+
+    } catch (err) {
+        Utils.showToast('No se pudo acceder al micrófono: ' + err.message, 'error');
+    }
+};
+
+window.stopCalendarVoiceRecording = function () {
+    if (_calMediaRecorder && _calMediaRecorder.state === 'recording') {
+        _calMediaRecorder.stop();
+    }
+    document.getElementById('btn-cal-voice-start')?.classList.remove('hidden');
+    document.getElementById('btn-cal-voice-stop')?.classList.add('hidden');
+};
+
+// Voice input via Web Speech API (fallback for manual modal title field)
 window.startVoiceInput = function () {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) { Utils.showToast('Tu navegador no soporta reconocimiento de voz.', 'warning'); return; }
