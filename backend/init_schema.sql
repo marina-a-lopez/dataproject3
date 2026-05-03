@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS gastos (
     url_ticket VARCHAR(500),
     status VARCHAR(20) NOT NULL DEFAULT 'confirmed',
     clarification_reason TEXT,
+    is_deducible BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
