@@ -212,6 +212,9 @@ const UI = {
         const profileForm = document.getElementById('profile-form');
         if (profileForm) profileForm.addEventListener('submit', appLogic.saveProfile);
 
+        // Subsidies
+        document.getElementById('btn-refresh-subsidies')?.addEventListener('click', appLogic.loadSubsidies);
+
         // Check session
         const storedUser = sessionStorage.getItem('aura_uid');
         if (storedUser) {
@@ -238,6 +241,7 @@ const UI = {
                 'expenses-view': 'Gastos',
                 'consultant-view': 'Consultor Financiero IA',
                 'taxes-view': 'Impuestos y Modelos',
+                'subsidies-view': 'Subvenciones RAG',
                 'calendar-view': 'Calendario Fiscal'
             };
             document.getElementById('page-title').textContent = titles[viewId] || 'AItonomo';
@@ -250,6 +254,7 @@ const UI = {
         document.getElementById(viewId).classList.remove('hidden');
 
         if (viewId === 'expenses-view') appLogic.loadExpenseDrafts();
+        if (viewId === 'subsidies-view') appLogic.loadSubsidies();
     }
 };
 
@@ -1898,6 +1903,60 @@ const appLogic = {
 
         appLogic.renderExtractedItems();
         Utils.showToast("Presupuesto importado para facturar", "success");
+    },
+
+    loadSubsidies: async () => {
+        const container = document.getElementById('subsidies-container');
+        const loading = document.getElementById('subsidies-loading');
+        const empty = document.getElementById('subsidies-empty');
+        if (!container) return;
+
+        container.innerHTML = '';
+        loading.classList.remove('hidden');
+        empty.classList.add('hidden');
+
+        try {
+            const res = await API.request(`/api/subsidies/recommendations/${AppState.userId}`);
+            loading.classList.add('hidden');
+
+            if (res.success && res.recommendations && res.recommendations.length > 0) {
+                res.recommendations.forEach(sub => {
+                    const card = document.createElement('div');
+                    card.className = 'section-block box-shadow hover-animate';
+                    card.style.borderLeft = '4px solid var(--clr-gold)';
+                    card.style.cursor = 'default';
+                    
+                    card.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <h4 style="color: var(--clr-accent); font-weight: 700; margin-bottom: 10px;">${sub.titulo}</h4>
+                            <span class="badge badge-active" style="font-size: 0.7rem;">CNAE: ${sub.cnae_target}</span>
+                        </div>
+                        <p style="font-size: 0.85rem; color: var(--clr-text-main); margin-bottom: 15px; line-height: 1.4;">
+                            ${sub.texto_completo ? sub.texto_completo.substring(0, 180) + '...' : 'Sin descripción disponible.'}
+                        </p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; pt-2; margin-top: 10px; padding-top: 10px;">
+                            <div style="font-size: 0.75rem; color: var(--clr-text-muted);">
+                                <i class="fa-solid fa-calendar-day"></i> Cierra: <strong>${sub.fecha_cierre || 'N/A'}</strong>
+                            </div>
+                            <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id_bdns}')">
+                                Ver Detalles <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } else {
+                empty.classList.remove('hidden');
+            }
+        } catch (e) {
+            console.error('Error loading subsidies:', e);
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+        }
+    },
+
+    viewSubsidiesDetail: (id) => {
+        Utils.showToast(`Detalles de la subvención ${id} próximamente.`, 'info');
     }
 };
 
@@ -1913,6 +1972,7 @@ const appState = {
         if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); appLogic.loadQuotesForImport(); }
         if (viewId === 'quotes-view') { appLogic.loadQuotes(); appLogic.loadCatalog(); }
         if (viewId === 'catalog-view') appLogic.loadCatalog();
+        if (viewId === 'subsidies-view') appLogic.loadSubsidies();
         if (viewId === 'calendar-view') appLogic.loadCalendar();
     }
 };

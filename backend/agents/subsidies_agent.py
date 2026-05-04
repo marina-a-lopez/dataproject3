@@ -30,9 +30,7 @@ class SubsidiesAgent:
             # Buscar en DB si hay RAG configurado y el usuario tiene CNAE/IAE
             search_query = ""
             if user.cnae:
-                from utils.cnae_mapping import CNAE_MAPPING
-                cnae_desc = CNAE_MAPPING.get(user.cnae, "")
-                search_query = f"Subvenciones para CNAE {user.cnae} {cnae_desc}"
+                search_query = f"Subvenciones para CNAE {user.cnae} {user.desc_producto or ''}"
             elif user.iae:
                 search_query = f"Subvenciones para IAE {user.iae}"
                 

@@ -23,8 +23,8 @@ from invoice_generator import PremiumInvoicePDF
 import processor as proc
 from agents.extraction_agent import extraction_agent_instance
 from agents.subsidies_agent import subsidies_agent_instance
+from agents.rag_subsidies_agent import rag_subsidies_agent_instance
 from agents.subsidies_extractor import subsidies_extractor_instance
-from utils.cnae_mapping import CNAE_MAPPING
 from werkzeug.security import generate_password_hash, check_password_hash
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -253,7 +253,6 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Este Email ya está registrado y tiene una cuenta activa.")
         
     hashed_pwd = generate_password_hash(req.password, method='pbkdf2:sha256')
-    cnae_desc = CNAE_MAPPING.get(req.cnae, "Producto") if req.cnae else "Producto"
 
     new_user = Usuario(
         nombre=req.nombre,
@@ -267,8 +266,7 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         iae=req.iae,
         email=req.email,
         telefono=req.telefono,
-        password_hash=hashed_pwd,
-        desc_producto=cnae_desc
+        password_hash=hashed_pwd
     )
     db.add(new_user)
     db.commit()
@@ -1549,11 +1547,10 @@ async def update_profile(
     user.codigo_postal = codigo_postal
     user.cnae = cnae if cnae else None
     user.iae = iae if iae else None
-    user.iban = iban if iban else None
-    user.gmail_token = gmail_token if gmail_token else None
-    
-    if user.cnae:
-        user.desc_producto = CNAE_MAPPING.get(user.cnae, "Producto")
+    if iban:
+        user.iban = iban
+    if gmail_token:
+        user.gmail_token = gmail_token
     
     if avatar and avatar.filename:
         # Save file
@@ -1569,6 +1566,22 @@ async def update_profile(
         
     db.commit()
     return {"success": True, "message": "Perfil actualizado", "profile_picture": user.profile_picture, "nombre": user.nombre}
+
+
+@app.get("/api/subsidies/recommendations/{user_id}")
+async def get_rag_recommendations(user_id: str, db: Session = Depends(get_db)):
+    """Obtiene recomendaciones de subvenciones usando Vertex AI RAG Engine."""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    # El agente maneja la inicialización y filtrado territorial
+    try:
+        recs = rag_subsidies_agent_instance.get_recommendations(user, db)
+        return {"success": True, "recommendations": recs}
+    except Exception as e:
+        logger.error(f"Error en RAG recommendations: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando recomendaciones RAG")
 
 
 # ─── Calendar API ─────────────────────────────────────────────────────────────

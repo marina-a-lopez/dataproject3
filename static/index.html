@@ -339,6 +339,8 @@
                             Gastos</a></li>
                     <li><a href="#" class="nav-item" data-view="consultant-view"><i class="fa-solid fa-robot"></i>
                             Consultor IA</a></li>
+                    <li><a href="#" class="nav-item" data-view="subsidies-view"><i class="fa-solid fa-hand-holding-dollar"></i>
+                            Subvenciones RAG</a></li>
                     <li><a href="#" class="nav-item" data-view="calendar-view"><i class="fa-solid fa-calendar-days"></i>
                             Calendario</a></li>
                 </ul>
@@ -1329,6 +1331,33 @@
                                     <button type="submit" class="btn btn-primary" id="btn-send-chat"
                                         style="padding: 12px 20px;"><i class="fa-solid fa-paper-plane"></i></button>
                                 </form>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Subsidies View -->
+                    <main id="subsidies-view" class="view hidden fade-in">
+                        <div class="section-block box-shadow mb-4">
+                            <div class="section-header">
+                                <h3><i class="fa-solid fa-hand-holding-dollar text-gold"></i> Subvenciones Personalizadas (RAG Engine)</h3>
+                                <button class="btn btn-gold btn-sm" id="btn-refresh-subsidies">
+                                    <i class="fa-solid fa-sync"></i> Recalcular Ayudas
+                                </button>
+                            </div>
+                            <p class="text-muted mt-2">Nuestro sistema de Inteligencia Artificial consulta el motor RAG de Vertex AI para cruzar tu CNAE y provincia con la base de datos nacional de subvenciones.</p>
+                            
+                            <div id="subsidies-loading" class="empty-state hidden mt-4">
+                                <i class="fa-solid fa-spinner fa-spin text-accent" style="font-size: 2rem;"></i>
+                                <p class="mt-2">Consultando Vertex AI RAG Engine...</p>
+                            </div>
+
+                            <div id="subsidies-container" class="mt-4 grid-2-col gap-3">
+                                <!-- Recomendaciones renderizadas por JS -->
+                            </div>
+
+                            <div id="subsidies-empty" class="empty-state mt-4">
+                                <i class="fa-solid fa-magnifying-glass text-muted" style="font-size: 2rem;"></i>
+                                <p class="mt-2">No se han encontrado subvenciones específicas. Asegúrate de que tu <strong>CNAE</strong> y <strong>Provincia</strong> están correctamente configurados en tu perfil.</p>
                             </div>
                         </div>
                     </main>
