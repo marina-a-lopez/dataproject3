@@ -1,8 +1,10 @@
 import os
 import uuid
 import json
+import logging
 from datetime import datetime, timezone
 from typing import List, Optional
+from google.cloud import secretmanager
 from dotenv import load_dotenv
 from sqlalchemy import (
     Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text, Boolean
@@ -203,15 +205,32 @@ class ReglaDeduccion(Base):
     embedding = Column(Vector(768))
 
 
+def fetch_secret(secret_id: str) -> Optional[str]:
+    """Recupera un secreto de Google Secret Manager."""
+    project_id = os.getenv("GCP_PROJECT_ID")
+    if not project_id:
+        return None
+    try:
+        client = secretmanager.SecretManagerServiceClient()
+        name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+        response = client.access_secret_version(request={"name": name})
+        return response.payload.data.decode("UTF-8")
+    except Exception as e:
+        logging.warning(f"No se pudo cargar el secreto {secret_id}: {e}")
+        return None
+
 load_dotenv()
-DB_PATH = os.getenv("DATABASE_URL")
+# Intentar cargar desde Secret Manager primero, si falla usar env var local
+DB_URL_SECRET = fetch_secret("DATABASE_URL")
+DB_PATH = DB_URL_SECRET or os.getenv("DATABASE_URL")
 
 try:
     if DB_PATH:
+        # Si es una conexión a Cloud SQL, aseguramos que use el driver correcto si es necesario
         engine = create_engine(DB_PATH, echo=False)
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     else:
-        raise ValueError("La variable DATABASE_URL no está definida en el entorno.")
+        raise ValueError("La variable DATABASE_URL no está definida ni en el entorno ni en Secret Manager.")
 except Exception as e:
     print(f"Error al inicializar la base de datos: {e}")
     engine = None

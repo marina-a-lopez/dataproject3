@@ -1905,6 +1905,32 @@ const appLogic = {
         Utils.showToast("Presupuesto importado para facturar", "success");
     },
 
+    _createSubCard: (sub, borderColor) => {
+        const card = document.createElement('div');
+        card.className = 'section-block box-shadow hover-animate';
+        card.style.borderLeft = `4px solid ${borderColor}`;
+        card.style.cursor = 'default';
+        
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <h4 style="color: var(--clr-accent); font-weight: 700; margin-bottom: 10px;">${sub.titulo}</h4>
+                <span class="badge badge-active" style="font-size: 0.7rem;">CNAE: ${sub.cnae_target}</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--clr-text-main); margin-bottom: 15px; line-height: 1.4;">
+                ${sub.texto_completo ? sub.texto_completo.substring(0, 180) + '...' : 'Sin descripción disponible.'}
+            </p>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; pt-2; margin-top: 10px; padding-top: 10px;">
+                <div style="font-size: 0.75rem; color: var(--clr-text-muted);">
+                    <i class="fa-solid fa-calendar-day"></i> Cierra: <strong>${sub.fecha_cierre || 'N/A'}</strong>
+                </div>
+                <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id_bdns}')">
+                    Ver Detalles <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        `;
+        return card;
+    },
+
     loadSubsidies: async () => {
         const container = document.getElementById('subsidies-container');
         const loading = document.getElementById('subsidies-loading');
@@ -1921,36 +1947,43 @@ const appLogic = {
 
             if (res.success && res.recommendations && res.recommendations.length > 0) {
                 res.recommendations.forEach(sub => {
-                    const card = document.createElement('div');
-                    card.className = 'section-block box-shadow hover-animate';
-                    card.style.borderLeft = '4px solid var(--clr-gold)';
-                    card.style.cursor = 'default';
-                    
-                    card.innerHTML = `
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                            <h4 style="color: var(--clr-accent); font-weight: 700; margin-bottom: 10px;">${sub.titulo}</h4>
-                            <span class="badge badge-active" style="font-size: 0.7rem;">CNAE: ${sub.cnae_target}</span>
-                        </div>
-                        <p style="font-size: 0.85rem; color: var(--clr-text-main); margin-bottom: 15px; line-height: 1.4;">
-                            ${sub.texto_completo ? sub.texto_completo.substring(0, 180) + '...' : 'Sin descripción disponible.'}
-                        </p>
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; pt-2; margin-top: 10px; padding-top: 10px;">
-                            <div style="font-size: 0.75rem; color: var(--clr-text-muted);">
-                                <i class="fa-solid fa-calendar-day"></i> Cierra: <strong>${sub.fecha_cierre || 'N/A'}</strong>
-                            </div>
-                            <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id_bdns}')">
-                                Ver Detalles <i class="fa-solid fa-arrow-right"></i>
-                            </button>
-                        </div>
-                    `;
+                    const card = appLogic._createSubCard(sub, 'var(--clr-gold)');
+                    container.appendChild(card);
+                });
+            } else {
+                empty.classList.remove('hidden');
+            }
+
+            // --- Carga de Coincidencias Directas (CNAE) ---
+            appLogic.loadMatchingSubsidies();
+
+        } catch (e) {
+            console.error('Error loading subsidies:', e);
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+        }
+    },
+
+    loadMatchingSubsidies: async () => {
+        const container = document.getElementById('subsidies-matching-container');
+        const empty = document.getElementById('subsidies-matching-empty');
+        if (!container) return;
+
+        container.innerHTML = '';
+        empty.classList.add('hidden');
+
+        try {
+            const res = await API.request(`/api/subsidies/matching/${AppState.userId}`);
+            if (res.success && res.subsidies && res.subsidies.length > 0) {
+                res.subsidies.forEach(sub => {
+                    const card = appLogic._createSubCard(sub, 'var(--clr-accent)');
                     container.appendChild(card);
                 });
             } else {
                 empty.classList.remove('hidden');
             }
         } catch (e) {
-            console.error('Error loading subsidies:', e);
-            loading.classList.add('hidden');
+            console.error('Error loading matching subsidies:', e);
             empty.classList.remove('hidden');
         }
     },

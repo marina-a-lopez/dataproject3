@@ -1357,7 +1357,23 @@
 
                             <div id="subsidies-empty" class="empty-state mt-4">
                                 <i class="fa-solid fa-magnifying-glass text-muted" style="font-size: 2rem;"></i>
-                                <p class="mt-2">No se han encontrado subvenciones específicas. Asegúrate de que tu <strong>CNAE</strong> y <strong>Provincia</strong> están correctamente configurados en tu perfil.</p>
+                                <p class="mt-2">No se han encontrado subvenciones específicas vía RAG.</p>
+                            </div>
+                        </div>
+
+                        <!-- Direct Matching Section -->
+                        <div class="section-block box-shadow">
+                            <div class="section-header">
+                                <h3><i class="fa-solid fa-bullseye text-accent"></i> Coincidencias Directas (CNAE)</h3>
+                            </div>
+                            <p class="text-muted mt-2">Subvenciones encontradas por coincidencia exacta con tu código CNAE en nuestra base de datos estructurada.</p>
+                            
+                            <div id="subsidies-matching-container" class="mt-4 grid-2-col gap-3">
+                                <!-- Coincidencias renderizadas por JS -->
+                            </div>
+
+                            <div id="subsidies-matching-empty" class="empty-state mt-4 hidden">
+                                <p>No hay coincidencias directas en este momento.</p>
                             </div>
                         </div>
                     </main>

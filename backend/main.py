@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Importaciones locales
-from database import get_db, init_db, Usuario, Cliente, Factura, Presupuesto, Producto, Gasto, CalendarioEvento
+from database import get_db, init_db, Usuario, Cliente, Factura, Presupuesto, Producto, Gasto, CalendarioEvento, Subvencion
 from voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
 import processor as proc
@@ -1575,13 +1575,70 @@ async def get_rag_recommendations(user_id: str, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    # El agente maneja la inicialización y filtrado territorial
     try:
         recs = rag_subsidies_agent_instance.get_recommendations(user, db)
         return {"success": True, "recommendations": recs}
     except Exception as e:
         logger.error(f"Error en RAG recommendations: {e}")
         raise HTTPException(status_code=500, detail="Error procesando recomendaciones RAG")
+
+
+@app.get("/api/subsidies/matching/{user_id}")
+async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
+    """Busca subvenciones en la BD que coincidan exactamente con el CNAE del usuario."""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    user_cnae = user.cnae
+    if not user_cnae:
+        return {"success": True, "subsidies": [], "message": "Usuario sin CNAE definido"}
+    
+    # Buscamos coincidencias en cnae_target. 
+    # El scraper guarda strings tipo '6201, 6202' o similares.
+    subsidies = db.query(Subvencion).filter(
+        Subvencion.cnae_target.ilike(f"%{user_cnae}%")
+    ).all()
+    
+    # Formateamos para el front
+    results = []
+    for s in subsidies:
+        results.append({
+            "id": str(s.id),
+            "id_bdns": s.id_bdns,
+            "titulo": s.titulo,
+            "cnae_target": s.cnae_target,
+            "fecha_cierre": s.fecha_cierre.isoformat() if s.fecha_cierre else None,
+            "texto_completo": s.texto_completo[:300] + "..."
+        })
+    
+    return {"success": True, "subsidies": results}
+
+
+@app.post("/api/subsidies/ingest-callback")
+async def subsidy_ingest_callback(data: dict, db: Session = Depends(get_db)):
+    """Endpoint llamado por la Cloud Function tras una ingesta exitosa."""
+    new_sub_id = data.get("id_bdns")
+    if not new_sub_id:
+        return {"success": False, "message": "Falta id_bdns"}
+    
+    # Buscar la subvención recién insertada
+    sub = db.query(Subvencion).filter(Subvencion.id_bdns == new_sub_id).first()
+    if not sub:
+        return {"success": False, "message": "Subvención no encontrada en BD"}
+    
+    # Notificar a usuarios con CNAE coincidente
+    notified_count = 0
+    if sub.cnae_target:
+        cnaes = [c.strip() for c in sub.cnae_target.split(",")]
+        for cnae in cnaes:
+            matching_users = db.query(Usuario).filter(Usuario.cnae == cnae).all()
+            for user in matching_users:
+                # Aquí iría la lógica de envío de email o push notification
+                logger.info(f"NOTIFICACIÓN: El usuario {user.email} coincide con la subvención {sub.titulo}")
+                notified_count += 1
+                
+    return {"success": True, "notified_users": notified_count}
 
 
 # ─── Calendar API ─────────────────────────────────────────────────────────────
