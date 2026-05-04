@@ -7,12 +7,16 @@ import tempfile
 import vertexai
 from vertexai.generative_models import GenerativeModel, Part
 
-def configure_gemini(api_key):
-    """Configura la API de Gemini con la clave que le hemos proporcionado."""
-    if not api_key:
-        return False
+def configure_gemini(api_key=None):
+    """Configura la API de Gemini. En Cloud Run usa ADC."""
     try:
-        vertexai.init()  # usa ADC automaticamente
+        # La inicialización principal ya ocurre en main.py
+        # Pero si se llama de forma aislada, aseguramos que tenga contexto
+        if not vertexai.preview.initializer._global_config.project:
+            vertexai.init(
+                project=os.getenv('GCP_PROJECT_ID', 'project3grupo4'),
+                location=os.getenv('GCP_LOCATION', 'europe-southwest1')
+            )
         return True
     except Exception as e:
         print(f"Error configuring Gemini: {e}")

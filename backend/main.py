@@ -15,8 +15,18 @@ import uuid
 import json
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+import vertexai
 
-# Importaciones locales
+# Cargar variables de entorno antes de inicializar Vertex AI
+load_dotenv()
+
+# Inicialización de Vertex AI (debe ocurrir antes de importar los agentes que usan GenerativeModel)
+vertexai.init(
+    project=os.getenv('GCP_PROJECT_ID', 'project3grupo4'),
+    location=os.getenv('GCP_LOCATION', 'europe-southwest1')
+)
+
+# Importaciones locales (instancian agentes que requieren Vertex AI ya inicializado)
 from database import get_db, init_db, Usuario, Cliente, Factura, Presupuesto, Producto, Gasto, CalendarioEvento, Subvencion
 from voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
@@ -36,9 +46,6 @@ from StorageManager import StorageManager
 
 sm = StorageManager()
 
-# Cargar variables de entorno desde el archivo .env local
-load_dotenv()
-
 app = FastAPI(title="AItonomo Pro API")
 
 
@@ -51,9 +58,16 @@ app.add_middleware(
 )
 
 # Crear directorio static y base de datos
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-os.makedirs(STATIC_DIR, exist_ok=True)
+# En Cloud Run, el sistema de archivos es de solo lectura excepto /tmp.
+# Intentamos crear el directorio en /tmp si falla en el directorio local, 
+# o simplemente usamos el directorio local si estamos en un entorno persistente.
+try:
+    os.makedirs(STATIC_DIR, exist_ok=True)
+except Exception:
+    STATIC_DIR = Path("/tmp/static")
+    os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
 
 # Configurar base de datos para Datastream (Publication y Replication Slot)
@@ -88,9 +102,7 @@ try:
 except Exception as e:
     pass
 
-# Inicialización de Vertex AI (usa ADC automáticamente en Cloud Run)
-import vertexai as _vertexai
-_vertexai.init(project=os.getenv('GCP_PROJECT_ID'))
+# Vertex AI ya ha sido inicializado al principio del archivo
 
 # Modelos Pydantic para peticiones JSON
 class LoginRequest(BaseModel):
