@@ -1923,7 +1923,7 @@ const appLogic = {
                 <div style="font-size: 0.75rem; color: var(--clr-text-muted);">
                     <i class="fa-solid fa-calendar-day"></i> Cierra: <strong>${sub.fecha_cierre || 'N/A'}</strong>
                 </div>
-                <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id_bdns}')">
+                <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id}')">
                     Ver Detalles <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>

@@ -1626,30 +1626,36 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
             "titulo": s.titulo,
             "cnae_target": s.cnae_target,
             "fecha_cierre": s.fecha_cierre.isoformat() if s.fecha_cierre else None,
-            "texto_completo": s.texto_completo[:300] + "..."
+            "texto_completo": s.texto_completo[:300] + "..." if s.texto_completo else ""
         })
     
     return {"success": True, "subsidies": results}
 
 
-@app.get("/api/subsidies/{id_bdns}/details")
-async def get_subsidy_details(id_bdns: str, db: Session = Depends(get_db)):
+@app.get("/api/subsidies/{sub_id}/details")
+async def get_subsidy_details(sub_id: str, db: Session = Depends(get_db)):
     """Obtiene el detalle completo de una subvención y una explicación generada por IA."""
-    logger.info(f"Petición de detalles para ID_BDNS: {id_bdns}")
-    sub = db.query(Subvencion).filter(Subvencion.id_bdns == id_bdns).first()
+    logger.info(f"Petición de detalles para ID: {sub_id}")
+    
+    # Buscamos por el ID UUID de la base de datos que es más fiable
+    sub = db.query(Subvencion).filter(Subvencion.id == sub_id).first()
+    if not sub:
+        # Fallback por id_bdns si el ID no es UUID
+        sub = db.query(Subvencion).filter(Subvencion.id_bdns == sub_id).first()
+        
     if not sub:
         raise HTTPException(status_code=404, detail="Subvención no encontrada")
     
     try:
-        # Generar explicación via Agente
+        # Generar explicación via Agente usando la columna texto_completo
         ai_info = rag_subsidies_agent_instance.explain_subsidy(sub.texto_completo)
         
         return {
             "success": True,
             "id_bdns": sub.id_bdns,
             "titulo": sub.titulo,
-            "organismo": sub.organismo,
-            "fecha_cierre": sub.fecha_cierre,
+            "organismo": "Ver descripción en detalles", # No hay columna organismo, se extrae del texto
+            "fecha_cierre": sub.fecha_cierre.isoformat() if sub.fecha_cierre else "N/A",
             "texto_completo": sub.texto_completo,
             "explicacion_ia": ai_info.get("explicacion"),
             "link_boe": ai_info.get("link_boe")
