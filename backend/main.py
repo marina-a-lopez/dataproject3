@@ -1,5 +1,10 @@
 # Importaciones de FastAPI
+import logging
 from fastapi import FastAPI, File, UploadFile, Form, Depends, HTTPException, status
+
+# Configuración de Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("AItonomoAPI")
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
