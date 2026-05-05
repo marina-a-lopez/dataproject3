@@ -1662,7 +1662,7 @@
             <div class="modal-content corporate-modal box-shadow" style="max-width: 900px; padding: 0; overflow: hidden; border-radius: 12px;">
                 <div class="modal-header" style="background: var(--clr-primary-900); padding: 20px 30px; border-bottom: none; display: flex; justify-content: space-between; align-items: center;">
                     <h2 id="sub-detail-title" class="text-gold" style="margin: 0; font-size: 1.25rem; line-height: 1.2;">Detalles de Subvención</h2>
-                    <button type="button" class="btn-icon" onclick="document.getElementById('subsidy-detail-modal').classList.add('hidden')" style="color: white; font-size: 1.5rem;">&times;</button>
+                    <button type="button" class="btn-icon" onclick="const m=document.getElementById('subsidy-detail-modal'); m.classList.add('hidden'); m.classList.remove('show');" style="color: white; font-size: 1.5rem;">&times;</button>
                 </div>
                 
                 <div class="modal-body" style="padding: 30px; max-height: 75vh; overflow-y: auto;">
@@ -1709,12 +1709,12 @@
                 </div>
                 
                 <div class="modal-footer" style="padding: 20px 30px; border-top: 1px solid var(--clr-border); text-align: right; background: #fafafa;">
-                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('subsidy-detail-modal').classList.add('hidden')">Cerrar Detalles</button>
+                    <button type="button" class="btn btn-secondary" onclick="const m=document.getElementById('subsidy-detail-modal'); m.classList.add('hidden'); m.classList.remove('show');">Cerrar Detalles</button>
                 </div>
             </div>
         </div>
 
-        <script src="/app.js?v=9"></script>
+        <script src="/app.js?v=10"></script>
 </body>
 
 </html>

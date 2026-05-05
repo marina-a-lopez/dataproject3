@@ -1997,6 +1997,7 @@ const appLogic = {
         
         // Mostrar modal y loading
         modal.classList.remove('hidden');
+        modal.classList.add('show');
         loading.classList.remove('hidden');
         content.classList.add('hidden');
         
