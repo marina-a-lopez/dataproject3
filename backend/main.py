@@ -1627,6 +1627,32 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
     return {"success": True, "subsidies": results}
 
 
+@app.get("/api/subsidies/{id_bdns}/details")
+async def get_subsidy_details(id_bdns: str, db: Session = Depends(get_db)):
+    """Obtiene el detalle completo de una subvención y una explicación generada por IA."""
+    sub = db.query(Subvencion).filter(Subvencion.id_bdns == id_bdns).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subvención no encontrada")
+    
+    try:
+        # Generar explicación via Agente
+        ai_info = rag_subsidies_agent_instance.explain_subsidy(sub.texto_completo)
+        
+        return {
+            "success": True,
+            "id_bdns": sub.id_bdns,
+            "titulo": sub.titulo,
+            "organismo": sub.organismo,
+            "fecha_cierre": sub.fecha_cierre,
+            "texto_completo": sub.texto_completo,
+            "explicacion_ia": ai_info.get("explicacion"),
+            "link_boe": ai_info.get("link_boe")
+        }
+    except Exception as e:
+        logger.error(f"Error obteniendo detalles de subvención: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando detalles de la subvención")
+
+
 @app.post("/api/subsidies/ingest-callback")
 async def subsidy_ingest_callback(data: dict, db: Session = Depends(get_db)):
     """Endpoint llamado por la Cloud Function tras una ingesta exitosa."""

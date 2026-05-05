@@ -4,6 +4,7 @@ import os
 from typing import List, Dict, Any
 import vertexai
 from vertexai.rag import RagRetrievalConfig, RagResource, retrieval_query
+from vertexai.generative_models import GenerativeModel
 from sqlalchemy.orm import Session
 from database import Usuario
 
@@ -84,6 +85,51 @@ class RagSubsidiesAgent:
         except Exception as e:
             logger.error(f"Error in RagSubsidiesAgent: {e}")
             return []
+
+    def explain_subsidy(self, subsidy_text: str) -> Dict[str, str]:
+        """
+        Usa Gemini para explicar la subvención en lenguaje sencillo y extraer el link al BOE.
+        """
+        self._initialize()
+        
+        try:
+            model = GenerativeModel("gemini-2.0-flash") # Usamos 2.0 para mejor razonamiento y rapidez
+            prompt = f"""
+            Eres AItonomo, un consultor experto en subvenciones para autónomos y PYMES en España.
+            Analiza el siguiente texto técnico de una subvención y genera una respuesta amigable.
+            
+            TEXTO DE LA SUBVENCIÓN:
+            {subsidy_text}
+            
+            TAREA:
+            1. EXPLICACIÓN: Explica qué es esta ayuda, para qué sirve y quién puede pedirla. Usa un lenguaje muy claro, "para dummies". (Máximo 3 párrafos).
+            2. LINK OFICIAL: Busca en el texto cualquier mención a un enlace del BOE, BDNS o diario oficial. Si lo encuentras, devuélvelo. Si no, genera un enlace de búsqueda en Google para esa subvención específica.
+            
+            FORMATO DE SALIDA (JSON PURO):
+            {{
+                "explicacion": "texto de la explicación...",
+                "link_boe": "https://..."
+            }}
+            """
+            
+            response = model.generate_content(prompt)
+            content = response.text.strip()
+            
+            # Limpiar markdown si Gemini lo incluye
+            if content.startswith('```json'):
+                content = content[7:-3]
+            elif content.startswith('```'):
+                content = content[3:-3]
+            
+            import json
+            return json.loads(content.strip())
+            
+        except Exception as e:
+            logger.error(f"Error explicando subvención: {e}")
+            return {
+                "explicacion": "No hemos podido generar una explicación detallada en este momento. Por favor, revisa el texto técnico.",
+                "link_boe": "https://www.google.com/search?q=boe+subvencion"
+            }
 
 # Instancia única del agente
 rag_subsidies_agent_instance = RagSubsidiesAgent()

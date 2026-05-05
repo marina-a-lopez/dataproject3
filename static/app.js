@@ -1988,8 +1988,45 @@ const appLogic = {
         }
     },
 
-    viewSubsidiesDetail: (id) => {
-        Utils.showToast(`Detalles de la subvención ${id} próximamente.`, 'info');
+    viewSubsidiesDetail: async (id_bdns) => {
+        const modal = document.getElementById('subsidy-detail-modal');
+        const loading = document.getElementById('sub-detail-loading');
+        const content = document.getElementById('sub-detail-content');
+        
+        if (!modal) return;
+        
+        // Mostrar modal y loading
+        modal.classList.remove('hidden');
+        loading.classList.remove('hidden');
+        content.classList.add('hidden');
+        
+        try {
+            const res = await API.request(`/api/subsidies/${id_bdns}/details`);
+            
+            if (res.success) {
+                document.getElementById('sub-detail-title').textContent = res.titulo;
+                document.getElementById('sub-detail-explanation').innerHTML = res.explicacion_ia.replace(/\n/g, '<br>');
+                document.getElementById('sub-detail-organismo').textContent = res.organismo || 'No especificado';
+                document.getElementById('sub-detail-fecha').textContent = res.fecha_cierre || 'No disponible';
+                document.getElementById('sub-detail-fulltext').textContent = res.texto_completo;
+                
+                const boeBtn = document.getElementById('sub-detail-boe-link');
+                if (res.link_boe && res.link_boe.startsWith('http')) {
+                    boeBtn.href = res.link_boe;
+                    boeBtn.classList.remove('hidden');
+                } else {
+                    boeBtn.classList.add('hidden');
+                }
+                
+                loading.classList.add('hidden');
+                content.classList.remove('hidden');
+            } else {
+                throw new Error("No se pudo recuperar la información");
+            }
+        } catch (e) {
+            Utils.showToast("Error al cargar detalles de la subvención", "error");
+            modal.classList.add('hidden');
+        }
     }
 };
 

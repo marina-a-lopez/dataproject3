@@ -1655,6 +1655,65 @@
             </div>
         </div>
 
+        </div>
+        
+        <!-- Subsidy Detail Modal -->
+        <div id="subsidy-detail-modal" class="modal hidden fade-in">
+            <div class="modal-content corporate-modal box-shadow" style="max-width: 900px; padding: 0; overflow: hidden; border-radius: 12px;">
+                <div class="modal-header" style="background: var(--clr-primary-900); padding: 20px 30px; border-bottom: none; display: flex; justify-content: space-between; align-items: center;">
+                    <h2 id="sub-detail-title" class="text-gold" style="margin: 0; font-size: 1.25rem; line-height: 1.2;">Detalles de Subvención</h2>
+                    <button type="button" class="btn-icon" onclick="document.getElementById('subsidy-detail-modal').classList.add('hidden')" style="color: white; font-size: 1.5rem;">&times;</button>
+                </div>
+                
+                <div class="modal-body" style="padding: 30px; max-height: 75vh; overflow-y: auto;">
+                    <div id="sub-detail-loading" class="text-center py-5">
+                        <i class="fa-solid fa-circle-notch fa-spin text-gold" style="font-size: 3rem;"></i>
+                        <p class="mt-3 text-muted">Consultando IA y recuperando expediente completo...</p>
+                    </div>
+                    
+                    <div id="sub-detail-content" class="hidden">
+                        <!-- AI Explanation Section -->
+                        <div style="background: rgba(212, 175, 55, 0.05); border: 1px solid rgba(212, 175, 55, 0.2); border-radius: 10px; padding: 20px; margin-bottom: 25px;">
+                            <h3 style="color: var(--clr-gold); margin-top: 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fa-solid fa-robot"></i> Análisis de AItonomo
+                            </h3>
+                            <div id="sub-detail-explanation" style="line-height: 1.6; color: var(--clr-text-main);">
+                                <!-- Explicación generada por IA -->
+                            </div>
+                            <div class="mt-4">
+                                <a id="sub-detail-boe-link" href="#" target="_blank" class="btn btn-gold btn-sm">
+                                    <i class="fa-solid fa-file-pdf"></i> Ver Fuente Oficial (BOE/BDNS)
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Technical Details Section -->
+                        <div class="grid-2-col gap-3 mb-4">
+                            <div class="info-card" style="background: var(--clr-surface); border: 1px solid var(--clr-border); padding: 15px; border-radius: 8px;">
+                                <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--clr-text-muted); display: block; margin-bottom: 5px;">Organismo Emisor</label>
+                                <div id="sub-detail-organismo" class="font-bold">--</div>
+                            </div>
+                            <div class="info-card" style="background: var(--clr-surface); border: 1px solid var(--clr-border); padding: 15px; border-radius: 8px;">
+                                <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--clr-text-muted); display: block; margin-bottom: 5px;">Fecha de Cierre</label>
+                                <div id="sub-detail-fecha" class="font-bold text-accent">--</div>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label><i class="fa-solid fa-align-left"></i> Texto Completo de la Convocatoria</label>
+                            <div id="sub-detail-fulltext" style="background: #f9f9f9; padding: 20px; border-radius: 8px; font-size: 0.9rem; color: #444; border: 1px solid #eee; white-space: pre-wrap; margin-top: 10px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+                                <!-- Texto completo -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer" style="padding: 20px 30px; border-top: 1px solid var(--clr-border); text-align: right; background: #fafafa;">
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('subsidy-detail-modal').classList.add('hidden')">Cerrar Detalles</button>
+                </div>
+            </div>
+        </div>
+
         <script src="/app.js?v=9"></script>
 </body>
 
