@@ -1988,6 +1988,9 @@ const appLogic = {
         }
     },
 
+    // Caché local para no regenerar explicaciones IA ya obtenidas
+    _subsidyDetailCache: {},
+
     viewSubsidiesDetail: async (id_bdns) => {
         const modal = document.getElementById('subsidy-detail-modal');
         const loading = document.getElementById('sub-detail-loading');
@@ -2000,9 +2003,20 @@ const appLogic = {
             return;
         }
         
-        // Mostrar modal y loading
+        // Mostrar modal
         modal.classList.remove('hidden');
         modal.classList.add('show');
+
+        // Si ya tenemos los datos cacheados, los mostramos directamente
+        if (appLogic._subsidyDetailCache[id_bdns]) {
+            const res = appLogic._subsidyDetailCache[id_bdns];
+            appLogic._populateSubsidyModal(res);
+            loading.classList.add('hidden');
+            content.classList.remove('hidden');
+            return;
+        }
+
+        // Si no, mostramos loading y llamamos a la API
         loading.classList.remove('hidden');
         content.classList.add('hidden');
         
@@ -2010,19 +2024,9 @@ const appLogic = {
             const res = await API.request(`/api/subsidies/${id_bdns}/details`);
             
             if (res.success) {
-                document.getElementById('sub-detail-title').textContent = res.titulo;
-                document.getElementById('sub-detail-explanation').innerHTML = res.explicacion_ia.replace(/\n/g, '<br>');
-                document.getElementById('sub-detail-organismo').textContent = res.organismo || 'No especificado';
-                document.getElementById('sub-detail-fecha').textContent = res.fecha_cierre || 'No disponible';
-                document.getElementById('sub-detail-fulltext').textContent = res.texto_completo;
-                
-                const boeBtn = document.getElementById('sub-detail-boe-link');
-                if (res.link_boe && res.link_boe.startsWith('http')) {
-                    boeBtn.href = res.link_boe;
-                    boeBtn.classList.remove('hidden');
-                } else {
-                    boeBtn.classList.add('hidden');
-                }
+                // Guardar en caché para futuras aperturas
+                appLogic._subsidyDetailCache[id_bdns] = res;
+                appLogic._populateSubsidyModal(res);
                 
                 loading.classList.add('hidden');
                 content.classList.remove('hidden');
@@ -2034,6 +2038,22 @@ const appLogic = {
             Utils.showToast(`Error: ${e.message || "No se pudieron cargar los detalles"}`, "error");
             modal.classList.add('hidden');
             modal.classList.remove('show');
+        }
+    },
+
+    _populateSubsidyModal: (res) => {
+        document.getElementById('sub-detail-title').textContent = res.titulo;
+        document.getElementById('sub-detail-explanation').innerHTML = res.explicacion_ia.replace(/\n/g, '<br>');
+        document.getElementById('sub-detail-organismo').textContent = res.organismo || 'No especificado';
+        document.getElementById('sub-detail-fecha').textContent = res.fecha_cierre || 'No disponible';
+        document.getElementById('sub-detail-fulltext').textContent = res.texto_completo;
+        
+        const boeBtn = document.getElementById('sub-detail-boe-link');
+        if (res.link_boe && res.link_boe.startsWith('http')) {
+            boeBtn.href = res.link_boe;
+            boeBtn.classList.remove('hidden');
+        } else {
+            boeBtn.classList.add('hidden');
         }
     }
 };
