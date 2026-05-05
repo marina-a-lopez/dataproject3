@@ -93,7 +93,8 @@ class RagSubsidiesAgent:
         self._initialize()
         
         try:
-            model = GenerativeModel("gemini-2.0-flash") # Usamos 2.0 para mejor razonamiento y rapidez
+            # Intentamos usar gemini-1.5-flash que es el estándar más compatible
+            model = GenerativeModel("gemini-1.5-flash") 
             prompt = f"""
             Eres AItonomo, un consultor experto en subvenciones para autónomos y PYMES en España.
             Analiza el siguiente texto técnico de una subvención y genera una respuesta amigable.
@@ -103,7 +104,7 @@ class RagSubsidiesAgent:
             
             TAREA:
             1. EXPLICACIÓN: Explica qué es esta ayuda, para qué sirve y quién puede pedirla. Usa un lenguaje muy claro, "para dummies". (Máximo 3 párrafos).
-            2. LINK OFICIAL: Busca en el texto cualquier mención a un enlace del BOE, BDNS o diario oficial. Si lo encuentras, devuélvelo. Si no, genera un enlace de búsqueda en Google para esa subvención específica.
+            2. LINK OFICIAL: Busca en el texto cualquier mención a un enlace del BOE, BDNS o diario oficial. Si lo encuentras, devuélvelo. Si no, indica "No encontrado" o un enlace genérico de búsqueda.
             
             FORMATO DE SALIDA (JSON PURO):
             {{
@@ -112,23 +113,22 @@ class RagSubsidiesAgent:
             }}
             """
             
+            logger.info(f"Generando explicación para texto de longitud: {len(subsidy_text)}")
             response = model.generate_content(prompt)
             content = response.text.strip()
             
-            # Limpiar markdown si Gemini lo incluye
-            if content.startswith('```json'):
-                content = content[7:-3]
-            elif content.startswith('```'):
-                content = content[3:-3]
+            # Limpieza robusta de JSON
+            if "{" in content:
+                content = content[content.find("{"):content.rfind("}")+1]
             
             import json
-            return json.loads(content.strip())
+            return json.loads(content)
             
         except Exception as e:
-            logger.error(f"Error explicando subvención: {e}")
+            logger.error(f"Error detallado explicando subvención: {e}")
             return {
-                "explicacion": "No hemos podido generar una explicación detallada en este momento. Por favor, revisa el texto técnico.",
-                "link_boe": "https://www.google.com/search?q=boe+subvencion"
+                "explicacion": "No hemos podido procesar la explicación con IA, pero aquí tienes el texto oficial para tu revisión.",
+                "link_boe": "https://www.google.com/search?q=boe+subvenciones"
             }
 
 # Instancia única del agente

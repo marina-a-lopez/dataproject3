@@ -1630,6 +1630,7 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
 @app.get("/api/subsidies/{id_bdns}/details")
 async def get_subsidy_details(id_bdns: str, db: Session = Depends(get_db)):
     """Obtiene el detalle completo de una subvención y una explicación generada por IA."""
+    logger.info(f"Petición de detalles para ID_BDNS: {id_bdns}")
     sub = db.query(Subvencion).filter(Subvencion.id_bdns == id_bdns).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Subvención no encontrada")

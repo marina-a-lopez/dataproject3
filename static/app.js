@@ -1994,6 +1994,11 @@ const appLogic = {
         const content = document.getElementById('sub-detail-content');
         
         if (!modal) return;
+
+        if (!id_bdns || id_bdns === 'N/A') {
+            Utils.showToast("Esta recomendación no tiene un ID de BDNS válido para consultar detalles.", "warning");
+            return;
+        }
         
         // Mostrar modal y loading
         modal.classList.remove('hidden');
@@ -2025,8 +2030,10 @@ const appLogic = {
                 throw new Error("No se pudo recuperar la información");
             }
         } catch (e) {
-            Utils.showToast("Error al cargar detalles de la subvención", "error");
+            console.error("Error loading subsidy details:", e);
+            Utils.showToast(`Error: ${e.message || "No se pudieron cargar los detalles"}`, "error");
             modal.classList.add('hidden');
+            modal.classList.remove('show');
         }
     }
 };
