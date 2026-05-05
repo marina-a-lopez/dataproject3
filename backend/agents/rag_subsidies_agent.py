@@ -94,7 +94,7 @@ class RagSubsidiesAgent:
         
         try:
             # Intentamos usar gemini-1.5-flash que es el estándar más compatible
-            model = GenerativeModel("gemini-1.5-flash") 
+            model = GenerativeModel("gemini-2.5-flash") 
             prompt = f"""
             Eres AItonomo, un consultor experto en subvenciones para autónomos y PYMES en España.
             Analiza el siguiente texto técnico de una subvención y genera una respuesta amigable.
