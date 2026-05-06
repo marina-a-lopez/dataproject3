@@ -2053,7 +2053,7 @@ const appLogic = {
         document.getElementById('sub-detail-explanation').innerHTML = res.explicacion_ia.replace(/\n/g, '<br>');
         document.getElementById('sub-detail-organismo').textContent = res.organismo || 'No especificado';
         document.getElementById('sub-detail-fecha').textContent = res.fecha_cierre || 'No disponible';
-        document.getElementById('sub-detail-fulltext').textContent = res.texto_completo;
+        // document.getElementById('sub-detail-fulltext').textContent = res.texto_completo; // Hidden as per user request
         
         const boeBtn = document.getElementById('sub-detail-boe-link');
         if (res.link_boe && res.link_boe.startsWith('http')) {
