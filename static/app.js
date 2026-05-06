@@ -1014,7 +1014,7 @@ const appLogic = {
                     proveedor: extData.proveedor || 'Desconocido',
                     concepto: extData.concepto || 'Gasto general',
                     importe_total: extData.importe_total || 0,
-                    url_ticket: '', 
+                    url_ticket: '',
                     status: 'draft', // Todo lo que viene de IA va a revisión manual
                     is_deducible: extData.is_deducible !== false,
                     clarification_reason: reason
@@ -1241,9 +1241,9 @@ const appLogic = {
                     </div>` : ''}
                 </td>
                 <td style="text-align: center;">
-                    ${exp.is_deducible ? 
-                        `<i class="fa-solid fa-circle-check text-green" title="${exp.clarification_reason || 'Gasto validado'}"></i>` : 
-                        `<i class="fa-solid fa-circle-xmark text-red" title="${exp.clarification_reason || 'Gasto no deducible'}"></i>`}
+                    ${exp.is_deducible ?
+                    `<i class="fa-solid fa-circle-check text-green" title="${exp.clarification_reason || 'Gasto validado'}"></i>` :
+                    `<i class="fa-solid fa-circle-xmark text-red" title="${exp.clarification_reason || 'Gasto no deducible'}"></i>`}
                 </td>
                 <td class="text-accent font-bold">${Utils.formatCurrency(exp.importe_total)}</td>
                 <td>
@@ -1919,7 +1919,7 @@ const appLogic = {
         card.className = 'section-block box-shadow hover-animate';
         card.style.borderLeft = `4px solid ${borderColor}`;
         card.style.cursor = 'default';
-        
+
         card.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <h4 style="color: var(--clr-accent); font-weight: 700; margin-bottom: 10px;">${sub.titulo}</h4>
@@ -2001,17 +2001,22 @@ const appLogic = {
     _subsidyDetailCache: {},
 
     viewSubsidiesDetail: async (id_bdns) => {
+        console.log("DEBUG: Intentando abrir detalles para ID:", id_bdns);
         const modal = document.getElementById('subsidy-detail-modal');
         const loading = document.getElementById('sub-detail-loading');
         const content = document.getElementById('sub-detail-content');
-        
-        if (!modal) return;
 
-        if (!id_bdns || id_bdns === 'N/A') {
-            Utils.showToast("Esta recomendación no tiene un ID de BDNS válido para consultar detalles.", "warning");
+        if (!modal) {
+            console.error("ERROR: No se encontró el elemento 'subsidy-detail-modal' en el DOM.");
             return;
         }
-        
+
+        if (!id_bdns || id_bdns === 'undefined' || id_bdns === 'N/A') {
+            console.warn("WARNING: ID de subvención inválido:", id_bdns);
+            Utils.showToast("Esta recomendación no tiene un ID válido.", "warning");
+            return;
+        }
+
         // Mostrar modal
         modal.classList.remove('hidden');
         modal.classList.add('show');
@@ -2028,15 +2033,15 @@ const appLogic = {
         // Si no, mostramos loading y llamamos a la API
         loading.classList.remove('hidden');
         content.classList.add('hidden');
-        
+
         try {
             const res = await API.request(`/api/subsidies/${id_bdns}/details`);
-            
+
             if (res.success) {
                 // Guardar en caché para futuras aperturas
                 appLogic._subsidyDetailCache[id_bdns] = res;
                 appLogic._populateSubsidyModal(res);
-                
+
                 loading.classList.add('hidden');
                 content.classList.remove('hidden');
             } else {
@@ -2056,7 +2061,7 @@ const appLogic = {
         document.getElementById('sub-detail-organismo').textContent = res.organismo || 'No especificado';
         document.getElementById('sub-detail-fecha').textContent = res.fecha_cierre || 'No disponible';
         // document.getElementById('sub-detail-fulltext').textContent = res.texto_completo; // Hidden as per user request
-        
+
         const boeBtn = document.getElementById('sub-detail-boe-link');
         if (res.link_boe && res.link_boe.startsWith('http')) {
             boeBtn.href = res.link_boe;

@@ -1456,6 +1456,32 @@ async def get_profile(user_id: str, db: Session = Depends(get_db)):
         }
     }
 
+@app.get("/api/subsidies/{sub_id}/details")
+async def get_subsidy_details(sub_id: str, db: Session = Depends(get_db)):
+    """Obtiene el detalle completo de una subvención y una explicación generada por IA."""
+    logger.info(f"Petición de detalles para ID: {sub_id}")
+    sub = db.query(Subvencion).filter(Subvencion.id == sub_id).first()
+    if not sub:
+        sub = db.query(Subvencion).filter(Subvencion.id_bdns == sub_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subvención no encontrada")
+    try:
+        ai_info = rag_subsidies_agent_instance.explain_subsidy(sub.texto_completo)
+        return {
+            "success": True,
+            "id_bdns": sub.id_bdns,
+            "titulo": sub.titulo,
+            "organismo": "Ver descripción en detalles",
+            "fecha_cierre": sub.fecha_cierre.isoformat() if sub.fecha_cierre else "N/A",
+            "texto_completo": sub.texto_completo,
+            "explicacion_ia": ai_info.get("explicacion"),
+            "link_boe": ai_info.get("link_boe")
+        }
+    except Exception as e:
+        logger.error(f"Error obteniendo detalles de subvención: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando detalles de la subvención")
+
+
 @app.get("/api/subsidies/{user_id}")
 async def get_subsidies(user_id: str, db: Session = Depends(get_db)):
     user = get_user_by_id(db, user_id)
@@ -1631,38 +1657,6 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
     
     return {"success": True, "subsidies": results}
 
-
-@app.get("/api/subsidies/{sub_id}/details")
-async def get_subsidy_details(sub_id: str, db: Session = Depends(get_db)):
-    """Obtiene el detalle completo de una subvención y una explicación generada por IA."""
-    logger.info(f"Petición de detalles para ID: {sub_id}")
-    
-    # Buscamos por el ID UUID de la base de datos que es más fiable
-    sub = db.query(Subvencion).filter(Subvencion.id == sub_id).first()
-    if not sub:
-        # Fallback por id_bdns si el ID no es UUID
-        sub = db.query(Subvencion).filter(Subvencion.id_bdns == sub_id).first()
-        
-    if not sub:
-        raise HTTPException(status_code=404, detail="Subvención no encontrada")
-    
-    try:
-        # Generar explicación via Agente usando la columna texto_completo
-        ai_info = rag_subsidies_agent_instance.explain_subsidy(sub.texto_completo)
-        
-        return {
-            "success": True,
-            "id_bdns": sub.id_bdns,
-            "titulo": sub.titulo,
-            "organismo": "Ver descripción en detalles", # No hay columna organismo, se extrae del texto
-            "fecha_cierre": sub.fecha_cierre.isoformat() if sub.fecha_cierre else "N/A",
-            "texto_completo": sub.texto_completo,
-            "explicacion_ia": ai_info.get("explicacion"),
-            "link_boe": ai_info.get("link_boe")
-        }
-    except Exception as e:
-        logger.error(f"Error obteniendo detalles de subvención: {e}")
-        raise HTTPException(status_code=500, detail="Error procesando detalles de la subvención")
 
 
 @app.post("/api/subsidies/ingest-callback")
