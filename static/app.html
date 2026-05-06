@@ -12,7 +12,7 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/styles.css?v=7">
+    <link rel="stylesheet" href="/styles.css?v=8">
 </head>
 
 <body>
@@ -199,15 +199,7 @@
                     </div>
                 </header>
                 
-                <!-- Floating Voice Assistant (Novelty) -->
-                <div id="floating-mic" class="voice-pulse" style="position: fixed; bottom: 30px; right: 30px; width: 64px; height: 64px; background: var(--green); border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 100; cursor: pointer; box-shadow: 0 10px 30px rgba(125, 176, 75, 0.4); transition: var(--transition);" onclick="appLogic.startRecording()">
-                    <i class="fa-solid fa-microphone" style="color: white; font-size: 1.5rem;"></i>
-                    <div class="mic-label" style="position: absolute; right: 80px; background: var(--navy); color: white; padding: 8px 16px; border-radius: 100px; font-size: 12px; white-space: nowrap; pointer-events: none; opacity: 0; transition: var(--transition);">¿En qué puedo ayudarte?</div>
-                </div>
-                <style>
-                    #floating-mic:hover .mic-label { opacity: 1; transform: translateX(-10px); }
-                    #floating-mic:hover { transform: scale(1.1); }
-                </style>
+
 
                 <div class="main-content-scroll">
                     <!-- Dashboard View -->
@@ -223,12 +215,16 @@
                                     onclick="setPeriodType('anual')">Anual</button>
                             </div>
                             <div class="period-nav">
-                                <button class="period-nav-btn" onclick="shiftPeriod(-1)" title="Período anterior"><i
-                                        class="fa-solid fa-chevron-left"></i></button>
-                                <span class="period-label-display">2026</span>
-                                <button class="period-nav-btn btn-period-next" id="btn-period-next-dash"
-                                    onclick="shiftPeriod(1)" title="Período siguiente" disabled><i
-                                        class="fa-solid fa-chevron-right"></i></button>
+                                <div class="period-tabs integrated-date-nav">
+                                    <button class="period-nav-arrow" onclick="shiftPeriod(-1)" title="Período anterior">
+                                        <i class="fa-solid fa-chevron-left"></i>
+                                    </button>
+                                    <span class="period-label-display">2026</span>
+                                    <button class="period-nav-arrow btn-period-next" id="btn-period-next-dash"
+                                        onclick="shiftPeriod(1)" title="Período siguiente" disabled>
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="grid-2-col gap-3">
@@ -655,12 +651,16 @@
                                     onclick="setPeriodType('anual')">Anual</button>
                             </div>
                             <div class="period-nav">
-                                <button class="period-nav-btn" onclick="shiftPeriod(-1)" title="Período anterior"><i
-                                        class="fa-solid fa-chevron-left"></i></button>
-                                <span class="period-label-display">2026</span>
-                                <button class="period-nav-btn btn-period-next" id="btn-period-next-taxes"
-                                    onclick="shiftPeriod(1)" title="Período siguiente" disabled><i
-                                        class="fa-solid fa-chevron-right"></i></button>
+                                <div class="period-tabs integrated-date-nav">
+                                    <button class="period-nav-arrow" onclick="shiftPeriod(-1)" title="Período anterior">
+                                        <i class="fa-solid fa-chevron-left"></i>
+                                    </button>
+                                    <span class="period-label-display">2026</span>
+                                    <button class="period-nav-arrow btn-period-next" id="btn-period-next-taxes"
+                                        onclick="shiftPeriod(1)" title="Período siguiente" disabled>
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="grid-2-col gap-3">
