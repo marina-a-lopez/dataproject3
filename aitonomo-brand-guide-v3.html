@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AItonomo — Brand Guide v3.0</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --green:      #7DB04B;
+  --green-dk:   #5A8A2E;
+  --green-lt:   #EAF3DE;
+  --green-mid:  #C2DD97;
+  --charcoal:   #4D4D4D;
+  --charcoal-m: #6A6A6A;
+  --charcoal-lt:#9A9A9A;
+  --navy:       #0B1A2C;
+  --navy-mid:   #152B47;
+  --ink:        #1A1A1A;
+  --off-white:  #F6F5F1;
+  --cream:      #FDFCF8;
+  --white:      #FFFFFF;
+  --border:     rgba(77,77,77,0.12);
+  --border-md:  rgba(77,77,77,0.22);
+  --danger:     #E24B4A;
+  --warning:    #F5A623;
+  --info:       #3B8BD4;
+  --fm:         'Montserrat', sans-serif;
+  --fb:         'DM Sans', sans-serif;
+  --r:          8px;
+  --rl:         16px;
+  --rxl:        24px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--fb);background:var(--cream);color:var(--ink);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* ─── LOGO TEXT UTILITY ─── */
+.ai-txt{font-family:var(--fm);font-weight:700;color:var(--green)}
+.rest-txt{font-family:var(--fm);font-weight:700;color:var(--charcoal)}
+.ai-txt-w{font-family:var(--fm);font-weight:700;color:var(--green)}
+.rest-txt-w{font-family:var(--fm);font-weight:700;color:rgba(255,255,255,0.92)}
+
+/* ─── LOGO SLOT ─── */
+.logo-slot{display:inline-flex;align-items:center;justify-content:center}
+.logo-slot img{display:block;max-width:100%;height:auto}
+.logo-slot img.hidden{display:none}
+.logo-fallback{display:none}
+.logo-slot img.show-fallback + .logo-fallback{display:block}
+
+/* ─── LAYOUT ─── */
+.page{max-width:920px;margin:0 auto;padding:0 32px 100px}
+
+/* ─── COVER ─── */
+.cover{background:var(--navy);min-height:540px;display:flex;flex-direction:column;justify-content:flex-end;padding:64px;position:relative;overflow:hidden;margin-bottom:80px}
+.cover::before{content:'';position:absolute;top:-140px;right:-100px;width:560px;height:560px;border-radius:50%;background:rgba(125,176,75,0.06)}
+.cover::after{content:'';position:absolute;bottom:-60px;left:80px;width:280px;height:280px;border-radius:50%;background:rgba(125,176,75,0.04)}
+.cover-eyebrow{font-family:var(--fb);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--green);margin-bottom:28px;position:relative;z-index:1}
+
+/* Logo en cover */
+.cover-logo-wrap{position:relative;z-index:1;margin-bottom:12px;line-height:1}
+.cover-logo-wrap img{height:72px;width:auto;display:block}
+.cover-logo-fallback{font-family:var(--fm);font-weight:700;font-size:72px;letter-spacing:-2px;line-height:1;display:none}
+.cover-logo-fallback .ai{color:var(--green)}
+.cover-logo-fallback .rest{color:rgba(255,255,255,0.92)}
+
+.cover-tagline{font-size:15px;color:rgba(255,255,255,0.38);position:relative;z-index:1;margin-bottom:56px;font-weight:300;letter-spacing:.01em}
+.cover-grid{display:grid;grid-template-columns:repeat(4,1fr);position:relative;z-index:1;border-top:1px solid rgba(255,255,255,0.07);padding-top:24px}
+.cover-cell{padding:0 20px 0 0}
+.ccl{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,0.24);margin-bottom:4px}
+.ccv{font-size:13px;color:rgba(255,255,255,0.6)}
+
+/* ─── SECTION ─── */
+.s{margin-bottom:80px}
+.s-head{display:flex;align-items:baseline;gap:14px;margin-bottom:40px}
+.s-num{font-family:var(--fm);font-size:11px;font-weight:700;letter-spacing:.2em;color:var(--green);text-transform:uppercase;min-width:28px}
+.s-title{font-family:var(--fm);font-size:26px;font-weight:700;color:var(--ink);letter-spacing:-.4px}
+.s-line{height:1px;background:var(--border);flex:1}
+
+/* ─── CARDS ─── */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--rl);padding:28px 32px}
+.card-sm{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px 22px}
+.card-dark{background:var(--navy);border:1px solid rgba(255,255,255,0.06);border-radius:var(--rl);padding:28px 32px;color:var(--white)}
+.card-green{background:var(--green-lt);border:1px solid rgba(125,176,75,0.25);border-radius:var(--rl);padding:28px 32px}
+
+/* ─── GRID ─── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.row{display:flex;gap:16px}
+.f1{flex:1}
+
+/* ─── TEXT ─── */
+.lbl{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--charcoal-lt);font-weight:500;margin-bottom:8px}
+.title-sm{font-family:var(--fm);font-size:15px;font-weight:700;color:var(--ink);margin-bottom:4px}
+.body-sm{font-size:14px;color:var(--charcoal);line-height:1.6}
+.body-xs{font-size:12px;color:var(--charcoal-lt);line-height:1.5}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt24{margin-top:24px}.mt32{margin-top:32px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}.mb16{margin-bottom:16px}.mb24{margin-bottom:24px}.mb32{margin-bottom:32px}
+
+/* ─── HIGHLIGHT ─── */
+.highlight{background:var(--green);border-radius:var(--rl);padding:32px 40px;margin-bottom:32px}
+.highlight .h-title{font-family:var(--fm);font-size:22px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:-.3px}
+.highlight .h-sub{font-size:15px;color:rgba(11,26,44,0.7);line-height:1.55}
+
+/* ─── SWATCH ─── */
+.sw-row{display:flex;gap:8px;margin-bottom:20px}
+.sw-item{flex:1}
+.sw-box{height:72px;border-radius:var(--r);border:1px solid rgba(0,0,0,0.07)}
+.sw-name{font-size:12px;font-weight:500;color:var(--ink);margin-top:6px}
+.sw-hex{font-size:10px;color:var(--charcoal-lt);font-family:monospace}
+
+/* ─── TYPE ─── */
+.type-row{border-bottom:1px solid var(--border);padding:20px 0;display:grid;grid-template-columns:1fr 2fr;gap:24px;align-items:center}
+.type-row:last-child{border-bottom:none}
+.tm-name{font-size:12px;font-weight:500;color:var(--charcoal)}
+.tm-spec{font-size:11px;color:var(--charcoal-lt);font-family:monospace}
+.t-h1{font-family:var(--fm);font-size:38px;font-weight:700;color:var(--ink);letter-spacing:-.8px;line-height:1.05}
+.t-h2{font-family:var(--fm);font-size:26px;font-weight:700;color:var(--ink);letter-spacing:-.4px;line-height:1.2}
+.t-h3{font-family:var(--fm);font-size:17px;font-weight:700;color:var(--ink)}
+.t-body{font-family:var(--fb);font-size:16px;color:var(--charcoal);line-height:1.65}
+.t-small{font-family:var(--fb);font-size:13px;color:var(--charcoal-m);line-height:1.55}
+.t-label{font-family:var(--fb);font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--charcoal-lt);font-weight:500}
+
+/* ─── VOICE ─── */
+.v-good{border-left:3px solid var(--green);padding:13px 18px;background:var(--white);border-radius:0 var(--r) var(--r) 0;margin-bottom:8px}
+.v-bad{border-left:3px solid var(--danger);padding:13px 18px;background:var(--white);border-radius:0 var(--r) var(--r) 0;margin-bottom:8px}
+.vg{font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--green-dk);margin-bottom:4px}
+.vb{font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:#A32D2D;margin-bottom:4px}
+.vt{font-size:14px;color:var(--ink);line-height:1.5}
+
+/* ─── TAGLINES ─── */
+.tl-opt{padding:18px 22px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.tl-opt.pri{border-color:var(--green);background:var(--green-lt)}
+.tl-txt{font-family:var(--fm);font-size:19px;font-weight:700;color:var(--ink);letter-spacing:-.2px}
+.tl-note{font-size:12px;color:var(--charcoal-lt);max-width:190px;text-align:right;line-height:1.4}
+.badge-rec{background:var(--green);color:var(--white);font-size:10px;font-weight:700;padding:4px 10px;border-radius:100px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;flex-shrink:0}
+
+/* ─── ARCHETYPE ─── */
+.arch-card{background:var(--navy);border-radius:var(--rxl);padding:36px;position:relative;overflow:hidden}
+.arch-card::before{content:'';position:absolute;top:-70px;right:-70px;width:240px;height:240px;border-radius:50%;background:rgba(125,176,75,0.09)}
+.arch-icon{width:48px;height:48px;border-radius:13px;background:rgba(125,176,75,0.15);display:flex;align-items:center;justify-content:center;margin-bottom:16px;position:relative;z-index:1}
+.arch-name{font-family:var(--fm);font-size:30px;font-weight:700;color:var(--white);letter-spacing:-.4px;margin-bottom:6px;position:relative;z-index:1}
+.arch-sub{font-size:13px;color:rgba(255,255,255,0.42);margin-bottom:20px;position:relative;z-index:1}
+.arch-traits{display:flex;flex-wrap:wrap;gap:7px;position:relative;z-index:1}
+.arch-trait{background:rgba(125,176,75,0.14);color:#C2DD97;padding:5px 13px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)}
+
+/* ─── PERSONALITY ─── */
+.pers-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)}
+.pers-row:last-child{border-bottom:none}
+.pers-l{font-size:12px;color:var(--charcoal-lt);width:96px;text-align:right}
+.pers-r{font-size:12px;color:var(--charcoal-lt);width:96px}
+.pers-track{flex:1;height:4px;background:var(--off-white);border-radius:100px;position:relative}
+.pers-fill{height:100%;background:var(--green);border-radius:100px}
+.pers-dot{width:12px;height:12px;border-radius:50%;background:var(--green);position:absolute;top:-4px;transform:translateX(-50%);border:2px solid var(--white);box-shadow:0 0 0 1.5px var(--green)}
+
+/* ─── COMP MAP ─── */
+.comp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.comp-card{padding:16px 20px;background:var(--white);border:1px solid var(--border);border-radius:var(--r)}
+.comp-card.us{border-color:var(--green);background:var(--green-lt)}
+.comp-name{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px}
+.comp-gap{font-size:12px;color:var(--charcoal-lt);line-height:1.45}
+.badge-comp{display:inline-block;font-size:10px;padding:2px 8px;border-radius:100px;margin-bottom:6px;background:var(--off-white);border:1px solid var(--border);color:var(--charcoal-m)}
+.badge-us{display:inline-block;font-size:10px;padding:2px 8px;border-radius:100px;margin-bottom:6px;background:var(--green);color:var(--white)}
+
+/* ─── MVV ─── */
+.mvv{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px}
+.mvv-c{padding:24px;border-radius:var(--rl)}
+.mvv-1{background:var(--navy)}
+.mvv-2{background:var(--green)}
+.mvv-3{background:var(--off-white);border:1px solid var(--border)}
+.mvv-tag{font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;margin-bottom:12px;opacity:.5}
+.mvv-txt{font-family:var(--fm);font-size:15px;font-weight:700;line-height:1.45}
+
+/* ─── DO/DONT ─── */
+.dodo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.do-c{padding:17px 20px;background:var(--white);border:1px solid rgba(125,176,75,0.3);border-radius:var(--r)}
+.dont-c{padding:17px 20px;background:var(--white);border:1px solid rgba(226,75,74,0.3);border-radius:var(--r)}
+.do-lbl{font-size:10px;font-weight:700;letter-spacing:.15em;color:var(--green-dk);text-transform:uppercase;margin-bottom:8px}
+.dont-lbl{font-size:10px;font-weight:700;letter-spacing:.15em;color:#A32D2D;text-transform:uppercase;margin-bottom:8px}
+.rule-txt{font-size:13px;color:var(--charcoal);line-height:1.5}
+
+/* ─── LOGO PLACEHOLDER ─── */
+.logo-ph{
+  background:var(--off-white);
+  border:1.5px dashed rgba(125,176,75,0.4);
+  border-radius:var(--r);
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:8px;
+  padding:20px 32px;
+  position:relative;
+}
+.logo-ph-note{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--charcoal-lt);position:absolute;top:8px;left:12px}
+.logo-ph img{display:block;max-width:100%;height:auto}
+.logo-ph-fallback{font-family:var(--fm);font-weight:700;font-size:32px;letter-spacing:-1px;color:var(--charcoal-lt)}
+.logo-ph-fallback .ai{color:var(--green)}
+
+/* ─── APP MOCKUP ─── */
+.phone{width:210px;background:var(--ink);border-radius:26px;overflow:hidden;border:5px solid var(--ink);flex-shrink:0}
+.phone-notch{height:20px;background:var(--ink);display:flex;align-items:center;justify-content:center}
+.phone-pill{width:56px;height:9px;background:#222;border-radius:10px}
+.phone-screen{background:var(--off-white)}
+.phone-top{background:var(--white);padding:10px 13px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.p-logo-txt{font-family:var(--fm);font-weight:700;font-size:12px;letter-spacing:-.3px}
+.p-logo-txt .ai{color:var(--green)}
+.p-logo-txt .rest{color:var(--charcoal)}
+.p-logo-img{height:20px;width:auto;display:block}
+.phone-body{padding:11px}
+.p-greet{font-size:10px;font-weight:500;color:var(--ink);margin-bottom:9px;font-family:var(--fm)}
+.p-mic{width:54px;height:54px;border-radius:50%;background:var(--green);margin:6px auto 10px;display:flex;align-items:center;justify-content:center}
+.p-kpis{display:flex;gap:6px;margin-bottom:8px}
+.p-kpi{flex:1;background:var(--white);border:1px solid var(--border);border-radius:7px;padding:7px}
+.p-kpi-lbl{font-size:8px;color:var(--charcoal-lt);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.p-kpi-val{font-family:var(--fm);font-size:13px;font-weight:700;color:var(--ink)}
+.p-kpi-d{font-size:8px;color:var(--green-dk);font-weight:500}
+.p-kpi-r{font-size:8px;color:var(--danger);font-weight:500}
+.p-transcript{background:var(--white);border-radius:9px;padding:9px 11px;font-size:10px;color:var(--charcoal);line-height:1.5;margin-bottom:7px;border:1px solid var(--border)}
+.p-q{font-size:9px;color:var(--charcoal-lt);margin-bottom:2px}
+.p-ai-resp{background:var(--green-lt);border:1px solid rgba(125,176,75,0.2);border-radius:9px;padding:9px 11px;font-size:10px;color:var(--charcoal);line-height:1.5;margin-bottom:7px}
+.p-ai-tag{font-size:9px;color:var(--green-dk);font-weight:600;margin-bottom:2px}
+.p-actions{display:flex;gap:5px}
+.p-action{flex:1;background:var(--white);border:1px solid var(--border);border-radius:7px;padding:6px 3px;text-align:center}
+.p-action-i{font-size:12px;margin-bottom:1px}
+.p-action-l{font-size:7.5px;color:var(--charcoal)}
+
+/* ─── EMAIL ─── */
+.email-wrap{background:var(--white);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;max-width:520px}
+.email-hdr{background:var(--navy);padding:16px 26px;display:flex;align-items:center;gap:10px}
+.e-logo-img{height:28px;width:auto;display:block}
+.e-logo-txt{font-family:var(--fm);font-weight:700;font-size:17px;letter-spacing:-.3px}
+.e-logo-txt .ai{color:var(--green)}
+.e-logo-txt .rest{color:rgba(255,255,255,0.9)}
+.email-body{padding:26px}
+.email-greeting{font-size:19px;font-weight:500;font-family:var(--fm);margin-bottom:11px;color:var(--ink)}
+.email-txt{font-size:14px;color:var(--charcoal);line-height:1.65;margin-bottom:18px}
+.email-cta{display:inline-block;background:var(--green);color:var(--white);font-weight:700;font-size:14px;padding:11px 26px;border-radius:var(--r);text-decoration:none;font-family:var(--fm);letter-spacing:-.1px}
+.email-ftr{padding:13px 26px;background:var(--off-white);border-top:1px solid var(--border)}
+.email-ftr-txt{font-size:11px;color:var(--charcoal-lt)}
+
+/* ─── SOCIAL ─── */
+.social{background:var(--white);border:1px solid var(--border);border-radius:var(--rl);padding:20px;max-width:440px}
+.social-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.s-avatar{width:40px;height:40px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-family:var(--fm);font-weight:700;font-size:13px;color:var(--white);flex-shrink:0}
+.s-name{font-weight:500;font-size:14px;color:var(--ink)}
+.s-handle{font-size:12px;color:var(--charcoal-lt)}
+.social-body{font-size:14px;line-height:1.65;color:var(--ink)}
+.social-cta-box{margin-top:12px;background:var(--green-lt);border-radius:var(--r);padding:13px;border:1px solid rgba(125,176,75,0.2)}
+.sc-title{font-family:var(--fm);font-size:13px;font-weight:700;color:var(--navy);margin-bottom:2px}
+.sc-link{font-size:12px;color:var(--green-dk)}
+
+/* ─── VOICE CMD DEMO ─── */
+.vcmd{background:var(--navy);border-radius:var(--rl);padding:22px;position:relative;overflow:hidden}
+.vcmd::before{content:'';position:absolute;top:-50px;right:-50px;width:180px;height:180px;border-radius:50%;background:rgba(125,176,75,0.07)}
+.vcmd-lbl{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-bottom:18px}
+.vcmd-row{display:flex;align-items:flex-start;gap:11px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.05)}
+.vcmd-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.vcmd-spk{font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;min-width:48px;padding-top:2px}
+.vcmd-spk.u{color:rgba(255,255,255,0.28)}
+.vcmd-spk.a{color:var(--green)}
+.vcmd-bu{background:rgba(255,255,255,0.08);border-radius:4px 11px 11px 11px;padding:9px 13px;font-size:13px;color:rgba(255,255,255,0.82);line-height:1.5;flex:1}
+.vcmd-ba{background:rgba(125,176,75,0.12);border:1px solid rgba(125,176,75,0.16);border-radius:11px 11px 11px 4px;padding:9px 13px;font-size:13px;color:rgba(255,255,255,0.88);line-height:1.5;flex:1}
+.vcmd-res{background:rgba(255,255,255,0.05);border-radius:6px;padding:7px 11px;margin-top:7px;font-size:11px;color:rgba(255,255,255,0.52)}
+
+/* ─── CHECKLIST ─── */
+.chk-item{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--charcoal);padding:8px 0;border-bottom:1px solid var(--border);line-height:1.5}
+.chk-item:last-child{border-bottom:none}
+.chk-i{width:18px;height:18px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.chk-i svg{width:10px;height:10px}
+
+/* ─── FOOTER ─── */
+.brand-footer{background:var(--navy);border-radius:var(--rl);padding:28px 36px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-top:60px}
+.bf-logo-img{height:32px;width:auto;display:block}
+.bf-logo-txt{font-family:var(--fm);font-weight:700;font-size:20px;letter-spacing:-.4px}
+.bf-logo-txt .ai{color:var(--green)}
+.bf-logo-txt .rest{color:rgba(255,255,255,0.9)}
+.bf-meta{font-size:12px;color:rgba(255,255,255,0.22);margin-top:4px}
+
+@media(max-width:640px){
+  .cover{padding:32px;min-height:400px}
+  .cover-logo-fallback{font-size:48px}
+  .g2,.g3,.g4,.mvv,.dodo,.comp-grid{grid-template-columns:1fr}
+  .type-row{grid-template-columns:1fr}
+  .row{flex-direction:column}
+  .page{padding:0 16px 60px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ COVER ═══ -->
+<div class="cover">
+  <div class="cover-eyebrow">Brand Identity System — v3.0</div>
+
+  <div class="cover-logo-wrap">
+    <!-- Sustituye 'logo-aitonomo.png' por el nombre real de tu archivo de logo -->
+    <img src="logo-aitonomo.png"
+         alt="AItonomo"
+         style="height:72px;width:auto;"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <div class="cover-logo-fallback">
+      <span class="ai">AI</span><span class="rest">tonomo</span>
+    </div>
+  </div>
+
+  <div class="cover-tagline">Gestiona. Sin parar de trabajar.</div>
+  <div class="cover-grid">
+    <div class="cover-cell"><div class="ccl">Categoria</div><div class="ccv">Voice-first AI SaaS</div></div>
+    <div class="cover-cell"><div class="ccl">Segmento</div><div class="ccv">Autonomos movilidad</div></div>
+    <div class="cover-cell"><div class="ccl">Mercado</div><div class="ccv">Espana · SAM 1,3M</div></div>
+    <div class="cover-cell"><div class="ccl">Version</div><div class="ccv">MVP · 2025</div></div>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- ═══ 01 — NAMING ═══ -->
+<div class="s" id="s1">
+  <div class="s-head"><span class="s-num">01</span><h2 class="s-title">Analisis del naming</h2><div class="s-line"></div></div>
+
+  <div class="card mb24">
+    <div style="font-family:var(--fm);font-weight:700;font-size:48px;letter-spacing:-1.2px;line-height:1;margin-bottom:16px">
+      <span style="color:var(--green)">AI</span><span style="color:var(--ink)">tonomo</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px">
+      <span style="background:var(--green);color:var(--white);padding:5px 13px;border-radius:100px;font-size:12px;font-weight:600">AI — Inteligencia Artificial</span>
+      <span style="background:var(--navy);color:rgba(255,255,255,0.82);padding:5px 13px;border-radius:100px;font-size:12px;font-weight:600">Alto — Crecimiento</span>
+      <span style="background:var(--off-white);border:1px solid var(--border-md);color:var(--charcoal);padding:5px 13px;border-radius:100px;font-size:12px;font-weight:600">Autonomo — El usuario</span>
+    </div>
+    <p class="body-sm">El nombre opera en tres capas simultaneas. <strong>AI</strong> declara la tecnologia que impulsa el producto (Gemini 2.5 / Google). <strong>Alto</strong> comunica la aspiracion: crecer, escalar, subir. <strong>Autonomo</strong> identifica sin ambiguedad el segmento objetivo. La elipsis de "-aut" comprime las tres capas en cuatro silabas pronunciables en cualquier mercado hispanohablante y en ingles.</p>
+  </div>
+
+  <div class="g3">
+    <div class="card-sm">
+      <div class="lbl">Diferenciacion visual</div>
+      <div class="title-sm">El "AI" en color</div>
+      <p class="body-xs mt8">El verde sobre "AI" comunica la tecnologia antes de leer una sola linea de copy. Es el primer mensaje de marca.</p>
+    </div>
+    <div class="card-sm">
+      <div class="lbl">Memorabilidad</div>
+      <div class="title-sm">Triple anclaje cognitivo</div>
+      <p class="body-xs mt8">Un nombre con tres referencias crea mas puntos de enganche en la memoria que un nombre arbitrario o descriptivo simple.</p>
+    </div>
+    <div class="card-sm">
+      <div class="lbl">Escalabilidad</div>
+      <div class="title-sm">Internacional desde el dia 1</div>
+      <p class="body-xs mt8">"AI" funciona en todos los mercados. La expansion no requiere cambiar el nombre ni el posicionamiento tecnologico.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 02 — ESENCIA ═══ -->
+<div class="s" id="s2">
+  <div class="s-head"><span class="s-num">02</span><h2 class="s-title">Esencia de marca</h2><div class="s-line"></div></div>
+
+  <div class="highlight mb24">
+    <div class="h-title">La categoria que AItonomo crea</div>
+    <div class="h-sub">No es otra app de gestion. Es la primera herramienta de negocio que funciona mientras el autonomo trabaja — no despues. Holded, Quipu y Billin te obligan a parar y sentarte. AItonomo no.</div>
+  </div>
+
+  <div class="mvv mb24">
+    <div class="mvv-c mvv-1">
+      <div class="mvv-tag" style="color:rgba(255,255,255,0.4)">Proposito</div>
+      <div class="mvv-txt" style="color:var(--white)">Que el autonomo termine su jornada sin tener que seguir trabajando en casa.</div>
+    </div>
+    <div class="mvv-c mvv-2">
+      <div class="mvv-tag" style="color:rgba(11,26,44,0.55)">Vision</div>
+      <div class="mvv-txt" style="color:var(--navy)">El asistente de IA de referencia para el millon de autonomos en movilidad de Espana.</div>
+    </div>
+    <div class="mvv-c mvv-3">
+      <div class="mvv-tag">Mision</div>
+      <div class="mvv-txt">Gestionar el negocio por voz, en movimiento, para que el autonomo solo tenga que hablar.</div>
+    </div>
+  </div>
+
+  <div class="card mb24">
+    <div class="lbl mb16">Tamano de mercado — Espana</div>
+    <div style="display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <div style="width:130px;height:130px;border-radius:50%;background:rgba(77,77,77,0.08);display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <span style="font-family:var(--fm);font-size:22px;font-weight:700;color:var(--charcoal)">3,4M</span>
+          <span style="font-size:11px;color:var(--charcoal-lt)">TAM</span>
+        </div>
+        <span style="font-size:11px;color:var(--charcoal-lt);text-transform:uppercase;letter-spacing:.1em">Total autonomos</span>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+        <div style="width:104px;height:104px;border-radius:50%;background:var(--green-lt);border:2px solid rgba(125,176,75,0.3);display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <span style="font-family:var(--fm);font-size:18px;font-weight:700;color:var(--green-dk)">1,3M</span>
+          <span style="font-size:10px;color:var(--green-dk);opacity:.7">SAM</span>
+        </div>
+        <span style="font-size:11px;color:var(--green-dk);text-transform:uppercase;letter-spacing:.1em">Movilidad</span>
+      </div>
+      <div style="flex:1;min-width:200px">
+        <p class="body-xs" style="font-size:13px;color:var(--charcoal);line-height:1.65">El SAM de 1,3M corresponde a autonomos unipersonales en movilidad: fontaneros, electricistas, instaladores, transportistas, tecnicos. Perfil comun: trabaja fuera de casa, factura 30K–90K€/año, sin gestor propio.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="lbl mb12">Mapa competitivo</div>
+  <div class="comp-grid">
+    <div class="comp-card"><span class="badge-comp">Competidor</span><div class="comp-name">Holded</div><p class="comp-gap">ERP robusto pensado para pyme. Overkill para el autonomo unipersonal. Sin voz. Sin OCR. Requiere ordenador.</p></div>
+    <div class="comp-card"><span class="badge-comp">Competidor</span><div class="comp-name">Quipu</div><p class="comp-gap">Facturacion y contabilidad web. El autonomo debe parar, sentarse y escribir. No resuelve la movilidad.</p></div>
+    <div class="comp-card"><span class="badge-comp">Competidor</span><div class="comp-name">Billin / Facturasimple</div><p class="comp-gap">Facturacion basica sin IA, sin voz, sin captura inteligente. Resuelven parte del problema, no el fondo.</p></div>
+    <div class="comp-card us"><span class="badge-us">AItonomo</span><div class="comp-name">Voice-first AI</div><p class="comp-gap" style="color:var(--green-dk)">El unico que funciona <strong>mientras el autonomo trabaja</strong>. Habla → factura. Foto → gasto. Voz → cliente. Sin sentarse.</p></div>
+  </div>
+</div>
+
+<!-- ═══ 03 — ARQUETIPO ═══ -->
+<div class="s" id="s3">
+  <div class="s-head"><span class="s-num">03</span><h2 class="s-title">Arquetipo y personalidad</h2><div class="s-line"></div></div>
+
+  <div class="row mb24">
+    <div class="f1">
+      <div class="arch-card">
+        <div class="arch-icon">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 2L12.5 7.5L18 8.5L14 12.5L15 18L10 15.5L5 18L6 12.5L2 8.5L7.5 7.5L10 2Z" fill="#7DB04B"/></svg>
+        </div>
+        <div class="arch-name">El Gobernante</div>
+        <div class="arch-sub">Arquetipo primario — control, orden, autonomia real</div>
+        <div class="arch-traits">
+          <span class="arch-trait">Autoridad practica</span>
+          <span class="arch-trait">Resultados concretos</span>
+          <span class="arch-trait">Sin burocracia</span>
+          <span class="arch-trait">Jefe de su negocio</span>
+        </div>
+      </div>
+    </div>
+    <div style="width:205px;display:flex;flex-direction:column;gap:12px">
+      <div class="card-sm">
+        <div class="lbl">Secundario</div>
+        <div class="title-sm">El Explorador</div>
+        <p class="body-xs mt8">Siempre en movimiento. No esta atado a una mesa. La libertad es su modo de vida, no su objetivo.</p>
+      </div>
+      <div class="card-sm">
+        <div class="lbl">Anti-arquetipo</div>
+        <div class="title-sm">El Sabio academico</div>
+        <p class="body-xs mt8">AItonomo nunca es pedante ni tecnico. No explica como funciona la IA — simplemente funciona.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lbl mb16">Escala de personalidad de marca</div>
+    <div class="pers-row"><span class="pers-l">Formal</span><div class="pers-track"><div class="pers-fill" style="width:30%"></div><div class="pers-dot" style="left:30%"></div></div><span class="pers-r">Cercano</span></div>
+    <div class="pers-row"><span class="pers-l">Complejo</span><div class="pers-track"><div class="pers-fill" style="width:88%"></div><div class="pers-dot" style="left:88%"></div></div><span class="pers-r">Simple</span></div>
+    <div class="pers-row"><span class="pers-l">Lento</span><div class="pers-track"><div class="pers-fill" style="width:92%"></div><div class="pers-dot" style="left:92%"></div></div><span class="pers-r">Rapido</span></div>
+    <div class="pers-row"><span class="pers-l">Generico</span><div class="pers-track"><div class="pers-fill" style="width:90%"></div><div class="pers-dot" style="left:90%"></div></div><span class="pers-r">Especialista</span></div>
+    <div class="pers-row"><span class="pers-l">Sedentario</span><div class="pers-track"><div class="pers-fill" style="width:94%"></div><div class="pers-dot" style="left:94%"></div></div><span class="pers-r">En movimiento</span></div>
+  </div>
+</div>
+
+<!-- ═══ 04 — IDENTIDAD VERBAL ═══ -->
+<div class="s" id="s4">
+  <div class="s-head"><span class="s-num">04</span><h2 class="s-title">Identidad verbal</h2><div class="s-line"></div></div>
+
+  <div class="lbl mb12">Taglines — opciones estrategicas</div>
+  <div class="tl-opt pri">
+    <div><div class="tl-txt">Gestiona. Sin parar de trabajar.</div></div>
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+      <span class="tl-note">Captura la promesa core. Maximo tension dramatica. Aplicacion principal.</span>
+      <span class="badge-rec">Recomendado</span>
+    </div>
+  </div>
+  <div class="tl-opt"><div class="tl-txt">Tu asistente de negocio. Por voz.</div><span class="tl-note">Tecnico y claro. App Store / Google Play.</span></div>
+  <div class="tl-opt"><div class="tl-txt">Habla. Tu negocio escucha.</div><span class="tl-note">Poetico y memorable. Brand awareness.</span></div>
+  <div class="tl-opt"><div class="tl-txt">La IA que trabaja mientras tu trabajas.</div><span class="tl-note">Explicativo. Landing page / anuncios.</span></div>
+
+  <div class="lbl mt32 mb12">Tono de voz — 4 pilares</div>
+  <div class="g2 mb24">
+    <div class="card-sm"><div class="title-sm">01 · Instantaneo</div><p class="body-xs mt8">Las respuestas son inmediatas y concretas. "Factura creada. 450€ a Garcia." Sin confirmaciones innecesarias ni pasos extra.</p></div>
+    <div class="card-sm"><div class="title-sm">02 · Practico, no tecnico</div><p class="body-xs mt8">Nunca menciona "Gemini", "LLM" o "modelo de IA". El autonomo no necesita saber como funciona. Solo que funciona.</p></div>
+    <div class="card-sm"><div class="title-sm">03 · Colega de confianza</div><p class="body-xs mt8">Conoce los plazos de IVA, las retenciones del 15%, los modelos de Hacienda. Sin explicarlo todo desde cero.</p></div>
+    <div class="card-sm"><div class="title-sm">04 · Orientado al tiempo</div><p class="body-xs mt8">La moneda de valor es el tiempo. Cada copy cuantifica lo que ahorra: "en 12 segundos", "sin volver a casa a facturar".</p></div>
+  </div>
+
+  <div class="lbl mb12">Interacciones de voz — ejemplos reales</div>
+  <div class="vcmd mb24">
+    <div class="vcmd-lbl">Conversaciones con AItonomo — Gemini 2.5 Flash</div>
+    <div class="vcmd-row">
+      <span class="vcmd-spk u">Tu</span>
+      <div class="vcmd-bu">"Acabo de terminar en casa de Martinez. Tres horas mas materiales, unos 280 euros."</div>
+    </div>
+    <div class="vcmd-row">
+      <span class="vcmd-spk a">AI</span>
+      <div class="vcmd-ba">Factura para Martinez — 280€ + IVA (338,80€ total). ¿La envio ahora o la dejo como borrador?<div class="vcmd-res">✓ Factura #0047 · Cliente registrado · Lista para enviar</div></div>
+    </div>
+    <div class="vcmd-row">
+      <span class="vcmd-spk u">Tu</span>
+      <div class="vcmd-bu">[Foto de ticket de ferreteria — 47,30€]</div>
+    </div>
+    <div class="vcmd-row">
+      <span class="vcmd-spk a">AI</span>
+      <div class="vcmd-ba">Gasto registrado: Ferreteria Ruzafa, 47,30€ — material de trabajo (deducible). IVA incluido: 8,27€.<div class="vcmd-res">✓ Anadido a gastos Q2 · Deducible al 100%</div></div>
+    </div>
+  </div>
+
+  <div class="lbl mb12">Tono — comparativa</div>
+  <div class="row">
+    <div class="f1">
+      <div class="v-good"><div class="vg">AItonomo habla asi</div><div class="vt">"Tu IVA del Q2: 1.840€. Plazo: 12 dias. ¿Quieres que lo prepare?"</div></div>
+      <div class="v-good"><div class="vg">AItonomo habla asi</div><div class="vt">"Factura enviada. Cobraste 450€ de Garcia Instalaciones."</div></div>
+    </div>
+    <div class="f1">
+      <div class="v-bad"><div class="vb">Evitar</div><div class="vt">"¡Hola! Nuestro avanzado modelo de inteligencia artificial ha procesado tu solicitud de generacion de documento fiscal."</div></div>
+      <div class="v-bad"><div class="vb">Evitar</div><div class="vt">"¡Enhorabuena campeon! 🎉 ¡Estas rompiendo records este mes! 🚀"</div></div>
+    </div>
+  </div>
+
+  <div class="card-dark mt16">
+    <div class="lbl" style="color:rgba(255,255,255,0.3)">Vocabulario de marca — usar con consistencia</div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:14px">
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">por voz</span>
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">en segundos</span>
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">mientras trabajas</span>
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">sin parar</span>
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">listo</span>
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">facturado</span>
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">deducible</span>
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">en movimiento</span>
+      <span style="background:rgba(125,176,75,0.18);color:#C2DD97;padding:5px 12px;border-radius:100px;font-size:12px;font-weight:500;border:1px solid rgba(125,176,75,0.2)">sin sentarte</span>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px">
+      <span style="background:rgba(226,75,74,0.1);color:#F09595;padding:5px 12px;border-radius:100px;font-size:12px;border:1px solid rgba(226,75,74,0.2)">× modelo de lenguaje</span>
+      <span style="background:rgba(226,75,74,0.1);color:#F09595;padding:5px 12px;border-radius:100px;font-size:12px;border:1px solid rgba(226,75,74,0.2)">× solucion integral</span>
+      <span style="background:rgba(226,75,74,0.1);color:#F09595;padding:5px 12px;border-radius:100px;font-size:12px;border:1px solid rgba(226,75,74,0.2)">× ecosistema digital</span>
+      <span style="background:rgba(226,75,74,0.1);color:#F09595;padding:5px 12px;border-radius:100px;font-size:12px;border:1px solid rgba(226,75,74,0.2)">× potenciamos tu exito</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 05 — COLOR ═══ -->
+<div class="s" id="s5">
+  <div class="s-head"><span class="s-num">05</span><h2 class="s-title">Sistema de color</h2><div class="s-line"></div></div>
+
+  <div class="lbl mb12">Colores primarios — extraidos del logo</div>
+  <div class="sw-row mb8">
+    <div class="sw-item"><div class="sw-box" style="background:#7DB04B"></div><div class="sw-name">AItonomo Green</div><div class="sw-hex">#7DB04B</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#5A8A2E"></div><div class="sw-name">Green Dark</div><div class="sw-hex">#5A8A2E</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#4D4D4D"></div><div class="sw-name">Charcoal</div><div class="sw-hex">#4D4D4D</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#0B1A2C"></div><div class="sw-name">Deep Navy</div><div class="sw-hex">#0B1A2C</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#F6F5F1;border:1px solid var(--border)"></div><div class="sw-name">Off White</div><div class="sw-hex">#F6F5F1</div></div>
+  </div>
+
+  <div class="lbl mt24 mb12">Escala completa — AItonomo Green</div>
+  <div class="sw-row">
+    <div class="sw-item"><div class="sw-box" style="background:#EAF3DE"></div><div class="sw-name">50</div><div class="sw-hex">#EAF3DE</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#C2DD97"></div><div class="sw-name">100</div><div class="sw-hex">#C2DD97</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#9DCA5C"></div><div class="sw-name">200</div><div class="sw-hex">#9DCA5C</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#7DB04B"></div><div class="sw-name" style="font-weight:700">400 ✦</div><div class="sw-hex">#7DB04B</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#5A8A2E"></div><div class="sw-name">600</div><div class="sw-hex">#5A8A2E</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#3E6618"></div><div class="sw-name">800</div><div class="sw-hex">#3E6618</div></div>
+    <div class="sw-item"><div class="sw-box" style="background:#28430D"></div><div class="sw-name">900</div><div class="sw-hex">#28430D</div></div>
+  </div>
+
+  <div class="lbl mt24 mb12">Colores semanticos</div>
+  <div class="g4">
+    <div><div class="sw-box" style="background:#7DB04B"></div><div class="sw-name">Exito / CTA</div><div class="sw-hex">#7DB04B</div></div>
+    <div><div class="sw-box" style="background:#F5A623"></div><div class="sw-name">Advertencia</div><div class="sw-hex">#F5A623</div></div>
+    <div><div class="sw-box" style="background:#E24B4A"></div><div class="sw-name">Error</div><div class="sw-hex">#E24B4A</div></div>
+    <div><div class="sw-box" style="background:#3B8BD4"></div><div class="sw-name">Informacion</div><div class="sw-hex">#3B8BD4</div></div>
+  </div>
+
+  <div class="lbl mt24 mb12">Combinaciones aprobadas</div>
+  <div class="g2">
+    <div>
+      <div style="background:var(--navy);border-radius:var(--r);padding:18px;display:flex;align-items:center;justify-content:center;margin-bottom:6px">
+        <!-- Logo sobre fondo oscuro -->
+        <img src="logo-aitonomo.png" alt="AItonomo" style="height:32px;width:auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span style="display:none;font-family:var(--fm);font-weight:700;font-size:22px;letter-spacing:-.5px"><span style="color:var(--green)">AI</span><span style="color:rgba(255,255,255,0.9)">tonomo ↗</span></span>
+      </div>
+      <div class="sw-hex">Navy + logo blanco/verde ✓ — Principal</div>
+    </div>
+    <div>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:18px;display:flex;align-items:center;justify-content:center;margin-bottom:6px">
+        <img src="logo-aitonomo.png" alt="AItonomo" style="height:32px;width:auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span style="display:none;font-family:var(--fm);font-weight:700;font-size:22px;letter-spacing:-.5px"><span style="color:var(--green)">AI</span><span style="color:var(--charcoal)">tonomo ↗</span></span>
+      </div>
+      <div class="sw-hex">White + logo charcoal/verde ✓</div>
+    </div>
+    <div>
+      <div style="background:var(--green);border-radius:var(--r);padding:18px;display:flex;align-items:center;justify-content:center;margin-bottom:6px">
+        <span style="font-family:var(--fm);font-weight:700;font-size:22px;letter-spacing:-.5px;color:var(--navy)">AItonomo</span>
+      </div>
+      <div class="sw-hex">Green bg + Navy text ✓ — CTAs</div>
+    </div>
+    <div>
+      <div style="background:var(--off-white);border:1px solid var(--border);border-radius:var(--r);padding:18px;display:flex;align-items:center;justify-content:center;margin-bottom:6px">
+        <img src="logo-aitonomo.png" alt="AItonomo" style="height:32px;width:auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span style="display:none;font-family:var(--fm);font-weight:700;font-size:22px;letter-spacing:-.5px"><span style="color:var(--green)">AI</span><span style="color:var(--charcoal)">tonomo ↗</span></span>
+      </div>
+      <div class="sw-hex">Off-white + logo ✓ — App bg</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 06 — TIPOGRAFIA ═══ -->
+<div class="s" id="s6">
+  <div class="s-head"><span class="s-num">06</span><h2 class="s-title">Tipografia</h2><div class="s-line"></div></div>
+
+  <div class="row mb24">
+    <div class="f1 card">
+      <div class="lbl mb8">Logo / Display</div>
+      <div style="font-family:var(--fm);font-size:32px;font-weight:700;color:var(--ink);letter-spacing:-1px;line-height:1;margin-bottom:6px">Montserrat</div>
+      <div style="font-size:13px;color:var(--charcoal-lt);margin-bottom:14px">700 Bold</div>
+      <div style="font-family:var(--fm);font-size:14px;font-weight:700;color:var(--ink)">ABCDEFGHIJKLMNOPQRSTUVWXYZ</div>
+      <div style="font-family:var(--fm);font-size:14px;color:var(--charcoal)">abcdefghijklmnopqrstuvwxyz 0123456789 €%</div>
+      <p class="body-xs mt12">Tipografia del logo. Usar exclusivamente en el wordmark. No reemplazar por otra fuente en ningun caso.</p>
+    </div>
+    <div class="f1 card">
+      <div class="lbl mb8">Body / UI</div>
+      <div style="font-family:var(--fb);font-size:32px;font-weight:300;color:var(--ink);letter-spacing:-.5px;line-height:1;margin-bottom:6px">DM Sans</div>
+      <div style="font-size:13px;color:var(--charcoal-lt);margin-bottom:14px">300 · 400 · 500</div>
+      <div style="font-family:var(--fb);font-size:14px;font-weight:500;color:var(--ink)">ABCDEFGHIJKLMNOPQRSTUVWXYZ</div>
+      <div style="font-family:var(--fb);font-size:14px;color:var(--charcoal)">abcdefghijklmnopqrstuvwxyz 0123456789 €%</div>
+      <p class="body-xs mt12">Toda la interfaz, emails, textos de ayuda, transcripciones de voz. Maxima legibilidad movil a 11–16px.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lbl mb8">Escala tipografica</div>
+    <div class="type-row"><div><div class="tm-name">Display H1</div><div class="tm-spec">Montserrat 700 · 36–56px</div></div><div class="t-h1">Habla.<br>Tu negocio escucha.</div></div>
+    <div class="type-row"><div><div class="tm-name">Heading H2</div><div class="tm-spec">Montserrat 700 · 24px</div></div><div class="t-h2">Factura creada en 8 segundos</div></div>
+    <div class="type-row"><div><div class="tm-name">Heading H3</div><div class="tm-spec">Montserrat 700 · 16px</div></div><div class="t-h3">Gasto registrado — deducible</div></div>
+    <div class="type-row"><div><div class="tm-name">Body</div><div class="tm-spec">DM Sans 400 · 16px · 1.65</div></div><div class="t-body">Haz la foto del ticket y AItonomo lo categoriza, extrae el IVA y lo anade a tus gastos sin que toques nada mas.</div></div>
+    <div class="type-row"><div><div class="tm-name">Respuesta IA</div><div class="tm-spec">DM Sans 400 · 14px · 1.6</div></div><div class="t-small">Factura #0048 — Garcia Reformas, 320€ + IVA. Lista para enviar. ¿La mando ahora?</div></div>
+    <div class="type-row"><div><div class="tm-name">Label / Meta</div><div class="tm-spec">DM Sans 500 · 11px · UC</div></div><div class="t-label">Gastos Q2 · Deducible · IVA incluido</div></div>
+  </div>
+</div>
+
+<!-- ═══ 07 — LOGO — REGLAS ═══ -->
+<div class="s" id="s7">
+  <div class="s-head"><span class="s-num">07</span><h2 class="s-title">Logo — reglas de uso</h2><div class="s-line"></div></div>
+
+  <div class="lbl mb12">Versiones aprobadas</div>
+  <div class="g2 mb24">
+    <div>
+      <!-- PLACEHOLDER LOGO — fondo claro -->
+      <div style="background:var(--off-white);border:1px solid var(--border);border-radius:var(--rl);padding:40px;display:flex;align-items:center;justify-content:center;min-height:120px;margin-bottom:8px;position:relative;">
+        <span style="position:absolute;top:8px;left:12px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--charcoal-lt)">Insertar logo aqui</span>
+        <img src="logo-aitonomo.png" alt="AItonomo" style="max-height:48px;width:auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span style="display:none;font-family:var(--fm);font-weight:700;font-size:42px;letter-spacing:-1.2px"><span style="color:var(--green)">AI</span><span style="color:var(--charcoal)">tonomo ↗</span></span>
+      </div>
+      <div class="sw-hex">Version principal — fondo claro</div>
+    </div>
+    <div>
+      <!-- PLACEHOLDER LOGO — fondo oscuro -->
+      <div style="background:var(--navy);border-radius:var(--rl);padding:40px;display:flex;align-items:center;justify-content:center;min-height:120px;margin-bottom:8px;position:relative;">
+        <span style="position:absolute;top:8px;left:12px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,0.25)">Insertar logo aqui</span>
+        <img src="logo-aitonomo-blanco.png" alt="AItonomo" style="max-height:48px;width:auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span style="display:none;font-family:var(--fm);font-weight:700;font-size:42px;letter-spacing:-1.2px"><span style="color:var(--green)">AI</span><span style="color:rgba(255,255,255,0.9)">tonomo ↗</span></span>
+      </div>
+      <div class="sw-hex">Version negativo — fondo oscuro (requiere variante en blanco)</div>
+    </div>
+  </div>
+
+  <div class="card-green mb24">
+    <div class="lbl mb8">Instrucciones para la version web de este documento</div>
+    <p class="body-sm">Coloca los archivos del logo en la misma carpeta que este HTML con estos nombres exactos:<br><br>
+    <code style="background:rgba(0,0,0,0.06);padding:3px 8px;border-radius:4px;font-family:monospace;font-size:13px">logo-aitonomo.png</code> — version principal (fondo claro)<br>
+    <code style="background:rgba(0,0,0,0.06);padding:3px 8px;border-radius:4px;font-family:monospace;font-size:13px">logo-aitonomo-blanco.png</code> — version negativo (para fondos oscuros)<br><br>
+    El documento cargara el logo automaticamente en todas las secciones. Si no detecta el archivo mostrara el texto de referencia.</p>
+  </div>
+
+  <div class="lbl mb12">Do / Don't</div>
+  <div class="dodo">
+    <div class="do-c"><div class="do-lbl">Permitido</div><p class="rule-txt">"AI" siempre en verde solido #7DB04B. Sin degradados, sin variaciones de tono.</p></div>
+    <div class="dont-c"><div class="dont-lbl">Prohibido</div><p class="rule-txt">Aplicar degradado al "AI" o usar un verde diferente al #7DB04B del logo original.</p></div>
+    <div class="do-c"><div class="do-lbl">Permitido</div><p class="rule-txt">Sobre fondos blancos, off-white o navy oscuro. Usar la variante correcta segun fondo.</p></div>
+    <div class="dont-c"><div class="dont-lbl">Prohibido</div><p class="rule-txt">Colocar el logo sobre fondos de color que reduzcan el contraste del charcoal o el verde.</p></div>
+    <div class="do-c"><div class="do-lbl">Permitido</div><p class="rule-txt">Minimo 18px de altura en digital para preservar la legibilidad del elemento grafico final.</p></div>
+    <div class="dont-c"><div class="dont-lbl">Prohibido</div><p class="rule-txt">Separar "AI" del resto. Es una sola palabra. Nunca "AI | tonomo" ni "AI Tonomo".</p></div>
+    <div class="do-c"><div class="do-lbl">Permitido</div><p class="rule-txt">Usar el archivo vectorial original para todos los usos. Jamas reescribir el logo en texto.</p></div>
+    <div class="dont-c"><div class="dont-lbl">Prohibido</div><p class="rule-txt">Cambiar la tipografia del logo, rotar la flecha, aplicar sombras o efectos 3D de ningun tipo.</p></div>
+  </div>
+</div>
+
+<!-- ═══ 08 — APLICACION ═══ -->
+<div class="s" id="s8">
+  <div class="s-head"><span class="s-num">08</span><h2 class="s-title">Guia de aplicacion</h2><div class="s-line"></div></div>
+
+  <!-- Mobile mockup -->
+  <div class="lbl mb12">App movil — mobile-first</div>
+  <div style="background:var(--off-white);border:1px solid var(--border);border-radius:var(--rl);padding:28px;display:flex;justify-content:center;gap:28px;flex-wrap:wrap;margin-bottom:24px">
+    <!-- Phone 1: Home -->
+    <div>
+      <div style="font-size:10px;color:var(--charcoal-lt);text-align:center;margin-bottom:10px;text-transform:uppercase;letter-spacing:.1em">Dashboard</div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-pill"></div></div>
+        <div class="phone-screen">
+          <div class="phone-top">
+            <div>
+              <!-- Logo en navbar: si no carga usa texto -->
+              <img src="logo-aitonomo.png" class="p-logo-img" alt="AItonomo" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+              <div class="p-logo-txt" style="display:none"><span class="ai">AI</span><span class="rest">tonomo</span></div>
+            </div>
+            <div style="width:22px;height:22px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-family:var(--fm);font-size:8px;font-weight:700;color:white">JM</div>
+          </div>
+          <div class="phone-body">
+            <div class="p-greet">Buenos dias, Juan</div>
+            <div class="p-mic">
+              <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="7" y="2" width="8" height="13" rx="4" fill="white"/><path d="M3 11C3 15.42 6.58 19 11 19C15.42 19 19 15.42 19 11" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="11" y1="19" x2="11" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+            </div>
+            <div style="text-align:center;font-size:9px;color:var(--charcoal-lt);margin-bottom:9px">Pulsa y habla</div>
+            <div class="p-kpis">
+              <div class="p-kpi"><div class="p-kpi-lbl">Este mes</div><div class="p-kpi-val">6.240€</div><div class="p-kpi-d">↑ 18%</div></div>
+              <div class="p-kpi"><div class="p-kpi-lbl">IVA Q2</div><div class="p-kpi-val">1.840€</div><div class="p-kpi-r">12 dias</div></div>
+            </div>
+            <div class="p-actions">
+              <div class="p-action"><div class="p-action-i">🧾</div><div class="p-action-l">Factura</div></div>
+              <div class="p-action"><div class="p-action-i">📷</div><div class="p-action-l">Ticket</div></div>
+              <div class="p-action"><div class="p-action-i">👤</div><div class="p-action-l">Cliente</div></div>
+              <div class="p-action"><div class="p-action-i">📅</div><div class="p-action-l">Agenda</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Phone 2: Voice -->
+    <div>
+      <div style="font-size:10px;color:var(--charcoal-lt);text-align:center;margin-bottom:10px;text-transform:uppercase;letter-spacing:.1em">Comando de voz</div>
+      <div class="phone">
+        <div class="phone-notch"><div class="phone-pill"></div></div>
+        <div class="phone-screen" style="background:var(--navy)">
+          <div style="padding:14px 13px 0">
+            <div style="font-family:var(--fm);font-size:10px;font-weight:700;letter-spacing:.05em;color:rgba(255,255,255,0.35);text-align:center;margin-bottom:16px">Escuchando...</div>
+            <div style="width:64px;height:64px;border-radius:50%;background:var(--green);margin:0 auto 14px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 10px rgba(125,176,75,0.12)">
+              <svg width="26" height="26" viewBox="0 0 26 26" fill="none"><rect x="8" y="2" width="10" height="15" rx="5" fill="white"/><path d="M3 13C3 18.52 7.48 23 13 23C18.52 23 23 18.52 23 13" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="13" y1="23" x2="13" y2="26" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </div>
+          </div>
+          <div style="padding:0 13px">
+            <div class="p-transcript"><div class="p-q">Tu:</div>"Termino en Garcia, cobra 320 euros mas IVA"</div>
+            <div class="p-ai-resp"><div class="p-ai-tag">AItonomo</div>Factura #0048 — Garcia Reformas, 320€ + IVA (387,20€). ¿La envio ahora?</div>
+            <div style="display:flex;gap:7px">
+              <div style="flex:1;background:var(--green);border-radius:7px;padding:7px;text-align:center;font-size:9.5px;font-weight:700;color:white">Si, enviar</div>
+              <div style="flex:1;background:rgba(255,255,255,0.08);border-radius:7px;padding:7px;text-align:center;font-size:9.5px;color:rgba(255,255,255,0.5)">Borrador</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email -->
+  <div class="lbl mb12">Email transaccional</div>
+  <div class="mb24">
+    <div class="email-wrap">
+      <div class="email-hdr">
+        <img src="logo-aitonomo-blanco.png" class="e-logo-img" alt="AItonomo" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <div class="e-logo-txt" style="display:none"><span class="ai">AI</span><span class="rest">tonomo</span></div>
+      </div>
+      <div class="email-body">
+        <div class="email-greeting">Juan, tu IVA del Q2 esta listo.</div>
+        <p class="email-txt">El Modelo 303 ya tiene todos tus datos calculados. Importe a ingresar: <strong>1.840€</strong>. Plazo limite: <strong>20 de julio</strong>.<br><br>Confirma y envialo a Hacienda desde la app en menos de 30 segundos.</p>
+        <a class="email-cta">Ver y enviar desde el movil →</a>
+      </div>
+      <div class="email-ftr">
+        <p class="email-ftr-txt">AItonomo · Gestiona. Sin parar de trabajar. · aitonomo.com</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Social -->
+  <div class="lbl mb12">LinkedIn / Redes sociales</div>
+  <div class="social mb24">
+    <div class="social-hdr">
+      <div class="s-avatar">AI</div>
+      <div><div class="s-name">AItonomo</div><div class="s-handle">El asistente de IA para autonomos · aitonomo.com</div></div>
+    </div>
+    <div class="social-body">
+      El fontanero termina su ultimo trabajo a las 19:00.<br><br>
+      Llega a casa a las 19:45.<br>
+      Su mujer le espera para cenar.<br><br>
+      Antes necesitaba 45 minutos mas para facturar, registrar gastos y apuntar el nuevo cliente.<br><br>
+      <strong>Con AItonomo lo hizo todo de camino a casa. Por voz. Desde el coche.</strong>
+    </div>
+    <div class="social-cta-box">
+      <div class="sc-title">Pruebalo gratis. Sin tarjeta.</div>
+      <div class="sc-link">aitonomo.com →</div>
+    </div>
+  </div>
+
+  <!-- Checklist -->
+  <div class="lbl mb12">Checklist de consistencia por canal</div>
+  <div class="g2">
+    <div class="card-sm">
+      <div class="title-sm mb8">App movil</div>
+      <p class="body-xs">Boton de voz siempre visible y central. Respuestas del asistente en DM Sans 14px sobre fondo blanco. Acciones primarias en verde #7DB04B. Estado de escucha activa sobre fondo navy.</p>
+    </div>
+    <div class="card-sm">
+      <div class="title-sm mb8">Notificaciones push</div>
+      <p class="body-xs">Maximo 8 palabras. Siempre con dato concreto: "IVA del Q2 listo — 1.840€", no "Tienes pendiente tu declaracion trimestral de IVA".</p>
+    </div>
+    <div class="card-sm">
+      <div class="title-sm mb8">App Store / Google Play</div>
+      <p class="body-xs">Titulo: "AItonomo – Gestion por voz". Primera linea: "Factura, registra gastos y gestiona clientes solo hablando. Mientras trabajas." Sin mencionar Gemini ni tecnologia subyacente.</p>
+    </div>
+    <div class="card-sm">
+      <div class="title-sm mb8">Anuncios de performance</div>
+      <p class="body-xs">Hook siempre con la tension del problema: "¿Sigues facturando cuando llegas a casa?" → solucion → CTA directo. Datos concretos de tiempo ahorrado siempre que sea posible.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="brand-footer">
+  <div>
+    <img src="logo-aitonomo-blanco.png" class="bf-logo-img" alt="AItonomo" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+    <div class="bf-logo-txt" style="display:none"><span class="ai">AI</span><span class="rest">tonomo</span></div>
+    <div class="bf-meta">Brand Guide v3.0 · 2025 · Confidencial</div>
+  </div>
+  <div style="text-align:right">
+    <div style="font-family:var(--fm);font-size:14px;font-weight:700;color:var(--green)">Gestiona. Sin parar de trabajar.</div>
+    <div style="font-size:11px;color:rgba(255,255,255,0.22);margin-top:4px">Gemini 2.5 Flash · Google Cloud · Espana</div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>

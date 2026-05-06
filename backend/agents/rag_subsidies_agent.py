@@ -103,19 +103,19 @@ class RagSubsidiesAgent:
             {subsidy_text}
 
             [TAREA]
-            Analiza el texto anterior y genera una respuesta estructurada y amigable para un autónomo sin conocimientos técnicos.
-
-            [ESQUEMA_JSON — Responde ÚNICAMENTE con este JSON, sin texto adicional]
+            Analiza el texto anterior y genera un resumen ejecutivo MUY CONCISO para un autónomo.
+            
+            [ESQUEMA_JSON — Responde ÚNICAMENTE con este JSON]
             {{
-                "explicacion": "Explicación clara de: qué es la ayuda, para qué sirve, quién puede pedirla y cuál es el plazo si aparece. Máximo 3 párrafos. El último párrafo SIEMPRE debe ser: 'AItonomo ofrece orientación automatizada basada en datos oficiales, no asesoramiento jurídico vinculante. Verifica los requisitos con la convocatoria oficial antes de presentar tu solicitud.'",
-                "link_boe": "URL exacta del BOE, BDNS o diario oficial si aparece en el texto. Si no hay URL, construir: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatorias. Nunca devolver null."
+                "explicacion": "Resumen directo (máximo 150 palabras). Estructura recomendada: \n- Cuantía: [Importe si aparece] \n- Beneficiarios: [Quién puede pedirla] \n- Propósito: [Breve descripción]. \n\nAVISO: AItonomo ofrece orientación automatizada, verifica siempre la convocatoria oficial.",
+                "link_boe": "URL exacta del BOE/BDNS. Si no hay, usar: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatorias"
             }}
 
             [REGLAS]
-            - Usa lenguaje claro, directo, sin tecnicismos. Tono profesional pero cercano.
-            - No inventar datos (fechas, importes, porcentajes) que no aparezcan en el texto.
-            - No omitir el aviso legal en el último párrafo de explicacion.
-            - No generar enlaces que no sean verificables desde el texto fuente.
+            - Ve al grano. Sin introducciones.
+            - Usa viñetas si ayuda a la claridad.
+            - No inventes datos.
+            - No incluyas el texto original de la convocatoria en la explicación.
             """
             
             logger.info(f"Generando explicación para texto de longitud: {len(subsidy_text)}")

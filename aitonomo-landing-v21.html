@@ -1509,10 +1509,10 @@ body {
           <li><a href="#faq">Preguntas</a></li>
         </ul>
         <div class="nav-actions">
-          <button class="btn-ghost" onclick="window.location.href='/app.html#login'">
+          <button class="btn-ghost" onclick="appLogic && appLogic.showAuth('login-form')">
             Acceder
           </button>
-          <button class="btn-primary" onclick="window.location.href='/app.html#register'">
+          <button class="btn-primary" onclick="appLogic && appLogic.showAuth('register-form')">
             Empieza gratis
           </button>
         </div>
@@ -1527,7 +1527,7 @@ body {
       <a href="#pricing" onclick="closeMobileNav()">Precios</a>
       <a href="#faq" onclick="closeMobileNav()">Preguntas frecuentes</a>
       <button class="btn-cta" style="margin-top:12px;width:100%"
-        onclick="window.location.href='/app.html#register'">Empieza gratis</button>
+        onclick="appLogic && appLogic.showAuth('register-form')">Empieza gratis</button>
     </div>
   </nav>
 </header>
@@ -1556,7 +1556,7 @@ body {
         </p>
         <div class="hero-actions">
           <button class="btn-cta btn-cta-lg"
-            onclick="window.location.href='/app.html#register'">
+            onclick="appLogic && appLogic.showAuth('register-form')">
             Pruébalo ahora
           </button>
           <button class="btn-outline-white"
@@ -2082,11 +2082,11 @@ body {
     </div>
     <div class="final-cta-actions reveal">
       <button class="btn-cta btn-cta-lg"
-        onclick="window.location.href='/app.html#register'">
+        onclick="appLogic && appLogic.showAuth('register-form')">
         Pruébalo ahora
       </button>
       <button class="btn-outline-white"
-        onclick="window.location.href='/app.html#login'">
+        onclick="appLogic && appLogic.showAuth('login-form')">
         Ya tengo cuenta
       </button>
     </div>
@@ -2128,7 +2128,7 @@ body {
           <li><i class="fa-solid fa-check"></i> Calendario básico</li>
         </ul>
         <button class="btn-pricing-main btn-pricing-outline"
-          onclick="window.location.href='/app.html#register'">
+          onclick="appLogic && appLogic.showAuth('register-form')">
           Pruébalo ahora
         </button>
       </div>
@@ -2151,7 +2151,7 @@ body {
           <li><i class="fa-solid fa-check"></i> Presupuestos y facturas personalizables</li>
         </ul>
         <button class="btn-pricing-main btn-pricing-green"
-          onclick="window.location.href='/app.html#register'">
+          onclick="appLogic && appLogic.showAuth('register-form')">
           Pruébalo ahora
         </button>
       </div>

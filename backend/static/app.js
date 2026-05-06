@@ -45,13 +45,6 @@ const Utils = {
         if (s === 'moroso') cls = 'badge-overdue';
         if (s === 'active') cls = 'badge-active';
         return `<span class="badge ${cls}">${status}</span>`;
-    },
-    getTodayFormatted: () => {
-        const d = new Date();
-        const day = String(d.getDate()).padStart(2, '0');
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const year = d.getFullYear();
-        return `${day}-${month}-${year}`;
     }
 };
 
@@ -1010,11 +1003,11 @@ const appLogic = {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     user_id: AppState.userId,
-                    fecha: extData.fecha || Utils.getTodayFormatted(),
+                    fecha: extData.fecha || new Date().toISOString().split('T')[0],
                     proveedor: extData.proveedor || 'Desconocido',
                     concepto: extData.concepto || 'Gasto general',
                     importe_total: extData.importe_total || 0,
-                    url_ticket: '',
+                    url_ticket: '', 
                     status: 'draft', // Todo lo que viene de IA va a revisión manual
                     is_deducible: extData.is_deducible !== false,
                     clarification_reason: reason
@@ -1241,9 +1234,9 @@ const appLogic = {
                     </div>` : ''}
                 </td>
                 <td style="text-align: center;">
-                    ${exp.is_deducible ?
-                    `<i class="fa-solid fa-circle-check text-green" title="${exp.clarification_reason || 'Gasto validado'}"></i>` :
-                    `<i class="fa-solid fa-circle-xmark text-red" title="${exp.clarification_reason || 'Gasto no deducible'}"></i>`}
+                    ${exp.is_deducible ? 
+                        `<i class="fa-solid fa-circle-check text-green" title="${exp.clarification_reason || 'Gasto validado'}"></i>` : 
+                        `<i class="fa-solid fa-circle-xmark text-red" title="${exp.clarification_reason || 'Gasto no deducible'}"></i>`}
                 </td>
                 <td class="text-accent font-bold">${Utils.formatCurrency(exp.importe_total)}</td>
                 <td>
@@ -1349,7 +1342,7 @@ const appLogic = {
             });
 
             document.getElementById('ext-invoice-num').value = data.invoice_number || 'BORRADOR / Auto Gen';
-            document.getElementById('ext-date').value = data.date || Utils.getTodayFormatted();
+            document.getElementById('ext-date').value = data.date || new Date().toISOString().split('T')[0];
 
             // Render table lines
             appLogic.renderExtractedItems();
@@ -1380,7 +1373,7 @@ const appLogic = {
         const payload = {
             user_id: AppState.userId,
             client_id: data.client_id,
-            fecha: data.date || Utils.getTodayFormatted(),
+            fecha: data.date || new Date().toISOString().split('T')[0],
             due_date: document.getElementById('ext-due-date').value || "",
             items: data.items || []
         };
@@ -1686,7 +1679,7 @@ const appLogic = {
             });
 
             document.getElementById('ext-quote-num').value = 'BORRADOR / Auto Gen';
-            document.getElementById('ext-date-quote').value = data.date || Utils.getTodayFormatted();
+            document.getElementById('ext-date-quote').value = data.date || new Date().toISOString().split('T')[0];
 
             appLogic.renderExtractedQuoteItems();
 
@@ -1713,7 +1706,7 @@ const appLogic = {
         const payload = {
             user_id: AppState.userId,
             client_id: data.client_id,
-            fecha: data.date || Utils.getTodayFormatted(),
+            fecha: data.date || new Date().toISOString().split('T')[0],
             fecha_validez: document.getElementById('ext-due-date-quote').value || "",
             items: data.items || []
         };
@@ -1892,7 +1885,7 @@ const appLogic = {
             client_id: quote.client_id,
             client_name: quote.client_name,
             client_nif: quote.client_nif,
-            date: Utils.getTodayFormatted(),
+            date: new Date().toISOString().split('T')[0],
             items: quote.items || [],
             total_amount: quote.amount
         };
@@ -1919,7 +1912,7 @@ const appLogic = {
         card.className = 'section-block box-shadow hover-animate';
         card.style.borderLeft = `4px solid ${borderColor}`;
         card.style.cursor = 'default';
-
+        
         card.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <h4 style="color: var(--clr-accent); font-weight: 700; margin-bottom: 10px;">${sub.titulo}</h4>
@@ -1932,7 +1925,7 @@ const appLogic = {
                 <div style="font-size: 0.75rem; color: var(--clr-text-muted);">
                     <i class="fa-solid fa-calendar-day"></i> Cierra: <strong>${sub.fecha_cierre || 'N/A'}</strong>
                 </div>
-                <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id || sub.id_bdns}')">
+                <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id_bdns}')">
                     Ver Detalles <i class="fa-solid fa-arrow-right"></i>
                 </button>
             </div>
@@ -1997,78 +1990,8 @@ const appLogic = {
         }
     },
 
-    // Caché local para no regenerar explicaciones IA ya obtenidas
-    _subsidyDetailCache: {},
-
-    viewSubsidiesDetail: async (id_bdns) => {
-        console.log("DEBUG: Intentando abrir detalles para ID:", id_bdns);
-        const modal = document.getElementById('subsidy-detail-modal');
-        const loading = document.getElementById('sub-detail-loading');
-        const content = document.getElementById('sub-detail-content');
-
-        if (!modal) {
-            console.error("ERROR: No se encontró el elemento 'subsidy-detail-modal' en el DOM.");
-            return;
-        }
-
-        if (!id_bdns || id_bdns === 'undefined' || id_bdns === 'N/A') {
-            console.warn("WARNING: ID de subvención inválido:", id_bdns);
-            Utils.showToast("Esta recomendación no tiene un ID válido.", "warning");
-            return;
-        }
-
-        // Mostrar modal
-        modal.classList.remove('hidden');
-        modal.classList.add('show');
-
-        // Si ya tenemos los datos cacheados, los mostramos directamente
-        if (appLogic._subsidyDetailCache[id_bdns]) {
-            const res = appLogic._subsidyDetailCache[id_bdns];
-            appLogic._populateSubsidyModal(res);
-            loading.classList.add('hidden');
-            content.classList.remove('hidden');
-            return;
-        }
-
-        // Si no, mostramos loading y llamamos a la API
-        loading.classList.remove('hidden');
-        content.classList.add('hidden');
-
-        try {
-            const res = await API.request(`/api/subsidies/${id_bdns}/details`);
-
-            if (res.success) {
-                // Guardar en caché para futuras aperturas
-                appLogic._subsidyDetailCache[id_bdns] = res;
-                appLogic._populateSubsidyModal(res);
-
-                loading.classList.add('hidden');
-                content.classList.remove('hidden');
-            } else {
-                throw new Error("No se pudo recuperar la información");
-            }
-        } catch (e) {
-            console.error("Error loading subsidy details:", e);
-            Utils.showToast(`Error: ${e.message || "No se pudieron cargar los detalles"}`, "error");
-            modal.classList.add('hidden');
-            modal.classList.remove('show');
-        }
-    },
-
-    _populateSubsidyModal: (res) => {
-        document.getElementById('sub-detail-title').textContent = res.titulo;
-        document.getElementById('sub-detail-explanation').innerHTML = res.explicacion_ia.replace(/\n/g, '<br>');
-        document.getElementById('sub-detail-organismo').textContent = res.organismo || 'No especificado';
-        document.getElementById('sub-detail-fecha').textContent = res.fecha_cierre || 'No disponible';
-        // document.getElementById('sub-detail-fulltext').textContent = res.texto_completo; // Hidden as per user request
-
-        const boeBtn = document.getElementById('sub-detail-boe-link');
-        if (res.link_boe && res.link_boe.startsWith('http')) {
-            boeBtn.href = res.link_boe;
-            boeBtn.classList.remove('hidden');
-        } else {
-            boeBtn.classList.add('hidden');
-        }
+    viewSubsidiesDetail: (id) => {
+        Utils.showToast(`Detalles de la subvención ${id} próximamente.`, 'info');
     }
 };
 
@@ -2210,7 +2133,7 @@ function _renderCalendarGrid(year, month, events) {
 
     // Current month days
     for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${String(d).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`;
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const dayEvents = events.filter(e => e.fecha === dateStr);
 
         const cell = document.createElement('div');
@@ -2264,7 +2187,7 @@ function _openDayPanel(dateStr, events) {
     if (!panel) return;
 
     // Format date nicely
-    const [d, m, y] = dateStr.split('-');
+    const [y, m, d] = dateStr.split('-');
     dateTitle.textContent = `${parseInt(d)} de ${MONTH_NAMES_ES[parseInt(m)]} de ${y}`;
 
     eventList.innerHTML = '';
@@ -2311,8 +2234,8 @@ window.calToggleInvoices = function (checked) {
 };
 
 window.openAddEventModal = function () {
-    const dateStr = AppState.calSelectedDate || Utils.getTodayFormatted();
-    const [d, m, y] = dateStr.split('-');
+    const dateStr = AppState.calSelectedDate || new Date().toISOString().split('T')[0];
+    const [y, m, d] = dateStr.split('-');
     document.getElementById('event-date-input').value = dateStr;
     document.getElementById('event-date-display').value = `${parseInt(d)} de ${MONTH_NAMES_ES[parseInt(m)]} de ${y}`;
     document.getElementById('event-title-input').value = '';
