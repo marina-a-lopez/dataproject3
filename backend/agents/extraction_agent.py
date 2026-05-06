@@ -33,7 +33,7 @@ class ExtractionAgent:
             Extrae de este ticket/factura los siguientes datos en JSON estricto:
             {
                 "proveedor": "Nombre",
-                "fecha": "YYYY-MM-DD",
+                "fecha": "DD-MM-YYYY",
                 "concepto": "Breve resumen de la compra (ej. monitor, comida, gasolina)",
                 "importe_total": 0.00
             }

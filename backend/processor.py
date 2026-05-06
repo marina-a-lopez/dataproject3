@@ -39,7 +39,7 @@ def extract_invoice_data(content, mime_type="image/jpeg"):
         mime_type = "audio/mp4" # Fuerza el procesamiento de audio para notas de voz
         
     if mime_type.startswith("audio/") or mime_type == "audio/mp4":
-        current_date = datetime.now().strftime("%Y-%m-%d")
+        current_date = datetime.now().strftime("%d-%m-%Y")
         prompt = f"""
         You are an expert financial assistant processing a voice note for an invoice.
         TODAY'S DATE: {current_date}
@@ -53,7 +53,7 @@ def extract_invoice_data(content, mime_type="image/jpeg"):
         Output strict JSON:
         {{
             "client_name": "Name of Client",
-            "date": "YYYY-MM-DD",
+            "date": "DD-MM-YYYY",
             "invoice_number": "DRAFT-00X",
             "items": [
                 {{
@@ -73,7 +73,7 @@ def extract_invoice_data(content, mime_type="image/jpeg"):
         You are an expert financial assistant. Analyze this document (invoice or delivery note).
         Extract the following information in strict JSON format:
         - invoice_number (string, if available)
-        - date (string, YYYY-MM-DD)
+        - date (string, DD-MM-YYYY)
         - client_name (string, vendor or bill to depending on context)
         - client_address (string)
         - items (list of objects with 'description', 'quantity', 'unit_price', 'total')
@@ -120,7 +120,7 @@ def extract_expense_data(file_bytes, mime_type):
         Extract the following data in strict JSON format:
         {
           "proveedor": "Name of the business/vendor",
-          "fecha": "Date of the expense in YYYY-MM-DD",
+          "fecha": "Date of the expense in DD-MM-YYYY",
           "concepto": "A short 2-3 word summary of what was bought",
           "importe_total": 0.00 (the final total amount as a float)
         }

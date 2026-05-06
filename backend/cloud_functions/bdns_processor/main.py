@@ -94,7 +94,7 @@ def procesar_bdns(request):
         Actúa como un experto en subvenciones. Extrae la información clave del siguiente resumen técnico en formato JSON:
         - "titulo": El título de la subvención.
         - "cnae_target": Los códigos CNAE (4 dígitos) que podrían aplicar a esta ayuda, separados por comas. Si no se mencionan explícitamente, infiere los más probables basándote en el título y el órgano (ej. si es para digitalización, incluye 6201, 6202).
-        - "fecha_cierre": Busca menciones a plazos o fechas límite y devuelve el formato YYYY-MM-DD. Si no hay una fecha clara, devuelve null.
+        - "fecha_cierre": Busca menciones a plazos o fechas límite y devuelve el formato DD-MM-YYYY. Si no hay una fecha clara, devuelve null.
         
         Texto a analizar: {texto}
         """
