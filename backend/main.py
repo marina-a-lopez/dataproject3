@@ -1,5 +1,10 @@
 # Importaciones de FastAPI
+import logging
 from fastapi import FastAPI, File, UploadFile, Form, Depends, HTTPException, status
+
+# Configuración de Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("AItonomoAPI")
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -616,11 +621,11 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
     total_impuestos = total_base * 0.21
     importe_total = total_base + total_impuestos
     
-    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%Y-%m-%d")
+    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%d-%m-%Y")
     
     fecha_ven_obj = None
     if req.due_date:
-        fecha_ven_obj = datetime.fromisoformat(req.due_date) if 'T' in req.due_date else datetime.strptime(req.due_date, "%Y-%m-%d")
+        fecha_ven_obj = datetime.fromisoformat(req.due_date) if 'T' in req.due_date else datetime.strptime(req.due_date, "%d-%m-%Y")
 
     # Obtiene el hash del registro anterior
     prev_hash = last_invoice.hash_registro if last_invoice else None
@@ -664,8 +669,8 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
     # 1. Preparamos los datos para el PDF
     doc_data = {
         "invoice_number": factura.codigo_factura.split('-')[-1],
-        "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
-        "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
+        "date": factura.fecha_expedicion.strftime("%d-%m-%Y"),
+        "due_date": factura.fecha_vencimiento.strftime("%d-%m-%Y") if factura.fecha_vencimiento else None,
         "client_name": client.nombre_empresa if client else "Cliente Registrado",
         "client_address": f"{client.direccion_fiscal or ''}\n{client.codigo_postal or ''} {client.poblacion or ''}".strip() if client else "",
         "client_nif": client.nif_cif if client else "",
@@ -805,10 +810,10 @@ async def save_quote(req: QuoteCreate, db: Session = Depends(get_db)):
     total_impuestos = total_base * 0.21
     importe_total = total_base + total_impuestos
     
-    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%Y-%m-%d")
+    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%d-%m-%Y")
     fecha_ven_obj = None
     if req.fecha_validez:
-        fecha_ven_obj = datetime.fromisoformat(req.fecha_validez) if 'T' in req.fecha_validez else datetime.strptime(req.fecha_validez, "%Y-%m-%d")
+        fecha_ven_obj = datetime.fromisoformat(req.fecha_validez) if 'T' in req.fecha_validez else datetime.strptime(req.fecha_validez, "%d-%m-%Y")
 
     presupuesto = Presupuesto(
         usuario_id=req.user_id,
@@ -842,8 +847,8 @@ async def save_quote(req: QuoteCreate, db: Session = Depends(get_db)):
         
     doc_data = {
         "invoice_number": presupuesto.codigo_presupuesto.split('-')[-1],
-        "date": presupuesto.fecha_expedicion.strftime("%Y-%m-%d"),
-        "due_date": presupuesto.fecha_validez.strftime("%Y-%m-%d") if presupuesto.fecha_validez else None,
+        "date": presupuesto.fecha_expedicion.strftime("%d-%m-%Y"),
+        "due_date": presupuesto.fecha_validez.strftime("%d-%m-%Y") if presupuesto.fecha_validez else None,
         "client_name": client.nombre_empresa if client else "Cliente Registrado",
         "client_address": f"{client.direccion_fiscal or ''}\n{client.codigo_postal or ''} {client.poblacion or ''}".strip() if client else "",
         "client_nif": client.nif_cif if client else "",
@@ -925,8 +930,8 @@ async def fetch_and_generate_pdf_quote(quote_id: str, db: Session = Depends(get_
             
         doc_data = {
             "invoice_number": presupuesto.codigo_presupuesto.split('-')[-1],
-            "date": presupuesto.fecha_expedicion.strftime("%Y-%m-%d"),
-            "due_date": presupuesto.fecha_validez.strftime("%Y-%m-%d") if presupuesto.fecha_validez else None,
+            "date": presupuesto.fecha_expedicion.strftime("%d-%m-%Y"),
+            "due_date": presupuesto.fecha_validez.strftime("%d-%m-%Y") if presupuesto.fecha_validez else None,
             "client_name": cliente.nombre_empresa,
             "client_address": f"{cliente.direccion_fiscal or ''}\n{cliente.codigo_postal or ''} {cliente.poblacion or ''}".strip(),
             "client_nif": cliente.nif_cif,
@@ -960,7 +965,7 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
     gastos = db.query(Gasto).filter(Gasto.usuario_id == user_id, Gasto.status == 'confirmed').order_by(Gasto.fecha.desc()).all()
     return [{
         "id": str(g.id),
-        "fecha": g.fecha.strftime("%Y-%m-%d"),
+        "fecha": g.fecha.strftime("%d-%m-%Y"),
         "proveedor": g.proveedor or "Varios",
         "concepto": g.concepto or "Gasto genérico",
         "importe_total": float(g.importe_total),
@@ -971,7 +976,7 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
 @app.get("/api/expense_drafts/{user_id}")
 async def get_expense_drafts(user_id: str, db: Session = Depends(get_db)):
     drafts = db.query(Gasto).filter(Gasto.usuario_id == user_id, Gasto.status == 'draft').order_by(Gasto.created_at.desc()).all()
-    return [{"id": str(g.id), "fecha": g.fecha.strftime("%Y-%m-%d"), "proveedor": g.proveedor or "", "concepto": g.concepto or "", "importe_total": float(g.importe_total), "url_ticket": g.url_ticket or ""} for g in drafts]
+    return [{"id": str(g.id), "fecha": g.fecha.strftime("%d-%m-%Y"), "proveedor": g.proveedor or "", "concepto": g.concepto or "", "importe_total": float(g.importe_total), "url_ticket": g.url_ticket or ""} for g in drafts]
 
 @app.patch("/api/expenses/{expense_id}/confirm")
 async def confirm_expense_patch(expense_id: str, req: ExpenseCreate, db: Session = Depends(get_db)):
@@ -979,7 +984,7 @@ async def confirm_expense_patch(expense_id: str, req: ExpenseCreate, db: Session
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
     try:
-        gasto.fecha = datetime.strptime(req.fecha, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        gasto.fecha = datetime.strptime(req.fecha, '%d-%m-%Y').replace(tzinfo=timezone.utc)
     except:
         pass
     gasto.proveedor = req.proveedor
@@ -997,7 +1002,7 @@ async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
         try:
-            fecha_obj = datetime.strptime(req.fecha, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            fecha_obj = datetime.strptime(req.fecha, '%d-%m-%Y').replace(tzinfo=timezone.utc)
         except:
             fecha_obj = datetime.now(timezone.utc)
             
@@ -1061,7 +1066,7 @@ async def process_document(
                 "client_nif": client_data.get('nif_cif', ''),
                 "client_address": client_data.get('direccion_fiscal', ''),
                 "items": line_data.get('lineas', []),
-                "date": datetime.now().strftime("%Y-%m-%d")
+                "date": datetime.now().strftime("%d-%m-%Y")
             }
             
         # 2. PDF/Imagen via Processor.py
@@ -1081,7 +1086,7 @@ async def process_document(
         return {
             "client_name": data.get("client_name", ""),
             "items": normalized_items,
-            "date": data.get("date", datetime.now().strftime("%Y-%m-%d")),
+            "date": data.get("date", datetime.now().strftime("%d-%m-%Y")),
             "total_amount": data.get("total_amount")
         }
     except Exception as e:
@@ -1140,7 +1145,7 @@ async def expense_status(expense_id: str, db: Session = Depends(get_db)):
         "status": gasto.status,
         "data": {
             "proveedor": gasto.proveedor or "",
-            "fecha": gasto.fecha.strftime("%Y-%m-%d") if gasto.proveedor else "",
+            "fecha": gasto.fecha.strftime("%d-%m-%Y") if gasto.proveedor else "",
             "concepto": gasto.concepto or "",
             "importe_total": float(gasto.importe_total),
             "url_ticket": gasto.url_ticket or ""
@@ -1248,8 +1253,8 @@ async def fetch_and_generate_pdf(invoice_id: str, db: Session = Depends(get_db))
             
         doc_data = {
             "invoice_number": factura.codigo_factura.split('-')[-1], # e.g. "001"
-            "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
-            "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
+            "date": factura.fecha_expedicion.strftime("%d-%m-%Y"),
+            "due_date": factura.fecha_vencimiento.strftime("%d-%m-%Y") if factura.fecha_vencimiento else None,
             "client_name": cliente.nombre_empresa,
             "client_address": f"{cliente.direccion_fiscal or ''}\n{cliente.codigo_postal or ''} {cliente.poblacion or ''}".strip(),
             "client_nif": cliente.nif_cif,
@@ -1303,8 +1308,8 @@ async def send_invoice_email(user_id: str, invoice_id: str, db: Session = Depend
             
         doc_data = {
             "invoice_number": factura.codigo_factura.split('-')[-1],
-            "date": factura.fecha_expedicion.strftime("%Y-%m-%d"),
-            "due_date": factura.fecha_vencimiento.strftime("%Y-%m-%d") if factura.fecha_vencimiento else None,
+            "date": factura.fecha_expedicion.strftime("%d-%m-%Y"),
+            "due_date": factura.fecha_vencimiento.strftime("%d-%m-%Y") if factura.fecha_vencimiento else None,
             "client_name": cliente.nombre_empresa,
             "client_address": f"{cliente.direccion_fiscal or ''}\n{cliente.codigo_postal or ''} {cliente.poblacion or ''}".strip(),
             "client_nif": cliente.nif_cif,
@@ -1466,17 +1471,17 @@ async def get_subsidies(user_id: str, db: Session = Depends(get_db)):
 class ScrapedTextRequest(BaseModel):
     texto_sucio: str
 
-@app.post("/api/extract-subsidies")
-async def extract_subsidies(req: ScrapedTextRequest):
-    """
-    Recibe texto en bruto extraído mediante web scraping y usa Gemini
-    para devolver las subvenciones en un formato estructurado de texto plano.
-    """
-    if not req.texto_sucio or not req.texto_sucio.strip():
-        raise HTTPException(status_code=400, detail="El texto a procesar no puede estar vacío.")
-        
-    resultado = subsidies_extractor_instance.process_scraped_text(req.texto_sucio)
-    return {"resultado": resultado}
+# @app.post("/api/extract-subsidies")
+# async def extract_subsidies(req: ScrapedTextRequest):
+#     """
+#     Recibe texto en bruto extraído mediante web scraping y usa Gemini
+#     para devolver las subvenciones en un formato estructurado de texto plano.
+#     """
+#     if not req.texto_sucio or not req.texto_sucio.strip():
+#         raise HTTPException(status_code=400, detail="El texto a procesar no puede estar vacío.")
+#         
+#     resultado = subsidies_extractor_instance.process_scraped_text(req.texto_sucio)
+#     return {"resultado": resultado}
 
 
 
@@ -1621,10 +1626,43 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
             "titulo": s.titulo,
             "cnae_target": s.cnae_target,
             "fecha_cierre": s.fecha_cierre.isoformat() if s.fecha_cierre else None,
-            "texto_completo": s.texto_completo[:300] + "..."
+            "texto_completo": s.texto_completo[:300] + "..." if s.texto_completo else ""
         })
     
     return {"success": True, "subsidies": results}
+
+
+@app.get("/api/subsidies/{sub_id}/details")
+async def get_subsidy_details(sub_id: str, db: Session = Depends(get_db)):
+    """Obtiene el detalle completo de una subvención y una explicación generada por IA."""
+    logger.info(f"Petición de detalles para ID: {sub_id}")
+    
+    # Buscamos por el ID UUID de la base de datos que es más fiable
+    sub = db.query(Subvencion).filter(Subvencion.id == sub_id).first()
+    if not sub:
+        # Fallback por id_bdns si el ID no es UUID
+        sub = db.query(Subvencion).filter(Subvencion.id_bdns == sub_id).first()
+        
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subvención no encontrada")
+    
+    try:
+        # Generar explicación via Agente usando la columna texto_completo
+        ai_info = rag_subsidies_agent_instance.explain_subsidy(sub.texto_completo)
+        
+        return {
+            "success": True,
+            "id_bdns": sub.id_bdns,
+            "titulo": sub.titulo,
+            "organismo": "Ver descripción en detalles", # No hay columna organismo, se extrae del texto
+            "fecha_cierre": sub.fecha_cierre.isoformat() if sub.fecha_cierre else "N/A",
+            "texto_completo": sub.texto_completo,
+            "explicacion_ia": ai_info.get("explicacion"),
+            "link_boe": ai_info.get("link_boe")
+        }
+    except Exception as e:
+        logger.error(f"Error obteniendo detalles de subvención: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando detalles de la subvención")
 
 
 @app.post("/api/subsidies/ingest-callback")
@@ -1697,7 +1735,7 @@ def _get_fiscal_dates(year: int) -> list[dict]:
 
 
 class EventoCreate(BaseModel):
-    fecha: str           # ISO format YYYY-MM-DD
+    fecha: str           # Spanish format DD-MM-YYYY
     titulo: str
     descripcion: Optional[str] = None
     color: str = "#4a90e2"
@@ -1743,7 +1781,7 @@ async def get_calendar(
     for ev in user_events:
         events.append({
             "id": str(ev.id),
-            "fecha": ev.fecha.strftime("%Y-%m-%d"),
+            "fecha": ev.fecha.strftime("%d-%m-%Y"),
             "titulo": ev.titulo,
             "descripcion": ev.descripcion,
             "tipo": ev.tipo,
@@ -1764,7 +1802,7 @@ async def get_calendar(
                 name = client.nombre_empresa if client else "Cliente"
                 events.append({
                     "id": f"invoice-{str(f.id)}",
-                    "fecha": f.fecha_vencimiento.strftime("%Y-%m-%d"),
+                    "fecha": f.fecha_vencimiento.strftime("%d-%m-%Y"),
                     "titulo": f"Vencimiento: {f.codigo_factura}",
                     "descripcion": f"Factura de {name} — {f.importe_total:.2f} €",
                     "tipo": "factura",

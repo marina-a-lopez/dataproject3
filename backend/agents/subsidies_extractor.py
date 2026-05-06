@@ -1,18 +1,14 @@
-import os
+"""import os
 import vertexai
 from vertexai.generative_models import GenerativeModel
 
 class SubsidiesExtractorAgent:
-    """
-    Agente encargado de procesar textos en bruto procedentes de web scraping
-    y estructurarlos en información de subvenciones.
-    """
     def __init__(self):
         # Usamos gemini-2.5-flash para procesar texto rápido y de manera estructurada
         self.model = GenerativeModel('gemini-2.5-flash')
 
     def process_scraped_text(self, texto_sucio: str) -> list:
-        prompt = f"""
+        prompt = f
         Actúa como un extractor de datos profesional. Analiza el siguiente texto de una web de subvenciones y genera una lista de objetos JSON.
 
         Campos obligatorios por cada subvención:
@@ -30,8 +26,8 @@ class SubsidiesExtractorAgent:
         Formato de salida: JSON puro (una lista de objetos).
 
         Texto a procesar: {texto_sucio}
-        """
         
+
         try:
             response = self.model.generate_content(prompt)
             texto_respuesta = response.text.strip()
@@ -58,3 +54,4 @@ class SubsidiesExtractorAgent:
 
 # Instancia singleton para ser usada en otros scripts o endpoints
 subsidies_extractor_instance = SubsidiesExtractorAgent()
+"""
