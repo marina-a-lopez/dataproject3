@@ -93,7 +93,7 @@ class RagSubsidiesAgent:
         self._initialize()
         
         try:
-            model = GenerativeModel("gemini-2.5-flash")
+            model = GenerativeModel("gemini-1.5-flash")
             prompt = f"""
             [SISTEMA]
             Rol: AItonomo, asistente especializado en subvenciones para autónomos y PYMES en España.
