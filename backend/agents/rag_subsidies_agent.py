@@ -93,23 +93,21 @@ class RagSubsidiesAgent:
         self._initialize()
         
         try:
-            # Intentamos usar gemini-1.5-flash que es el estándar más compatible
             model = GenerativeModel("gemini-2.5-flash") 
             prompt = f"""
-            Eres AItonomo, un consultor experto en subvenciones para autónomos y PYMES en España.
-            Analiza el siguiente texto técnico de una subvención y genera una respuesta amigable.
+            Analiza el texto de la subvención y genera un resumen ejecutivo directo para un autónomo.
             
             TEXTO DE LA SUBVENCIÓN:
             {subsidy_text}
             
-            TAREA:
-            1. EXPLICACIÓN: Explica qué es esta ayuda, para qué sirve y quién puede pedirla. Usa un lenguaje muy claro, "para dummies". (Máximo 3 párrafos).
-            2. LINK OFICIAL: Busca en el texto cualquier mención a un enlace del BOE, BDNS o diario oficial. Si lo encuentras, devuélvelo. Si no, indica "No encontrado" o un enlace genérico de búsqueda.
+            REGLAS:
+            1. EXPLICACIÓN: Ve directo al grano. Resume en máximo 4-5 puntos clave o 1 párrafo corto: qué es, cuánto dinero dan y quién puede pedirlo. Evita introducciones genéricas y rellenos.
+            2. LINK OFICIAL: Extrae el link directo al BOE/BDNS si existe. Si no, pon "https://www.google.com/search?q=boe+subvencion".
             
             FORMATO DE SALIDA (JSON PURO):
             {{
-                "explicacion": "texto de la explicación...",
-                "link_boe": "https://..."
+                "explicacion": "Resumen directo...",
+                "link_boe": "url"
             }}
             """
             
