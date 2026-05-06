@@ -1471,17 +1471,17 @@ async def get_subsidies(user_id: str, db: Session = Depends(get_db)):
 class ScrapedTextRequest(BaseModel):
     texto_sucio: str
 
-@app.post("/api/extract-subsidies")
-async def extract_subsidies(req: ScrapedTextRequest):
-    """
-    Recibe texto en bruto extraído mediante web scraping y usa Gemini
-    para devolver las subvenciones en un formato estructurado de texto plano.
-    """
-    if not req.texto_sucio or not req.texto_sucio.strip():
-        raise HTTPException(status_code=400, detail="El texto a procesar no puede estar vacío.")
-        
-    resultado = subsidies_extractor_instance.process_scraped_text(req.texto_sucio)
-    return {"resultado": resultado}
+# @app.post("/api/extract-subsidies")
+# async def extract_subsidies(req: ScrapedTextRequest):
+#     """
+#     Recibe texto en bruto extraído mediante web scraping y usa Gemini
+#     para devolver las subvenciones en un formato estructurado de texto plano.
+#     """
+#     if not req.texto_sucio or not req.texto_sucio.strip():
+#         raise HTTPException(status_code=400, detail="El texto a procesar no puede estar vacío.")
+#         
+#     resultado = subsidies_extractor_instance.process_scraped_text(req.texto_sucio)
+#     return {"resultado": resultado}
 
 
 
