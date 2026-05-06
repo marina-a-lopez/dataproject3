@@ -108,7 +108,7 @@ class RagSubsidiesAgent:
             [ESQUEMA_JSON — Responde ÚNICAMENTE con este JSON, sin texto adicional]
             {{
                 "explicacion": "Explicación clara de: qué es la ayuda, para qué sirve, quién puede pedirla y cuál es el plazo si aparece. Máximo 3 párrafos. El último párrafo SIEMPRE debe ser: 'AItonomo ofrece orientación automatizada basada en datos oficiales, no asesoramiento jurídico vinculante. Verifica los requisitos con la convocatoria oficial antes de presentar tu solicitud.'",
-                "link_oficial": "URL exacta del BOE, BDNS o diario oficial si aparece en el texto. Si no hay URL, construir: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatorias. Nunca devolver null."
+                "link_boe": "URL exacta del BOE, BDNS o diario oficial si aparece en el texto. Si no hay URL, construir: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatorias. Nunca devolver null."
             }}
 
             [REGLAS]
