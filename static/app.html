@@ -12,7 +12,7 @@
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/styles.css?v=8">
+    <link rel="stylesheet" href="/styles.css?v=10">
 </head>
 
 <body>
@@ -841,11 +841,15 @@
                     <main id="calendar-view" class="view hidden fade-in">
                         <div class="calendar-header">
                             <div class="calendar-nav">
-                                <button class="period-nav-btn" id="cal-prev-btn" onclick="calShiftMonth(-1)"><i
-                                        class="fa-solid fa-chevron-left"></i></button>
-                                <h2 class="calendar-month-title" id="cal-month-title">–</h2>
-                                <button class="period-nav-btn" id="cal-next-btn" onclick="calShiftMonth(1)"><i
-                                        class="fa-solid fa-chevron-right"></i></button>
+                                <div class="period-tabs integrated-date-nav">
+                                    <button class="period-nav-arrow" id="cal-prev-btn" onclick="calShiftMonth(-1)">
+                                        <i class="fa-solid fa-chevron-left"></i>
+                                    </button>
+                                    <h2 class="calendar-month-title" id="cal-month-title" style="margin: 0; min-width: 180px; color: var(--off-white) !important;">–</h2>
+                                    <button class="period-nav-arrow" id="cal-next-btn" onclick="calShiftMonth(1)">
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="calendar-controls">
                                 <label class="cal-toggle-label">
