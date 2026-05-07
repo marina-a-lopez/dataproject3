@@ -6,19 +6,38 @@ import vertexai
 import requests
 import os
 import xml.etree.ElementTree as ET
-from vertexai.generative_models import GenerativeModel, GenerationConfig
 
-# 1. Configuración del Proyecto y Cloud SQL
+from vertexai.generative_models import (
+    GenerativeModel,
+    GenerationConfig
+)
+
+# ==========================================================
+# CONFIGURACIÓN
+# ==========================================================
+
 PROJECT_ID = os.getenv("GCP_PROJECT_ID", "project3grupo4")
-REGION = os.getenv("GCP_REGION", "europe-southwest1") # Para la BD
+
+# Región de Cloud SQL
+REGION = os.getenv("GCP_REGION", "europe-southwest1")
 
 DB_USER = os.getenv("DB_USER", "admin")
 DB_PASS = os.getenv("DB_PASS", "Edem2526.")
 DB_NAME = os.getenv("DB_NAME", "aitonomo_db")
 DB_HOST = os.getenv("DB_HOST", "34.175.20.225")
 
-# INICIALIZACIÓN IA: Usamos el centro de datos que tiene el modelo activo
-vertexai.init(project=PROJECT_ID, location="europe-west1")
+# ==========================================================
+# INICIALIZACIÓN VERTEX AI
+# ==========================================================
+
+vertexai.init(
+    project=PROJECT_ID,
+    location="europe-west1"
+)
+
+# ==========================================================
+# CONEXIÓN BBDD
+# ==========================================================
 
 pool = sqlalchemy.create_engine(
     f"postgresql+pg8000://{DB_USER}:{DB_PASS}@{DB_HOST}:5432/{DB_NAME}",
@@ -27,156 +46,1294 @@ pool = sqlalchemy.create_engine(
     pool_timeout=30
 )
 
+# ==========================================================
+# OBTENER NUEVAS SUBVENCIONES
+# ==========================================================
+
 def obtener_nuevas_subvenciones(limite=50):
-    """Obtiene subvenciones del BOE y descarga el texto completo de cada una."""
-    url_boe = "https://www.boe.es/rss/canal.php?c=ayudas"
+    """
+    Obtiene subvenciones NUEVAS del BOE.
     
+    IMPORTANTE:
+    - Si una subvención ya existe en BD NO consume límite.
+    - Se siguen recorriendo items hasta alcanzar
+      'limite' subvenciones nuevas reales.
+    """
+
+    url_boe = "https://www.boe.es/rss/canal.php?c=ayudas"
+
     try:
-        print("--- LOG: Consultando fuente oficial del BOE ---")
+
+        print("--- LOG: Consultando RSS oficial BOE ---")
+
         response = requests.get(url_boe, timeout=15)
         response.raise_for_status()
-        
+
         root = ET.fromstring(response.content)
-        
+
+        items = root.findall(".//item")
+
+        print(f"--- LOG: Total items RSS encontrados: {len(items)} ---")
+
         subvenciones = []
-        items = root.findall('.//item')
-        
-        print(f"--- LOG: Total items encontrados en el RSS: {len(items)} ---")
 
-        for item in items[:limite]:
-            titulo = item.find('title').text if item.find('title') is not None else "Sin título"
-            link = item.find('link').text if item.find('link') is not None else ""
-            descripcion = item.find('description').text if item.find('description') is not None else ""
-            
-            # Extraemos el ID oficial (BOE-...)
-            id_bdns = link.split('id=')[-1] if 'id=' in link else titulo[:20].replace(" ", "_")
-            
-            # --- NUEVA LÓGICA: EXTRAER EL TEXTO COMPLETO DEL XML INDIVIDUAL ---
-            texto_completo_boe = ""
-            if id_bdns.startswith("BOE-"):
-                url_xml_detalle = f"https://www.boe.es/diario_boe/xml.php?id={id_bdns}"
-                try:
-                    res_detalle = requests.get(url_xml_detalle, timeout=10)
-                    if res_detalle.status_code == 200:
-                        root_detalle = ET.fromstring(res_detalle.content)
-                        # El BOE guarda el texto del documento dentro de la etiqueta <texto>
-                        nodo_texto = root_detalle.find('.//texto')
-                        if nodo_texto is not None:
-                            # Extraemos todo el texto puro, quitando etiquetas HTML internas
-                            texto_completo_boe = "".join(nodo_texto.itertext()).strip()
-                except Exception as e:
-                    print(f"Aviso: No se pudo obtener el texto extra de {id_bdns}: {e}")
-            # -------------------------------------------------------------------
+        # Abrimos UNA conexión para todas las comprobaciones
+        with pool.connect() as db_conn:
 
-            texto_para_analizar = f"""
-            TÍTULO: {titulo}
-            DESCRIPCIÓN Y ÓRGANO: {descripcion}
-            ENLACE OFICIAL: {link}
-            
-            --- TEXTO COMPLETO DEL BOE ---
-            {texto_completo_boe[:15000]} 
-            """
-            # NOTA: Limitamos el texto a 15.000 caracteres por si es una ley gigantesca, 
-            # para no saturar a la IA ni gastar demasiados tokens.
-            
-            subvenciones.append({
-                "id_bdns": id_bdns,
-                "texto_legal": texto_para_analizar.strip()
-            })
-            
-        print(f"--- LOG: Se procesarán {len(subvenciones)} subvenciones con texto extendido ---")
+            for item in items:
+
+                # ==================================================
+                # PARAR SI YA TENEMOS EL LÍMITE DE NUEVAS
+                # ==================================================
+
+                if len(subvenciones) >= limite:
+                    break
+
+                # ==================================================
+                # DATOS RSS
+                # ==================================================
+
+                titulo = (
+                    item.find("title").text
+                    if item.find("title") is not None
+                    else "Sin título"
+                )
+
+                link = (
+                    item.find("link").text
+                    if item.find("link") is not None
+                    else ""
+                )
+
+                descripcion = (
+                    item.find("description").text
+                    if item.find("description") is not None
+                    else ""
+                )
+
+                # ==================================================
+                # EXTRAER ID BOE
+                # ==================================================
+
+                id_bdns = (
+                    link.split("id=")[-1]
+                    if "id=" in link
+                    else titulo[:20].replace(" ", "_")
+                )
+
+                # ==================================================
+                # COMPROBAR SI YA EXISTE EN BBDD
+                # ==================================================
+
+                check_stmt = sqlalchemy.text("""
+                    SELECT 1
+                    FROM subvenciones
+                    WHERE id_bdns = :id_bdns
+                    LIMIT 1
+                """)
+
+                existe = db_conn.execute(
+                    check_stmt,
+                    {"id_bdns": id_bdns}
+                ).fetchone()
+
+                # ==================================================
+                # SI EXISTE -> CONTINUE
+                # ==================================================
+
+                if existe:
+                    print(f"--- LOG: Ya existe {id_bdns}, saltando ---")
+                    continue
+
+                print(f"--- LOG: Nueva subvención detectada {id_bdns} ---")
+
+                # ==================================================
+                # DESCARGAR TEXTO COMPLETO DEL XML
+                # ==================================================
+
+                texto_completo_boe = ""
+
+                if id_bdns.startswith("BOE-"):
+
+                    url_xml_detalle = (
+                        f"https://www.boe.es/diario_boe/xml.php?id={id_bdns}"
+                    )
+
+                    try:
+
+                        res_detalle = requests.get(
+                            url_xml_detalle,
+                            timeout=10
+                        )
+
+                        if res_detalle.status_code == 200:
+
+                            root_detalle = ET.fromstring(
+                                res_detalle.content
+                            )
+
+                            nodo_texto = root_detalle.find(".//texto")
+
+                            if nodo_texto is not None:
+
+                                texto_completo_boe = "".join(
+                                    nodo_texto.itertext()
+                                ).strip()
+
+                    except Exception as e:
+                        print(
+                            f"Aviso: no se pudo descargar "
+                            f"texto de {id_bdns}: {e}"
+                        )
+
+                # ==================================================
+                # TEXTO PARA IA
+                # ==================================================
+
+                texto_para_analizar = f"""
+                TÍTULO: {titulo}
+
+                DESCRIPCIÓN Y ÓRGANO:
+                {descripcion}
+
+                ENLACE OFICIAL:
+                {link}
+
+                --- TEXTO COMPLETO DEL BOE ---
+                {texto_completo_boe[:15000]}
+                """
+
+                subvenciones.append({
+                    "id_bdns": id_bdns,
+                    "texto_legal": texto_para_analizar.strip()
+                })
+
+        print(
+            f"--- LOG: Subvenciones NUEVAS encontradas: "
+            f"{len(subvenciones)} ---"
+        )
+
         return subvenciones
-        
+
     except Exception as e:
+
         print(f"❌ ERROR leyendo el BOE: {str(e)}")
+
         return []
+
+# ==========================================================
+# CLOUD FUNCTION
+# ==========================================================
 
 @functions_framework.http
 def procesar_bdns(request):
+
     print("--- LOG 1: Función iniciada ---")
-    
+
     subvenciones = obtener_nuevas_subvenciones(limite=50)
-    
+
     if not subvenciones:
-        print("--- LOG: No hay subvenciones para procesar ---")
-        return "Sin datos", 200
+        print("--- LOG: No hay subvenciones nuevas ---")
+        return "Sin datos nuevos", 200
 
-    # Usamos el modelo que sabemos que está disponible
+    # ======================================================
+    # MODELO IA
+    # ======================================================
+
+    # ======================================================
+    # MODELO IA
+    # ======================================================
+
     model = GenerativeModel("gemini-2.5-flash")
-    config_json = GenerationConfig(response_mime_type="application/json")
-    
+
+    config_json = GenerationConfig(
+        response_mime_type="application/json",
+        temperature=0.1 # Temperatura baja para precisión en los CNAE
+    )
+
+    # Asegúrate de poner aquí tu diccionario completo
+    CNAE_MAPPING = {
+    "011": "Cultivos no perennes",
+    "0111": "Cultivo de cereales, distintos de arroz, leguminosas y oleaginosas",
+    "0112": "Cultivo de arroz",
+    "0113": "Cultivo de hortalizas, raíces y tubérculos",
+    "0114": "Cultivo de caña de azúcar",
+    "0115": "Cultivo de tabaco",
+    "0116": "Cultivo de plantas para fibras textiles",
+    "0119": "Otros cultivos no perennes",
+    "012": "Cultivos perennes",
+    "0121": "Cultivo de la vid",
+    "0122": "Cultivo de frutos tropicales y subtropicales",
+    "0123": "Cultivo de cítricos",
+    "0124": "Cultivo de frutos con hueso y pepitas",
+    "0125": "Cultivo de otros árboles y arbustos frutales y frutos secos",
+    "0126": "Cultivo de frutos oleaginosos",
+    "0127": "Cultivo de plantas para bebidas",
+    "0128": "Cultivo de especias, plantas aromáticas, medicinales y farmacéuticas",
+    "0129": "Otros cultivos perennes",
+    "013": "Propagación de plantas",
+    "0130": "Propagación de plantas",
+    "014": "Producción ganadera",
+    "0141": "Explotación de ganado bovino para la producción de leche",
+    "0142": "Explotación de otro ganado bovino y búfalos",
+    "0143": "Explotación de caballos y otros equinos",
+    "0144": "Explotación de camellos y otros camélidos",
+    "0145": "Explotación de ganado ovino y caprino",
+    "0146": "Explotación de ganado porcino",
+    "0147": "Avicultura  \nINE",
+    "0148": "Otras explotaciones de ganado",
+    "015": "Producción agrícola combinada con la producción ganadera",
+    "0150": "Producción agrícola combinada con la producción ganadera",
+    "016": "Actividades de apoyo a la agricultura, a la ganadería y de preparación \nposterior a la cosecha",
+    "0161": "Actividades de apoyo a la agricultura",
+    "0162": "Actividades de apoyo a la ganadería",
+    "0163": "Actividades de preparación posterior a la cosecha y tratamiento de \nsemillas parareproducción",
+    "017": "Caza, captura de animales y servicios relacionados",
+    "0170": "Caza, captura de animales y servicios relacionados",
+    "021": "Silvicultura y otras actividades forestales",
+    "0210": "Silvicultura y otras actividades forestales",
+    "022": "Explotación de la madera",
+    "0220": "Explotación de la madera",
+    "023": "Recolección de productos silvestres, excepto madera",
+    "0230": "Recolección de productos silvestres, excepto madera",
+    "024": "Servicios de apoyo a la silvicultura",
+    "0240": "Servicios de apoyo a la silvicultura",
+    "0311": "Pesca marina",
+    "0312": "Pesca en agua dulce",
+    "032": "Acuicultura",
+    "0321": "Acuicultura marina",
+    "0322": "Acuicultura en agua dulce",
+    "033": "Actividades de apoyo a la pesca y la acuicultura",
+    "0330": "Actividades de apoyo a la pesca y la acuicultura  \nB INDUSTRIAS EXTRACTIVAS",
+    "051": "Extracción de antracita y hulla",
+    "0510": "Extracción de antracita y hulla  \nINE",
+    "052": "Extracción de lignito",
+    "0520": "Extracción de lignito",
+    "061": "Extracción de crudo de petróleo",
+    "0610": "Extracción de crudo de petróleo",
+    "062": "Extracción de gas natural",
+    "0620": "Extracción de gas natural",
+    "071": "Extracción de minerales de hierro",
+    "0710": "Extracción de minerales de hierro",
+    "072": "Extracción de minerales metálicos no férreos",
+    "0721": "Extracción de minerales de uranio y torio",
+    "0729": "Extracción de otros minerales metálicos no férreos",
+    "081": "Extracción de piedra, arena y arcilla",
+    "0811": "Extracción de piedra ornamental, piedra caliza, yeso, pizarra y otras \npiedras",
+    "0812": "Extracción de gravas y arenas y extracción de arcilla y caolín",
+    "089": "Industrias extractivas n",
+    "0891": "Extracción de minerales para productos químicos y fertilizantes",
+    "0892": "Extracción de turba",
+    "0893": "Extracción de sal",
+    "0899": "Otras industrias extractivas n",
+    "091": "Actividades de apoyo a la extracción de petróleo y gas natural",
+    "0910": "Actividades de apoyo a la extracción de petróleo y gas natural",
+    "099": "Actividades de apoyo a otras industrias extractivas",
+    "0990": "Actividades de apoyo a otras industrias extractivas  \nC INDUSTRIA MANUFACTURERA",
+    "101": "Procesado y conservación de carne y elaboración de productos cárnicos",
+    "1011": "Procesado y conservación de carne, excepto volatería  \nINE",
+    "1012": "Procesado y conservación de volatería",
+    "1013": "Elaboración de productos cárnicos y de volatería",
+    "102": "Procesado y conservación de pescados, crustáceos y moluscos",
+    "1021": "Procesado de pescados, crustáceos y moluscos",
+    "1022": "Fabricación de conservas de pescado",
+    "103": "Procesado y conservación de frutas y hortalizas",
+    "1031": "Procesado y conservación de patatas",
+    "1032": "Elaboración de zumos de frutas y hortalizas",
+    "1039": "Otro procesado y conservación de frutas y hortalizas",
+    "104": "Fabricación de aceites y grasas vegetales y animales",
+    "1042": "Fabricación de margarina y grasas comestibles similares",
+    "1043": "Fabricación de aceite de oliva",
+    "1044": "Fabricación de otros aceites y grasas",
+    "105": "Fabricación de productos lácteos y hielo comestible",
+    "1052": "Fabricación de helados y otros hielos comestibles",
+    "1053": "Fabricación de quesos",
+    "1054": "Preparación de leche y otros productos lácteos",
+    "106": "Fabricación de productos de molinería, almidones y productos amiláceos",
+    "1061": "Fabricación de productos de molinería",
+    "1062": "Fabricación de almidones y productos amiláceos",
+    "107": "Fabricación de productos de panadería y pastas alimenticias",
+    "1071": "Fabricación de pan y de productos frescos de panadería y pastelería",
+    "1072": "Fabricación de galletas y productos de panadería y pastelería de larga \nduración",
+    "1073": "Elaboración de pastas alimenticias",
+    "108": "Fabricación de otros productos alimenticios",
+    "1081": "Fabricación de azúcar",
+    "1082": "Fabricación de cacao, chocolate y productos de confitería",
+    "1083": "Elaboración de café, té e infusiones",
+    "1084": "Elaboración de especias, salsas y condimentos",
+    "1085": "Elaboración de platos y comidas preparados",
+    "1086": "Elaboración de preparados alimenticios homogeneizados y alimentos \ndietéticos  \nINE",
+    "1089": "Elaboración de otros productos alimenticios n",
+    "109": "Fabricación de productos para la alimentación animal",
+    "1091": "Fabricación de productos para la alimentación de animales de granja",
+    "1092": "Fabricación de productos para la alimentación de animales de compañía",
+    "110": "Fabricación de bebidas",
+    "1101": "Destilación, rectificación y mezcla de bebidas alcohólicas",
+    "1102": "Elaboración de vinos",
+    "1103": "Elaboración de sidra y otras bebidas fermentadas a partir de frutas",
+    "1104": "Elaboración de otras bebidas no destiladas, procedentes de la \nfermentación",
+    "1105": "Fabricación de cerveza",
+    "1106": "Fabricación de malta",
+    "1107": "Fabricación de bebidas no alcohólicas y aguas embotelladas",
+    "120": "Industria del tabaco",
+    "1200": "Industria del tabaco",
+    "131": "Preparación e hilado de fibras textiles",
+    "1310": "Preparación e hilado de fibras textiles",
+    "132": "Fabricación de tejidos textiles",
+    "1320": "Fabricación de tejidos textiles",
+    "133": "Acabado de textiles",
+    "1330": "Acabado de textiles",
+    "139": "Fabricación de otros productos textiles",
+    "1391": "Fabricación de tejidos de punto",
+    "1392": "Fabricación de textiles para el hogar y artículos de decoración \nconfeccionados",
+    "1393": "Fabricación de alfombras y moquetas",
+    "1394": "Fabricación de cuerdas, cordeles, bramantes y redes",
+    "1395": "Fabricación de telas no tejidas y artículos confeccionados con ellas",
+    "1396": "Fabricación de otros productos textiles de uso técnico e industrial",
+    "1399": "Fabricación de otros productos textiles n",
+    "141": "Confección de prendas de vestir de punto",
+    "1410": "Confección de prendas de vestir de punto",
+    "142": "Confección de otras prendas de vestir y accesorios",
+    "1421": "Confección de prendas de vestir exteriores",
+    "1422": "Confección de ropa interior",
+    "1423": "Confección de ropa de trabajo",
+    "1424": "Confección de prendas de vestir de cuero y peletería",
+    "1429": "Confección de otras prendas de vestir y accesorios n",
+    "151": "Preparación, teñido y curtido de cueros y pieles; fabricación de artículos \nde marroquinería, viaje y de guarnicionería y talabartería",
+    "1511": "Preparación, curtido y teñido de cueros y pieles",
+    "1512": "Fabricación de artículos de marroquinería, viaje y de guarnicionería y \ntalabartería de cualquier material",
+    "152": "Fabricación de calzado",
+    "1520": "Fabricación de calzado",
+    "161": "Aserrado y cepillado de la madera; transformación y acabado de la \nmadera",
+    "1611": "Aserrado y cepillado de la madera",
+    "1612": "Transformación y acabado de la madera",
+    "162": "Fabricación de productos de madera, corcho, cestería y espartería",
+    "1621": "Fabricación de chapas y tableros de madera",
+    "1622": "Fabricación de suelos de madera ensamblados",
+    "1623": "Fabricación de otras estructuras de madera y piezas de carpintería y \nebanistería para la construcción, excepto las destinadas a construcción \nindustrializada",
+    "1624": "Fabricación de envases y embalajes de madera",
+    "1625": "Fabricación de puertas y ventanas de madera",
+    "1626": "Fabricación de combustibles sólidos a partir de biomasa vegetal",
+    "1627": "Acabado de productos de madera",
+    "1628": "Fabricación de otros productos de madera, artículos de corcho, cestería \ny espartería  \nINE",
+    "1629": "Fabricación de otras estructuras de madera y piezas de carpintería y \nebanistería destinadas a la construcción industrializada",
+    "171": "Fabricación de pasta papelera, papel y cartón",
+    "1711": "Fabricación de pasta papelera",
+    "1712": "Fabricación de papel y cartón",
+    "172": "Fabricación de artículos de papel y de cartón",
+    "1721": "Fabricación de papel y cartón ondulados y de envases y embalajes de \npapel y cartón",
+    "1722": "Fabricación de artículos de papel y cartón para uso doméstico, sanitario \ne higiénico",
+    "1723": "Fabricación de artículos de papelería",
+    "1724": "Fabricación de papeles pintados",
+    "1725": "Fabricación de otros artículos de papel y cartón",
+    "181": "Artes gráficas y servicios relacionados",
+    "1811": "Impresión de periódicos",
+    "1812": "Otras actividades de impresión y artes gráficas",
+    "1813": "Servicios de preimpresión y preparación de soportes",
+    "1814": "Encuadernación y servicios relacionados",
+    "182": "Reproducción de soportes grabados",
+    "1820": "Reproducción de soportes grabados",
+    "191": "Coquerías",
+    "1910": "Coquerías",
+    "192": "Refino de petróleo y de combustibles fósiles",
+    "1920": "Refino de petróleo y de combustibles fósiles",
+    "201": "Fabricación de productos químicos básicos, compuestos nitrogenados, \nfertilizantes, plásticos y caucho sintético en formas primarias",
+    "2011": "Fabricación de gases industriales",
+    "2012": "Fabricación de colorantes y pigmentos",
+    "2013": "Fabricación de otros productos básicos de química inorgánica  \nINE",
+    "2014": "Fabricación de otros productos básicos de química orgánica",
+    "2015": "Fabricación de fertilizantes y compuestos nitrogenados",
+    "2016": "Fabricación de plásticos en formas primarias",
+    "2017": "Fabricación de caucho sintético en formas primarias",
+    "202": "Fabricación de pesticidas, desinfectantes y otros productos agroquímicos",
+    "2020": "Fabricación de pesticidas, desinfectantes y otros productos agroquímicos",
+    "203": "Fabricación de pinturas, barnices y revestimientos similares, tintas de \nimprenta y masillas",
+    "2030": "Fabricación de pinturas, barnices y revestimientos similares, tintas de \nimprenta y masillas",
+    "204": "Fabricación de artículos de lavado, limpieza y abrillantamiento",
+    "2041": "Fabricación de jabones, detergentes y otros artículos de limpieza y \nabrillantamiento",
+    "2042": "Fabricación de productos de perfumería y cosmética",
+    "205": "Fabricación de otros productos químicos",
+    "2051": "Fabricación de biocombustibles líquidos",
+    "2059": "Fabricación de otros productos químicos n",
+    "206": "Fabricación de fibras artificiales y sintéticas",
+    "2060": "Fabricación de fibras artificiales y sintéticas",
+    "211": "Fabricación de productos farmacéuticos de base",
+    "2110": "Fabricación de productos farmacéuticos de base",
+    "212": "Fabricación de especialidades farmacéuticas",
+    "2120": "Fabricación de especialidades farmacéuticas",
+    "221": "Fabricación de productos de caucho",
+    "2211": "Fabricación, recauchutado y reconstrucción de neumáticos de caucho y \nfabricación de cámaras",
+    "2212": "Fabricación de otros productos de caucho",
+    "222": "Fabricación de productos de plástico",
+    "2221": "Fabricación de placas, hojas, tubos y perfiles de plástico",
+    "2222": "Fabricación de envases y embalajes de plástico",
+    "2223": "Fabricación de puertas y ventanas de plástico  \nINE",
+    "2224": "Fabricación de productos de plástico para la construcción",
+    "2225": "Transformación y acabado de productos de plástico",
+    "2226": "Fabricación de otros productos de plástico",
+    "231": "Fabricación de vidrio y productos de vidrio",
+    "2311": "Fabricación de vidrio plano",
+    "2312": "Manipulado y transformación de vidrio plano",
+    "2313": "Fabricación de vidrio hueco",
+    "2314": "Fabricación de fibra de vidrio",
+    "2315": "Fabricación y manipulado de otro vidrio, incluido el vidrio técnico",
+    "232": "Fabricación de productos cerámicos refractarios",
+    "2320": "Fabricación de productos cerámicos refractarios",
+    "233": "Fabricación de productos cerámicos para la construcción",
+    "2331": "Fabricación de azulejos y baldosas de cerámica",
+    "2332": "Fabricación de ladrillos, tejas y productos de tierras cocidas para la \nconstrucción",
+    "234": "Fabricación de otros productos cerámicos",
+    "2341": "Fabricación de artículos cerámicos de uso doméstico y ornamental",
+    "2342": "Fabricación de aparatos sanitarios cerámicos",
+    "2343": "Fabricación de aisladores y piezas aislantes de material cerámico",
+    "2344": "Fabricación de otros productos cerámicos de uso técnico",
+    "2345": "Fabricación de otros productos cerámicos",
+    "235": "Fabricación de cemento, cal y yeso",
+    "2351": "Fabricación de cemento",
+    "2352": "Fabricación de cal y yeso",
+    "236": "Fabricación de elementos de hormigón, cemento y yeso",
+    "2362": "Fabricación de elementos de yeso para la construcción",
+    "2363": "Fabricación de hormigón fresco",
+    "2364": "Fabricación de mortero",
+    "2365": "Fabricación de fibrocemento",
+    "2366": "Fabricación de otros productos de hormigón, yeso y cemento",
+    "2367": "Fabricación de elementos de hormigón para la construcción no \nindustrializada  \nINE",
+    "2368": "Fabricación de elementos de hormigón para la construcción \nindustrializada",
+    "237": "Corte, tallado y acabado de la piedra",
+    "2370": "Corte, tallado y acabado de la piedra",
+    "239": "Fabricación de productos abrasivos y productos minerales no metálicos \nn",
+    "2391": "Fabricación de productos abrasivos",
+    "2399": "Fabricación de otros productos minerales no metálicos n",
+    "241": "Fabricación de productos básicos de hierro, acero y ferroaleaciones",
+    "2410": "Fabricación de productos básicos de hierro, acero y ferroaleaciones",
+    "242": "Fabricación de tubos, tuberías, perfiles huecos y sus accesorios, de \nacero",
+    "2420": "Fabricación de tubos, tuberías, perfiles huecos y sus accesorios, de \nacero",
+    "243": "Fabricación de otros productos de primera transformación del acero",
+    "2431": "Estirado en frío",
+    "2432": "Laminado en frío",
+    "2433": "Producción de perfiles en frío por conformación con plegado",
+    "2434": "Trefilado en frío",
+    "244": "Producción de metales preciosos y de otros metales no férreos",
+    "2441": "Producción de metales preciosos",
+    "2442": "Producción de aluminio",
+    "2443": "Producción de plomo, zinc y estaño",
+    "2444": "Producción de cobre",
+    "2445": "Producción de otros metales no férreos",
+    "2446": "Procesamiento de combustibles nucleares",
+    "245": "Fundición de metales",
+    "2451": "Fundición de hierro",
+    "2452": "Fundición de acero",
+    "2453": "Fundición de metales ligeros",
+    "2454": "Fundición de otros metales no férreos",
+    "251": "Fabricación de elementos metálicos para la construcción",
+    "2512": "Fabricación de puertas y ventanas de metal",
+    "2513": "Fabricación de estructuras metálicas y sus componentes, excepto las \ndestinadas a construcción industrializada",
+    "2514": "Fabricación de estructuras metálicas y sus componentes destinadas a \nconstrucción industrializada",
+    "252": "Fabricación de cisternas, grandes depósitos y contenedores de metal",
+    "2521": "Fabricación de radiadores, generadores de vapor y calderas para \ncalefacción central",
+    "2522": "Fabricación de otras cisternas, grandes depósitos y contenedores de \nmetal",
+    "253": "Fabricación de armas y municiones",
+    "2530": "Fabricación de armas y municiones",
+    "254": "Forja y modelado de metales y metalurgia de polvos",
+    "2540": "Forja y modelado de metales y metalurgia de polvos",
+    "255": "Tratamiento, revestimiento y mecanizado de metales",
+    "2551": "Revestimiento de metales",
+    "2552": "Tratamiento térmico de metales",
+    "2553": "Mecanizado de metales",
+    "256": "Fabricación de artículos de cuchillería y cubertería, herramientas y \nferretería",
+    "2561": "Fabricación de artículos de cuchillería y cubertería",
+    "2562": "Fabricación de cerraduras y herrajes",
+    "2563": "Fabricación de herramientas",
+    "259": "Fabricación de otros productos metálicos",
+    "2591": "Fabricación de bidones y toneles de hierro o acero",
+    "2592": "Fabricación de envases y embalajes metálicos ligeros",
+    "2593": "Fabricación de productos de alambre, cadenas y muelles",
+    "2594": "Fabricación de pernos y productos de tornillería",
+    "2599": "Fabricación de otros productos metálicos n",
+    "261": "Fabricación de componentes electrónicos y circuitos impresos \nensamblados",
+    "2611": "Fabricación de componentes electrónicos  \nINE",
+    "2612": "Fabricación de circuitos impresos ensamblados",
+    "262": "Fabricación de ordenadores y equipos periféricos",
+    "2620": "Fabricación de ordenadores y equipos periféricos",
+    "263": "Fabricación de equipos de telecomunicaciones",
+    "2630": "Fabricación de equipos de telecomunicaciones",
+    "264": "Fabricación de productos electrónicos de consumo",
+    "2640": "Fabricación de productos electrónicos de consumo",
+    "265": "Fabricación de instrumentos de verificación de medidas y relojes",
+    "2651": "Fabricación de instrumentos y aparatos de medida, verificación y \nnavegación",
+    "2652": "Fabricación de relojes",
+    "266": "Fabricación de equipos de radiación, electromédicos y \nelectroterapéuticos",
+    "2660": "Fabricación de equipos de radiación, electromédicos y \nelectroterapéuticos",
+    "267": "Fabricación de instrumentos ópticos, soportes magnéticos y ópticos y \nequipos fotográficos",
+    "2670": "Fabricación de instrumentos ópticos, soportes magnéticos y ópticos y \nequipos fotográficos",
+    "271": "Fabricación de motores, generadores y transformadores eléctricos, y de \naparatos de distribución y control eléctrico",
+    "2711": "Fabricación de motores, generadores y transformadores eléctricos",
+    "2712": "Fabricación de aparatos de distribución y control eléctrico",
+    "272": "Fabricación de pilas y acumuladores eléctricos",
+    "2720": "Fabricación de pilas y acumuladores eléctricos",
+    "273": "Fabricación de cables y dispositivos de cableado",
+    "2731": "Fabricación de cables de fibra óptica",
+    "2732": "Fabricación de otros hilos y cables electrónicos y eléctricos",
+    "2733": "Fabricación de dispositivos de cableado",
+    "274": "Fabricación de equipos de iluminación",
+    "2740": "Fabricación de equipos de iluminación",
+    "275": "Fabricación de aparatos domésticos",
+    "2751": "Fabricación de electrodomésticos  \nINE",
+    "2752": "Fabricación de aparatos domésticos no eléctricos",
+    "279": "Fabricación de otro material y equipo eléctrico",
+    "2790": "Fabricación de otro material y equipo eléctrico",
+    "281": "Fabricación de maquinaria de uso general",
+    "2811": "Fabricación de motores y turbinas, excepto los destinados a aeronaves, \nvehículos automóviles y ciclomotores",
+    "2812": "Fabricación de equipos de transmisión hidráulica y neumática",
+    "2813": "Fabricación de otras bombas y compresores",
+    "2814": "Fabricación de otra grifería y válvulas",
+    "2815": "Fabricación de cojinetes, engranajes y órganos mecánicos de \ntransmisión",
+    "282": "Fabricación de otra maquinaria de uso general",
+    "2821": "Fabricación de hornos, quemadores y equipos de calefacción doméstica \npermanente",
+    "2822": "Fabricación de maquinaria de elevación y manipulación",
+    "2823": "Fabricación de máquinas y equipos de oficina, excepto equipos \ninformáticos",
+    "2824": "Fabricación de herramientas eléctricas manuales",
+    "2825": "Fabricación de equipos de aire acondicionado no domésticos",
+    "2829": "Fabricación de otra maquinaria de uso general n",
+    "283": "Fabricación de maquinaria agraria y forestal",
+    "2830": "Fabricación de maquinaria agraria y forestal",
+    "284": "Fabricación de maquinaria para el conformado de metales y de \nmáquinas herramienta",
+    "2841": "Fabricación de maquinaria para el conformado de metales y de otras \nmáquinas herramienta para trabajar el metal",
+    "2842": "Fabricación de otras máquinas herramienta",
+    "289": "Fabricación de otra maquinaria para usos específicos",
+    "2891": "Fabricación de maquinaria para la industria metalúrgica",
+    "2892": "Fabricación de maquinaria para las industrias extractivas y de la \nconstrucción",
+    "2893": "Fabricación de maquinaria para la industria de la alimentación, bebidas y \ntabaco",
+    "2894": "Fabricación de maquinaria para las industrias textil, de la confección y \ndel cuero  \nINE",
+    "2895": "Fabricación de maquinaria para la industria del papel y del cartón",
+    "2896": "Fabricación de maquinaria para las industrias del plástico y del caucho",
+    "2897": "Fabricación de maquinaria de fabricación aditiva",
+    "2899": "Fabricación de otra maquinaria para usos específicos n",
+    "291": "Fabricación de vehículos de motor",
+    "2910": "Fabricación de vehículos de motor",
+    "292": "Fabricación de carrocerías para vehículos de motor; fabricación de \nremolques y semirremolques",
+    "2920": "Fabricación de carrocerías para vehículos de motor; fabricación de \nremolques y semirremolques",
+    "293": "Fabricación de repuestos y accesorios de vehículos de motor",
+    "2931": "Fabricación de equipos eléctricos y electrónicos para vehículos de motor",
+    "2932": "Fabricación de otros componentes, piezas y accesorios para vehículos \nde motor",
+    "301": "Construcción naval",
+    "3011": "Construcción de buques civiles y estructuras flotantes",
+    "3012": "Construcción de embarcaciones de recreo y deporte",
+    "3013": "Construcción de embarcaciones y buques militares",
+    "302": "Fabricación de locomotoras y material ferroviario",
+    "3020": "Fabricación de locomotoras y material ferroviario",
+    "303": "Construcción aeronáutica y espacial y su maquinaria",
+    "3031": "Construcción aeronáutica y espacial civil y su maquinaria",
+    "3032": "Construcción aeronáutica y espacial militar y su maquinaria",
+    "304": "Fabricación de vehículos militares de combate",
+    "3040": "Fabricación de vehículos militares de combate",
+    "309": "Fabricación de otro material de transporte n",
+    "3091": "Fabricación de motocicletas",
+    "3092": "Fabricación de bicicletas y de vehículos para personas con discapacidad",
+    "3099": "Fabricación de otro material de transporte n",
+    "310": "Fabricación de muebles  \nINE",
+    "3100": "Fabricación de muebles",
+    "321": "Fabricación de artículos de joyería, bisutería y similares",
+    "3211": "Fabricación de monedas",
+    "3212": "Fabricación de artículos de joyería y artículos similares",
+    "3213": "Fabricación de artículos de bisutería y artículos similares",
+    "322": "Fabricación de instrumentos musicales",
+    "3220": "Fabricación de instrumentos musicales",
+    "323": "Fabricación de artículos de deporte",
+    "3230": "Fabricación de artículos de deporte",
+    "324": "Fabricación de juegos y juguetes",
+    "3240": "Fabricación de juegos y juguetes",
+    "325": "Fabricación de instrumentos y suministros médicos y odontológicos",
+    "3250": "Fabricación de instrumentos y suministros médicos y odontológicos",
+    "329": "Industrias manufactureras n",
+    "3291": "Fabricación de escobas, brochas y cepillos",
+    "3299": "Otras industrias manufactureras n",
+    "331": "Reparación y mantenimiento de productos metálicos, maquinaria y \nequipos",
+    "3311": "Reparación y mantenimiento de productos metálicos",
+    "3312": "Reparación y mantenimiento de maquinaria",
+    "3313": "Reparación y mantenimiento de equipos electrónicos y ópticos",
+    "3314": "Reparación y mantenimiento de equipos eléctricos",
+    "3315": "Reparación y mantenimiento de buques y embarcaciones civiles",
+    "3316": "Reparación y mantenimiento aeronáutico y espacial civil",
+    "3317": "Reparación y mantenimiento de otro material de transporte civil",
+    "3318": "Reparación y mantenimiento de vehículos de combate, buques, \nembarcaciones, vehículos aéreos y espaciales militares",
+    "3319": "Reparación y mantenimiento de otros equipos",
+    "332": "Instalación de máquinas y equipos industriales",
+    "3320": "Instalación de máquinas y equipos industriales  \nINE",
+    "351": "Producción, transporte y distribución de energía eléctrica",
+    "3511": "Producción de energía eléctrica a partir de fuentes no renovables",
+    "3512": "Producción de energía eléctrica a partir de fuentes renovables",
+    "3513": "Transporte de energía eléctrica",
+    "3514": "Distribución de energía eléctrica",
+    "3515": "Comercio de energía eléctrica",
+    "3516": "Almacenamiento de energía eléctrica",
+    "352": "Producción de gas y distribución por tubería de combustibles gaseosos",
+    "3521": "Producción de gas",
+    "3522": "Distribución por tubería de combustibles gaseosos",
+    "3523": "Comercio de gas por tuberías",
+    "3524": "Almacenamiento de gas como parte de los servicios de suministro de la \nred",
+    "353": "Suministro de vapor y aire acondicionado",
+    "3530": "Suministro de vapor y aire acondicionado",
+    "354": "Actividades de intermediación de energía eléctrica y gas natural",
+    "3540": "Actividades de intermediación de energía eléctrica y gas natural  \nE SUMINISTRO DE AGUA, ACTIVIDADES DE SANEAMIENTO, \nGESTIÓN DE RESIDUOS Y DESCONTAMINACIÓN",
+    "360": "Captación, depuración y distribución de agua",
+    "3600": "Captación, depuración y distribución de agua",
+    "370": "Recogida y tratamiento de aguas residuales",
+    "3700": "Recogida y tratamiento de aguas residuales",
+    "381": "Recogida de residuos",
+    "3811": "Recogida de residuos no peligrosos",
+    "3812": "Recogida de residuos peligrosos",
+    "382": "Valorización de residuos  \nINE",
+    "3821": "Valorización de materiales",
+    "3822": "Valorización energética",
+    "3823": "Otra valorización de residuos",
+    "383": "Eliminación de residuos sin valorización",
+    "3831": "Incineración sin valorización energética",
+    "3832": "Depósito en vertederos o almacenamiento permanente",
+    "3833": "Otra eliminación de residuos",
+    "390": "Actividades de descontaminación y otros servicios de gestión de \nresiduos",
+    "3900": "Actividades de descontaminación y otros servicios de gestión de \nresiduos  \nF CONSTRUCCIÓN",
+    "410": "Construcción de edificios",
+    "4101": "Construcción de edificios residenciales",
+    "4102": "Construcción de edificios no residenciales",
+    "421": "Construcción de carreteras y vías férreas, puentes y túneles",
+    "4211": "Construcción de carreteras y autopistas",
+    "4212": "Construcción de vías férreas de superficie y subterráneas",
+    "4213": "Construcción de puentes y túneles",
+    "422": "Construcción de redes",
+    "4221": "Construcción de redes para fluidos",
+    "4222": "Construcción de redes eléctricas y de telecomunicaciones",
+    "429": "Construcción de otros proyectos de ingeniería civil",
+    "4291": "Obras hidráulicas",
+    "4299": "Construcción de otros proyectos de ingeniería civil n",
+    "431": "Demolición y preparación de terrenos",
+    "4311": "Demolición",
+    "4312": "Preparación de terrenos  \nINE",
+    "4313": "Perforaciones y sondeos",
+    "432": "Instalaciones eléctricas, de fontanería y otras instalaciones en obras de \nconstrucción",
+    "4321": "Instalaciones eléctricas",
+    "4322": "Fontanería, instalación de sistemas de calefacción y aire acondicionado",
+    "4323": "Instalación de aislamientos",
+    "4324": "Otras instalaciones en obras de construcción",
+    "433": "Acabado de edificios",
+    "4331": "Revocamiento",
+    "4332": "Instalación de carpintería",
+    "4333": "Revestimiento de suelos y paredes",
+    "4334": "Pintura y acristalamiento",
+    "4335": "Otros acabados de edificios",
+    "434": "Actividades de construcción especializada en la construcción de edificios",
+    "4341": "Construcción de cubiertas",
+    "4342": "Otras actividades de construcción especializada en la construcción de \nedificios",
+    "435": "Actividades de construcción especializada en ingeniería civil",
+    "4350": "Actividades de construcción especializada en ingeniería civil",
+    "436": "Actividades de intermediación para servicios de construcción \nespecializada",
+    "4360": "Actividades de intermediación para servicios de construcción \nespecializada",
+    "439": "Otras actividades de construcción especializada",
+    "4391": "Actividades de mampostería y albañilería",
+    "4399": "Otras actividades de construcción especializada n",
+    "461": "Intermediarios del comercio al por mayor",
+    "4611": "Actividades de intermediarios del comercio al por mayor de materias \nprimas agrarias, animales vivos, materias primas textiles y productos \nsemielaborados",
+    "4612": "Actividades de intermediarios del comercio al por mayor de \ncombustibles, minerales, metales y productos químicos industriales  \nINE",
+    "4613": "Actividades de intermediarios del comercio al por mayor de la madera y \nmateriales de construcción",
+    "4614": "Actividades de intermediarios del comercio al por mayor de maquinaria, \nequipo industrial, embarcaciones y aeronaves",
+    "4615": "Actividades de intermediarios del comercio al por mayor de muebles, \nartículos para el hogar y ferretería",
+    "4616": "Actividades de intermediarios del comercio al por mayor de textiles, \nprendas de vestir, peletería, calzado y artículos de cuero",
+    "4617": "Actividades de intermediarios del comercio al por mayor de productos \nalimenticios, bebidas y tabaco",
+    "4618": "Actividades de intermediarios del comercio al por mayor de otros \nproductos específicos",
+    "4619": "Actividades de los agentes del comercio al por mayor no especializado",
+    "462": "Comercio al por mayor de materias primas agrarias y de animales vivos",
+    "4621": "Comercio al por mayor de cereales, tabaco en rama, simientes y \nalimentos para animales",
+    "4622": "Comercio al por mayor de flores y plantas",
+    "4623": "Comercio al por mayor de animales vivos",
+    "4624": "Comercio al por mayor de cueros y pieles",
+    "463": "Comercio al por mayor de productos alimenticios, bebidas y tabaco",
+    "4631": "Comercio al por mayor de frutas y hortalizas",
+    "4632": "Comercio al por mayor de carne, productos cárnicos; pescado y \nproductos del pescado",
+    "4633": "Comercio al por mayor de productos lácteos, huevos, aceites y grasas \ncomestibles",
+    "4634": "Comercio al por mayor de bebidas",
+    "4635": "Comercio al por mayor de productos del tabaco",
+    "4636": "Comercio al por mayor de azúcar, chocolate y confitería",
+    "4637": "Comercio al por mayor de café, té, cacao y especias",
+    "4638": "Comercio al por mayor de otros alimentos",
+    "4639": "Comercio al por mayor, no especializado, de productos alimenticios, \nbebidas y tabaco",
+    "464": "Comercio al por mayor de artículos de uso doméstico",
+    "4641": "Comercio al por mayor de textiles",
+    "4642": "Comercio al por mayor de prendas de vestir y calzado",
+    "4643": "Comercio al por mayor de aparatos electrodomésticos  \nINE",
+    "4644": "Comercio al por mayor de porcelana, cristalería y artículos de limpieza",
+    "4645": "Comercio al por mayor de productos de perfumería y cosmética",
+    "4646": "Comercio al por mayor de productos farmacéuticos y médicos",
+    "4647": "Comercio al por mayor de muebles para el hogar, oficinas y \nestablecimientos comerciales, alfombras y aparatos de iluminación",
+    "4648": "Comercio al por mayor de artículos de relojería y joyería",
+    "4649": "Comercio al por mayor de otros artículos de uso doméstico",
+    "465": "Comercio al por mayor de equipos para las tecnologías de la información \ny las comunicaciones",
+    "4650": "Comercio al por mayor de equipos para las tecnologías de la información \ny las comunicaciones",
+    "466": "Comercio al por mayor de otra maquinaria, equipos y suministros",
+    "4661": "Comercio al por mayor de maquinaria, equipos y suministros agrícolas",
+    "4662": "Comercio al por mayor de máquinas herramienta",
+    "4663": "Comercio al por mayor de maquinaria para la minería, la construcción y \nla ingeniería civil",
+    "4664": "Comercio al por mayor de otra maquinaria y equipo",
+    "467": "Comercio al por mayor de vehículos de motor, motocicletas y sus \nrepuestos y accesorios",
+    "4671": "Comercio al por mayor de vehículos de motor",
+    "4672": "Comercio al por mayor de repuestos y accesorios de vehículos de motor",
+    "4673": "Comercio al por mayor de motocicletas, y repuestos y accesorios de \nmotocicletas",
+    "468": "Otro comercio al por mayor especializado",
+    "4681": "Comercio al por mayor de combustibles sólidos, líquidos y gaseosos, y \nproductos similares",
+    "4682": "Comercio al por mayor de metales y minerales metálicos",
+    "4683": "Comercio al por mayor de madera, materiales de construcción y aparatos \nsanitarios",
+    "4684": "Comercio al por mayor de equipos y suministros de ferretería, fontanería \ny calefacción",
+    "4685": "Comercio al por mayor de productos químicos",
+    "4686": "Comercio al por mayor de otros productos semielaborados",
+    "4687": "Comercio al por mayor de chatarra y productos de desecho",
+    "4689": "Otro comercio al por mayor especializado n",
+    "469": "Comercio al por mayor no especializado  \nINE",
+    "4690": "Comercio al por mayor no especializado",
+    "471": "Comercio al por menor no especializado",
+    "4711": "Comercio al por menor no especializado con predominio de productos \nalimenticios, bebidas y tabaco",
+    "4712": "Otro comercio al por menor no especializado",
+    "472": "Comercio al por menor de productos alimenticios, bebidas y tabaco",
+    "4721": "Comercio al por menor de frutas y verduras",
+    "4722": "Comercio al por menor de carne y productos cárnicos",
+    "4723": "Comercio al por menor de pescados y mariscos",
+    "4724": "Comercio al por menor de pan, productos de panadería y confitería",
+    "4725": "Comercio al por menor de bebidas",
+    "4726": "Comercio al por menor de productos de tabaco",
+    "4727": "Comercio al por menor de otros productos alimenticios",
+    "473": "Comercio al por menor de combustible para la automoción",
+    "4730": "Comercio al por menor de combustible para la automoción",
+    "474": "Comercio al por menor de equipos para las tecnologías de la información \ny las comunicaciones",
+    "4740": "Comercio al por menor de equipos para las tecnologías de la información \ny las comunicaciones",
+    "475": "Comercio al por menor de otros artículos de uso doméstico",
+    "4751": "Comercio al por menor de textiles",
+    "4752": "Comercio al por menor de ferretería, materiales de construcción, pinturas \ny vidrio",
+    "4753": "Comercio al por menor de alfombras, moquetas y revestimientos de \nparedes y suelos",
+    "4754": "Comercio al por menor de aparatos electrodomésticos",
+    "4755": "Comercio al por menor de muebles, aparatos de iluminación, vajilla y \notros artículos de uso doméstico",
+    "476": "Comercio al por menor de artículos culturales y recreativos",
+    "4761": "Comercio al por menor de libros",
+    "4762": "Comercio al por menor de periódicos y otras publicaciones periódicas y \nartículos de papelería",
+    "4763": "Comercio al por menor de artículos deportivos",
+    "4764": "Comercio al por menor de juegos y juguetes  \nINE",
+    "4769": "Comercio al por menor de artículos culturales y recreativos n",
+    "477": "Comercio al por menor de otros artículos, excepto vehículos de motor y \nmotocicletas",
+    "4771": "Comercio al por menor de prendas de vestir",
+    "4772": "Comercio al por menor de calzado y artículos de cuero",
+    "4773": "Comercio al por menor de productos farmacéuticos",
+    "4774": "Comercio al por menor de artículos médicos y ortopédicos",
+    "4775": "Comercio al por menor de productos de cosmética e higiene",
+    "4776": "Comercio al por menor de flores, plantas, fertilizantes, animales de \ncompañía y alimentos para estos",
+    "4777": "Comercio al por menor de artículos de relojería y joyería",
+    "4778": "Comercio al por menor de otros productos nuevos",
+    "4779": "Comercio al por menor de artículos de segunda mano",
+    "478": "Comercio al por menor de vehículos de motor, motocicletas y sus \nrepuestos y accesorios",
+    "4781": "Comercio al por menor de vehículos de motor",
+    "4782": "Comercio al por menor de repuestos y accesorios de vehículos de motor",
+    "4783": "Comercio al por menor de motocicletas, y repuestos y accesorios de \nmotocicletas",
+    "479": "Actividades de servicios de intermediación para el comercio al por menor",
+    "4791": "Actividades de servicios de intermediación para el comercio al por menor \nno especializado",
+    "4792": "Actividades de servicios de intermediación para el comercio al por menor \nespecializado  \nH TRANSPORTE Y ALMACENAMIENTO",
+    "491": "Transporte de pasajeros por ferrocarril",
+    "4911": "Transporte pesado de pasajeros por ferrocarril",
+    "4912": "Otro transporte de pasajeros por ferrocarril",
+    "492": "Transporte de mercancías por ferrocarril",
+    "4920": "Transporte de mercancías por ferrocarril",
+    "493": "Otro transporte terrestre de pasajeros",
+    "4931": "Transporte regular de pasajeros por carretera",
+    "4932": "Transporte no regular de pasajeros por carretera  \nINE",
+    "4933": "Servicios de transporte de pasajeros bajo demanda en vehículos con \nconductor",
+    "4934": "Transporte de pasajeros en teleféricos y remontes",
+    "4939": "Otros tipos de transporte terrestre de pasajeros n",
+    "494": "Transporte de mercancías por carretera y servicios de mudanza",
+    "4941": "Transporte de mercancías por carretera",
+    "4942": "Servicios de mudanzas",
+    "495": "Transporte por tubería",
+    "4950": "Transporte por tubería",
+    "501": "Transporte marítimo de pasajeros",
+    "5010": "Transporte marítimo de pasajeros",
+    "502": "Transporte marítimo de mercancías",
+    "5020": "Transporte marítimo de mercancías",
+    "503": "Transporte de pasajeros por vías navegables interiores",
+    "5030": "Transporte de pasajeros por vías navegables interiores",
+    "504": "Transporte de mercancías por vías navegables interiores",
+    "5040": "Transporte de mercancías por vías navegables interiores",
+    "511": "Transporte aéreo de pasajeros",
+    "5110": "Transporte aéreo de pasajeros",
+    "512": "Transporte aéreo de mercancías y transporte espacial",
+    "5121": "Transporte aéreo de mercancías",
+    "5122": "Transporte espacial",
+    "521": "Depósito y almacenamiento",
+    "5210": "Depósito y almacenamiento",
+    "522": "Actividades auxiliares del transporte",
+    "5221": "Actividades auxiliares del transporte terrestre",
+    "5222": "Actividades auxiliares del transporte marítimo y por vías navegables \ninteriores",
+    "5223": "Actividades auxiliares del transporte aéreo",
+    "5224": "Manipulación de mercancías  \nINE",
+    "5225": "Actividades de servicios logísticos",
+    "5226": "Otras actividades auxiliares del transporte",
+    "523": "Actividades de intermediación para el transporte",
+    "5231": "Actividades de intermediación para el transporte de mercancías",
+    "5232": "Actividades de intermediación para el transporte de pasajeros",
+    "531": "Actividades postales sometidas a la obligación del servicio universal",
+    "5310": "Actividades postales sometidas a la obligación del servicio universal",
+    "532": "Otras actividades postales y de mensajería",
+    "5320": "Otras actividades postales y de mensajería",
+    "533": "Servicios de intermediación para las actividades postales y de \nmensajería",
+    "5330": "Servicios de intermediación para las actividades postales y de \nmensajería  \nI HOSTELERÍA",
+    "551": "Hoteles y alojamientos similares",
+    "5510": "Hoteles y alojamientos similares",
+    "552": "Alojamientos turísticos y otros alojamientos de corta estancia",
+    "5520": "Alojamientos turísticos y otros alojamientos de corta estancia",
+    "553": "Campings y aparcamientos para caravanas",
+    "5530": "Campings y aparcamientos para caravanas",
+    "554": "Actividades de intermediación para los servicios de alojamiento",
+    "5540": "Actividades de intermediación para los servicios de alojamiento",
+    "559": "Otros servicios de alojamiento",
+    "5590": "Otros servicios de alojamiento",
+    "561": "Restaurantes y puestos de comidas",
+    "5611": "Restaurantes",
+    "5612": "Puestos de comidas",
+    "562": "Servicios de catering y otros servicios de comidas",
+    "5621": "Servicios ocasionales de catering",
+    "5622": "Servicios regulares de catering y otros servicios de comidas  \nINE",
+    "563": "Servicios de bebidas",
+    "5630": "Servicios de bebidas",
+    "564": "Actividades de intermediación para los servicios de comidas y bebidas",
+    "5640": "Actividades de intermediación para los servicios de comidas y bebidas  \nJ ACTIVIDADES DE EDICIÓN, RADIODIFUSIÓN Y PRODUCCIÓN Y \nDISTRIBUCIÓN DE CONTENIDOS",
+    "581": "Edición de libros, periódicos y otras actividades editoriales, excepto la \nedición de programas informáticos",
+    "5811": "Edición de libros",
+    "5812": "Edición de periódicos",
+    "5813": "Edición de revistas",
+    "5819": "Otras actividades editoriales, excepto la edición de programas \ninformáticos",
+    "582": "Edición de programas informáticos",
+    "5821": "Edición de videojuegos",
+    "5829": "Edición de otros programas informáticos",
+    "591": "Actividades cinematográficas, de vídeo y de programas de televisión",
+    "5912": "Actividades de posproducción cinematográfica, de vídeo y de programas \nde televisión",
+    "5914": "Actividades de exhibición cinematográfica",
+    "5915": "Actividades de producción cinematográfica y de vídeo",
+    "5916": "Actividades de producción de programas de televisión",
+    "5917": "Actividades de distribución cinematográfica y de vídeo, excepto de \nprogramas de televisión",
+    "5918": "Actividades de distribución de programas de televisión",
+    "592": "Actividades de grabación de sonido y edición musical",
+    "5920": "Actividades de grabación de sonido y edición musical",
+    "601": "Actividades de radiodifusión y distribución de audio",
+    "6010": "Actividades de radiodifusión y distribución de audio  \nINE",
+    "602": "Actividades de programación de televisión, emisión y distribución de \nvídeos",
+    "6020": "Actividades de programación de televisión, emisión y distribución de \nvídeos",
+    "603": "Actividades de las agencias de noticias y otras actividades de \ndistribución de contenidos",
+    "6031": "Actividades de las agencias de noticias",
+    "6039": "Otras actividades de distribución de contenidos  \nK TELECOMUNICACIONES, PROGRAMACIÓN INFORMÁTICA, \nCONSULTORÍA, INFRAESTRUCTURA INFORMÁTICA Y OTROS \nSERVICIOS DE INFORMACIÓN",
+    "611": "Actividades de telecomunicaciones por cable, inalámbricas y por satélite",
+    "6110": "Actividades de telecomunicaciones por cable, inalámbricas y por satélite",
+    "612": "Actividades de reventa de telecomunicaciones y servicios de \nintermediación para telecomunicaciones",
+    "6120": "Actividades de reventa de telecomunicaciones y servicios de \nintermediación para telecomunicaciones",
+    "619": "Otras actividades de telecomunicaciones",
+    "6190": "Otras actividades de telecomunicaciones",
+    "621": "Actividades de programación informática",
+    "6210": "Actividades de programación informática",
+    "622": "Actividades de consultoría informática y gestión de instalaciones \ninformáticas",
+    "6220": "Actividades de consultoría informática y gestión de instalaciones \ninformáticas",
+    "629": "Otros servicios relacionados con las tecnologías de la información y la \ninformática",
+    "6290": "Otros servicios relacionados con las tecnologías de la información y la \ninformática",
+    "631": "Infraestructura informática, procesamiento de datos, hosting y \nactividades relacionadas",
+    "6310": "Infraestructura informática, procesamiento de datos, hosting y \nactividades relacionadas  \nINE",
+    "639": "Actividades de portales de búsqueda en la web y otras actividades de \nservicios de información",
+    "6391": "Actividades de portales de búsqueda en la web",
+    "6392": "Otros servicios de información  \nL ACTIVIDADES FINANCIERAS Y DE SEGUROS",
+    "641": "Intermediación monetaria",
+    "6411": "Banca central",
+    "6419": "Otra intermediación monetaria",
+    "642": "Actividades de sociedades holding y de sociedades instrumentales de \nfinanciación",
+    "6421": "Actividades de sociedades holding",
+    "6422": "Actividades de sociedades instrumentales de financiación",
+    "643": "Actividades de inversión colectiva, de fondos y de entidades financieras \nsimilares",
+    "6431": "Actividades de fondos de inversión monetarios y no monetarios",
+    "6432": "Actividades de cuentas fiduciarias, patrimoniales y de agencia",
+    "649": "Otros servicios financieros, excepto seguros y fondos de pensiones",
+    "6491": "Arrendamiento financiero",
+    "6492": "Otras actividades crediticias",
+    "6499": "Otros servicios financieros, excepto seguros y fondos de pensiones \nn",
+    "651": "Seguros",
+    "6511": "Seguros de vida",
+    "6512": "Seguros distintos de los seguros de vida",
+    "652": "Reaseguros",
+    "6520": "Reaseguros",
+    "653": "Fondos de pensiones",
+    "6530": "Fondos de pensiones",
+    "661": "Actividades auxiliares a los servicios financieros, excepto seguros y \nfondos de pensiones  \nINE",
+    "6611": "Administración de mercados financieros",
+    "6613": "Actividades de financiación participativa",
+    "6614": "Otras actividades de intermediación en operaciones con valores y otros \nactivos",
+    "6619": "Otras actividades auxiliares a los servicios financieros, excepto seguros y \nfondos de pensiones",
+    "662": "Actividades auxiliares a seguros y fondos de pensiones",
+    "6621": "Evaluación de riesgos y daños",
+    "6622": "Actividades de agentes y corredores de seguros",
+    "6629": "Actividades auxiliares a seguros y fondos de pensiones n",
+    "663": "Actividades de gestión de fondos",
+    "6630": "Actividades de gestión de fondos  \nM ACTIVIDADES INMOBILIARIAS",
+    "681": "Actividades inmobiliarias por cuenta propia y promoción inmobiliaria",
+    "6811": "Compraventa de bienes inmobiliarios por cuenta propia",
+    "6812": "Promoción inmobiliaria",
+    "682": "Alquiler de bienes inmobiliarios por cuenta propia",
+    "6820": "Alquiler de bienes inmobiliarios por cuenta propia",
+    "683": "Actividades inmobiliarias por cuenta de terceros",
+    "6831": "Servicios de intermediación para actividades inmobiliarias",
+    "6832": "Otras actividades inmobiliarias por cuenta de terceros  \nN ACTIVIDADES PROFESIONALES, CIENTÍFICAS Y TÉCNICAS",
+    "691": "Actividades jurídicas",
+    "6910": "Actividades jurídicas",
+    "692": "Actividades de contabilidad, teneduría de libros, auditoría y asesoría \nfiscal",
+    "6920": "Actividades de contabilidad, teneduría de libros, auditoría y asesoría \nfiscal",
+    "701": "Actividades de las sedes centrales",
+    "7010": "Actividades de las sedes centrales  \nINE",
+    "702": "Otras actividades de consultoría de gestión empresarial",
+    "7020": "Otras actividades de consultoría de gestión empresarial",
+    "711": "Servicios técnicos de arquitectura e ingeniería y otras actividades \nrelacionadas con el asesoramiento técnico",
+    "7111": "Servicios técnicos de arquitectura",
+    "7112": "Servicios técnicos de ingeniería y otras actividades relacionadas con el \nasesoramiento técnico",
+    "712": "Ensayos y análisis técnicos",
+    "7120": "Ensayos y análisis técnicos",
+    "721": "Investigación y desarrollo experimental en ciencias naturales y técnicas",
+    "7210": "Investigación y desarrollo experimental en ciencias naturales y técnicas",
+    "722": "Investigación y desarrollo experimental en ciencias sociales y \nhumanidades",
+    "7220": "Investigación y desarrollo experimental en ciencias sociales y \nhumanidades",
+    "731": "Publicidad",
+    "7311": "Actividades de las agencias de publicidad",
+    "7312": "Servicios de representación de medios de comunicación",
+    "732": "Estudios de mercado y realización de encuestas de opinión pública",
+    "7320": "Estudios de mercado y realización de encuestas de opinión pública",
+    "733": "Relaciones públicas y comunicación",
+    "7330": "Relaciones públicas y comunicación",
+    "741": "Actividades de diseño especializado",
+    "7411": "Actividades de diseño de productos industriales y moda",
+    "7412": "Actividades de diseño gráfico y de comunicación visual",
+    "7413": "Actividades de diseño de interiores",
+    "7414": "Otras actividades de diseño especializado",
+    "742": "Actividades de fotografía  \nINE",
+    "7420": "Actividades de fotografía",
+    "743": "Actividades de traducción e interpretación",
+    "7430": "Actividades de traducción e interpretación",
+    "749": "Otras actividades profesionales, científicas y técnicas n",
+    "7491": "Actividades de los agentes de patentes y de los servicios de marketing",
+    "7499": "Todas las demás actividades profesionales, científicas y técnicas n",
+    "750": "Actividades veterinarias",
+    "7500": "Actividades veterinarias  \nO ACTIVIDADES ADMINISTRATIVAS Y SERVICIOS AUXILIARES",
+    "771": "Alquiler de vehículos de motor",
+    "7711": "Alquiler de automóviles y vehículos de motor ligeros",
+    "7712": "Alquiler de camiones",
+    "772": "Alquiler de efectos personales y artículos de uso doméstico",
+    "7721": "Alquiler de artículos de ocio y deportivos",
+    "7722": "Alquiler de efectos personales y artículos de uso doméstico",
+    "773": "Alquiler de otra maquinaria, equipos y bienes tangibles",
+    "7731": "Alquiler de maquinaria y equipo de uso agrícola",
+    "7732": "Alquiler de maquinaria y equipo para la construcción e ingeniería civil",
+    "7733": "Alquiler de maquinaria y equipo de oficina y ordenadores",
+    "7734": "Alquiler de medios de navegación",
+    "7735": "Alquiler de medios de transporte aéreo",
+    "7739": "Alquiler de otra maquinaria, equipos y bienes tangibles n",
+    "774": "Arrendamiento de la propiedad intelectual y productos similares, excepto \nobras protegidas por derechos de autor",
+    "7740": "Arrendamiento de la propiedad intelectual y productos similares, excepto \nobras protegidas por derechos de autor",
+    "775": "Servicios de intermediación para el alquiler de bienes tangibles y de \nactivos intangibles no financieros",
+    "7751": "Servicios de intermediación para el alquiler de automóviles, \nautocaravanas y remolques",
+    "7752": "Servicios de intermediación para el alquiler de otros bienes tangibles y \nde activos intangibles no financieros  \nINE",
+    "781": "Actividades de las agencias de colocación",
+    "7810": "Actividades de las agencias de colocación",
+    "782": "Actividades de las empresas de trabajo temporal y otra provisión de \nrecursos humanos",
+    "7820": "Actividades de las empresas de trabajo temporal y otra provisión de \nrecursos humanos",
+    "791": "Actividades de agencias de viajes y operadores turísticos",
+    "7911": "Actividades de las agencias de viajes",
+    "7912": "Actividades de los operadores turísticos",
+    "799": "Otros servicios de reservas y actividades relacionadas con los mismos",
+    "7990": "Otros servicios de reservas y actividades relacionadas con los mismos",
+    "800": "Servicios de investigación y seguridad",
+    "8001": "Servicios de investigación y seguridad privados",
+    "8009": "Servicios de seguridad n",
+    "811": "Servicios integrales a edificios e instalaciones",
+    "8110": "Servicios integrales a edificios e instalaciones",
+    "812": "Actividades de limpieza",
+    "8121": "Limpieza general de edificios",
+    "8122": "Otras actividades de limpieza industrial y de edificios",
+    "8123": "Otras actividades de limpieza",
+    "813": "Actividades de jardinería",
+    "8130": "Actividades de jardinería",
+    "821": "Actividades administrativas y auxiliares de oficina",
+    "8210": "Actividades administrativas y auxiliares de oficina",
+    "822": "Actividades de los centros de llamadas",
+    "8220": "Actividades de los centros de llamadas  \nINE",
+    "823": "Organización de convenciones y ferias de muestras",
+    "8230": "Organización de convenciones y ferias de muestras",
+    "824": "Actividades de intermediación para servicios de apoyo a las empresas \nn",
+    "8240": "Actividades de intermediación para servicios de apoyo a las empresas \nn",
+    "829": "Otras actividades de apoyo a las empresas n",
+    "8291": "Actividades de las agencias de cobros y de las oficinas de crédito",
+    "8292": "Actividades de envasado y empaquetado",
+    "8299": "Otras actividades de apoyo a las empresas n",
+    "841": "Administración pública y de la política económica, social y \nmedioambiental",
+    "8411": "Actividades generales de la administración pública",
+    "8412": "Regulación de los servicios sanitarios, educativos y culturales y otros \nservicios sociales",
+    "8413": "Regulación de la actividad económica y contribución a su mayor \neficiencia",
+    "842": "Prestación de servicios a la comunidad en general",
+    "8421": "Asuntos exteriores",
+    "8422": "Defensa",
+    "8423": "Justicia",
+    "8424": "Orden público y seguridad",
+    "8425": "Servicios de extinción de incendios",
+    "843": "Seguridad social obligatoria",
+    "8430": "Seguridad social obligatoria  \nQ EDUCACIÓN",
+    "851": "Educación preprimaria",
+    "8510": "Educación preprimaria",
+    "852": "Educación primaria",
+    "8520": "Educación primaria  \nINE",
+    "853": "Educación secundaria y educación postsecundaria no terciaria",
+    "8531": "Educación secundaria general",
+    "8532": "Educación secundaria profesional",
+    "8533": "Educación postsecundaria no terciaria",
+    "854": "Educación terciaria",
+    "8541": "Educación universitaria",
+    "8542": "Educación terciaria no universitaria",
+    "855": "Otra educación",
+    "8551": "Educación deportiva y recreativa",
+    "8552": "Educación cultural",
+    "8553": "Actividades de las escuelas de conducción y pilotaje",
+    "8559": "Otra educación n",
+    "856": "Actividades auxiliares a la educación",
+    "8561": "Actividades de servicios de intermediación para cursos y tutores",
+    "8569": "Actividades auxiliares a la educación n",
+    "861": "Actividades hospitalarias",
+    "8610": "Actividades hospitalarias",
+    "862": "Actividades médicas y odontológicas",
+    "8621": "Actividades de medicina general y de medicina familiar y comunitaria",
+    "8622": "Actividades de otras especialidades médicas",
+    "8623": "Actividades odontológicas",
+    "869": "Otras actividades sanitarias",
+    "8691": "Servicios de diagnóstico por la imagen y actividades de laboratorio \nmédico",
+    "8692": "Transporte de pacientes en ambulancia",
+    "8693": "Actividades de psicólogos y psicoterapeutas, excepto médicos",
+    "8694": "Actividades de enfermería y enfermería obstétrica",
+    "8695": "Actividades de fisioterapia",
+    "8696": "Actividades de medicina tradicional, complementaria y alternativa",
+    "8697": "Actividades de intermediación para servicios médicos, odontológicos y \notros servicios sanitarios  \nINE",
+    "8699": "Otras actividades sanitarias n",
+    "871": "Asistencia en establecimientos residenciales con cuidados sanitarios",
+    "8710": "Asistencia en establecimientos residenciales con cuidados sanitarios",
+    "872": "Asistencia en establecimientos residenciales para personas que padecen \nuna enfermedad mental o una drogodependencia o que han recibido un \ndiagnóstico al respecto",
+    "8720": "Asistencia en establecimientos residenciales para personas que padecen \nuna enfermedad mental o una drogodependencia o que han recibido un \ndiagnóstico al respecto",
+    "873": "Asistencia en establecimientos residenciales para personas mayores o \ncon discapacidad física",
+    "8731": "Asistencia en establecimientos residenciales para personas mayores",
+    "8732": "Asistencia en establecimientos residenciales para personas con \ndiscapacidad física",
+    "879": "Otras actividades de asistencia en establecimientos residenciales",
+    "8791": "Servicios de intermediación para actividades de asistencia en \nestablecimientos residenciales",
+    "8799": "Otro tipo de asistencia en establecimientos residenciales n",
+    "881": "Actividades de servicios sociales sin alojamiento para personas mayores \no con discapacidad",
+    "8811": "Actividades de servicios sociales sin alojamiento para personas mayores",
+    "8812": "Actividades de servicios sociales sin alojamiento para personas con \ndiscapacidad",
+    "889": "Otras actividades de servicios sociales sin alojamiento",
+    "8891": "Actividades de cuidado diurno de niños",
+    "8899": "Otras actividades de servicios sociales sin alojamiento n",
+    "901": "Actividades de creación artística",
+    "9011": "Actividades de creación literaria y composición musical",
+    "9012": "Actividades de creación de artes visuales",
+    "9013": "Otras actividades de creación artística",
+    "902": "Actividades de artes escénicas",
+    "9020": "Actividades de artes escénicas  \nINE",
+    "903": "Actividades de apoyo a la creación artística y a las artes escénicas",
+    "9031": "Gestión de instalaciones para actividades artísticas y artes escénicas",
+    "9039": "Otras actividades de apoyo a la creación artística y a las artes escénicas",
+    "911": "Actividades de bibliotecas y archivos",
+    "9111": "Actividades de bibliotecas",
+    "9112": "Actividades de archivos",
+    "912": "Actividades de museos, colecciones de arte, sitios históricos y \nmonumentos",
+    "9121": "Actividades de museos y de colecciones",
+    "9122": "Actividades de sitios históricos y monumentos",
+    "913": "Conservación, restauración y otras actividades de apoyo al patrimonio \ncultural",
+    "9130": "Conservación, restauración y otras actividades de apoyo al patrimonio \ncultural",
+    "914": "Actividades de los jardines botánicos, parques zoológicos y reservas \nnaturales",
+    "9141": "Actividades de los jardines botánicos y los parques zoológicos",
+    "9142": "Actividades de las reservas naturales",
+    "920": "Actividades de juegos de azar y apuestas",
+    "9200": "Actividades de juegos de azar y apuestas",
+    "931": "Actividades deportivas",
+    "9311": "Gestión de instalaciones deportivas",
+    "9312": "Actividades de los clubes deportivos",
+    "9313": "Actividades de los centros deportivos",
+    "9319": "Actividades deportivas n",
+    "932": "Otras actividades recreativas y de entretenimiento",
+    "9321": "Actividades de los parques de atracciones y los parques temáticos",
+    "9329": "Actividades recreativas y de entretenimiento n",
+    "941": "Actividades de organizaciones empresariales, profesionales y patronales",
+    "9411": "Actividades de organizaciones empresariales y patronales",
+    "9412": "Actividades de organizaciones profesionales",
+    "942": "Actividades sindicales",
+    "9420": "Actividades sindicales",
+    "949": "Otras actividades asociativas",
+    "9491": "Actividades de organizaciones religiosas",
+    "9492": "Actividades de organizaciones políticas",
+    "9499": "Otras actividades asociativas n",
+    "951": "Reparación y mantenimiento de ordenadores y equipos de comunicación",
+    "9510": "Reparación y mantenimiento de ordenadores y equipos de comunicación",
+    "952": "Reparación y mantenimiento de efectos personales y artículos de uso \ndoméstico",
+    "9521": "Reparación y mantenimiento de aparatos electrónicos de uso doméstico",
+    "9522": "Reparación y mantenimiento de electrodomésticos y de equipos para el \nhogar y el jardín",
+    "9523": "Reparación y mantenimiento de calzado y artículos de cuero",
+    "9524": "Reparación y mantenimiento de muebles y artículos de menaje",
+    "9525": "Reparación y mantenimiento de relojes y joyería",
+    "9529": "Reparación y mantenimiento de efectos personales y artículos de uso \ndoméstico n",
+    "953": "Reparación y mantenimiento de vehículos de motor y motocicletas",
+    "9531": "Reparación y mantenimiento de vehículos de motor",
+    "9532": "Reparación y mantenimiento de motocicletas",
+    "954": "Actividades de intermediación para reparación y mantenimiento de \nordenadores, artículos personales y enseres domésticos y vehículos de \nmotor y motocicletas",
+    "9540": "Actividades de intermediación para reparación y mantenimiento de \nordenadores, artículos personales y enseres domésticos y vehículos de \nmotor y motocicletas",
+    "961": "Lavado y limpieza de prendas de tela y de piel",
+    "9610": "Lavado y limpieza de prendas de tela y de piel  \nINE",
+    "962": "Peluquería, tratamientos de belleza, spas y actividades similares",
+    "9621": "Peluquerías y barberías",
+    "9622": "Actividades de cuidados de belleza y otras actividades de tratamiento de \nbelleza",
+    "9623": "Actividades de spas, saunas y baños turcos",
+    "963": "Pompas fúnebres y actividades relacionadas",
+    "9630": "Pompas fúnebres y actividades relacionadas",
+    "964": "Actividades de intermediación para servicios personales",
+    "9640": "Actividades de intermediación para servicios personales",
+    "969": "Otros servicios personales",
+    "9691": "Prestación de servicios personales domésticos",
+    "9699": "Otros servicios personales n",
+    "970": "Actividades de los hogares como empleadores de personal doméstico",
+    "9700": "Actividades de los hogares como empleadores de personal doméstico",
+    "981": "Actividades de los hogares como productores de bienes para uso propio",
+    "9810": "Actividades de los hogares como productores de bienes para uso propio",
+    "982": "Actividades de los hogares como productores de servicios para uso \npropio",
+    "9820": "Actividades de los hogares como productores de servicios para uso \npropio  \nV ORGANISMOS EXTRATERRITORIALES",
+    "990": "Actividades de organizaciones y organismos extraterritoriales",
+    "9900": "Actividades de organizaciones y organismos extraterritoriales  \nINE"
+}
+
+
+    # ======================================================
+    # PROCESAR SUBVENCIONES
+    # ======================================================
+
+    # ======================================================
+    # PROCESAR SUBVENCIONES
+    # ======================================================
+
     for sub in subvenciones:
+
         print(f"--- LOG 2: Procesando {sub['id_bdns']} ---")
-        
+
         texto = sub["texto_legal"]
-        
+
         prompt = f"""
-            Eres un analista experto en subvenciones públicas en España. Extrae información estructurada del texto proporcionado.
+        Eres un analista HIPERESTRICTO en subvenciones públicas en España. Tu objetivo es filtrar ayudas para una plataforma exclusiva de "AUTÓNOMOS REALES" (personas físicas, profesionales independientes, pequeños comerciantes, agricultores, freelancers).
+        
+        A continuación, tienes el MAPPING OFICIAL DE CNAE. Úsalo para identificar a qué sectores va dirigida la subvención:
+        {json.dumps(CNAE_MAPPING, ensure_ascii=False)}
 
-            DEVUELVE ÚNICAMENTE un JSON válido (sin texto adicional, sin explicaciones, sin markdown).
+        DEVUELVE ÚNICAMENTE un JSON válido (sin texto adicional).
 
-            Formato exacto de salida:
-            {{
+        Formato exacto de salida:
+        {{
             "titulo": string,
             "cnae_target": string,
+            "apto_autonomos": boolean,
+            "motivo_autonomos": string,
             "fecha_cierre": string|null
-            }}
+        }}
 
-            REGLAS:
-
-            1. "titulo"
-            - Extrae el título oficial de la subvención.
-            - Limpia texto irrelevante (ej. "Extracto de...", "BDNS", etc.).
-            - Máximo 150 caracteres.
-
-            2. "cnae_target"
-            - Devuelve códigos CNAE de 4 dígitos separados por comas (ej: "6201, 5610").
-            - Si aparecen explícitamente → úsalos.
-            - Si NO aparecen:
-            - Infiere SOLO si es muy claro (ej. tecnología → 6201, hostelería → 5610).
-            - Si no es evidente → devuelve "" (string vacío).
-            - NO inventes códigos aleatorios.
-
-            3. "fecha_cierre"
-            - Busca fecha límite de solicitud.
-            - Formato obligatorio: YYYY-MM-DD
-            - Si hay varias fechas → usa la más relevante para solicitud.
-            - Si no hay fecha clara → null
-
-            4. Validación estricta:
-            - No inventar información
-            - No añadir campos extra
-            - JSON debe ser parseable directamente con json.loads()
-
-            Texto a analizar:
-            {texto}
-            """
+        REGLAS VITALES:
+        1. "titulo": Título oficial, máximo 150 caracteres.
         
+        2. "cnae_target": 
+           - Si la ayuda es para informatización, digitalización, cuota de autónomos, eficiencia energética general o contratación que sirva para cualquier negocio, devuelve "".
+           - Si es de un sector concreto (ej. comprar tractores -> agricultura, o modernizar un bar -> hostelería), devuelve los códigos del MAPPING separados por comas.
+           
+        3. "apto_autonomos": (¡PIENSA EN UN AUTÓNOMO DE A PIE!)
+           - Devuelve true SOLO SI la ayuda está diseñada claramente para este perfil: menciona expresamente a "autónomos", "Régimen Especial de Trabajadores Autónomos (RETA)", "personas físicas con actividad económica" o "micropymes".
+           - Devuelve false OBLIGATORIAMENTE en cualquiera de estos casos:
+             * Proyectos de gran envergadura (millones de euros, alta ingeniería, infraestructuras públicas).
+             * Dirigidas a Ayuntamientos, Diputaciones, entidades locales, Universidades, Centros Tecnológicos, ONG, Asociaciones, Fundaciones o Comunidades de Regantes/Propietarios.
+             * Exige forma jurídica (S.L., S.A., Sociedades Cooperativas).
+             * Ayudas al cine, largometrajes o producciones audiovisuales masivas (suele ser para productoras jurídicas).
+             * Si la ayuda dice "empresas" pero por el contexto es evidente que un autónomo individual no tiene la capacidad técnica, económica o estructural para realizar el proyecto.
+           - Ante la más mínima duda de que un autónomo individual NO sea el público objetivo real, devuelve false.
+           
+        4. "motivo_autonomos": Cita a quién va dirigida o por qué has considerado que un autónomo de a pie no puede/suele pedir esto.
+        
+        5. "fecha_cierre": Busca exhaustivamente el plazo. Si pone "15 días desde la publicación", cálculalo y pon formato YYYY-MM-DD. Si no hay forma humana de saberlo, pon null.
+
+        Texto a analizar:
+        {texto}
+        """
+
         try:
-            respuesta = model.generate_content(prompt, generation_config=config_json)
+
+            respuesta = model.generate_content(
+                prompt,
+                generation_config=config_json
+            )
+
             datos_ia = json.loads(respuesta.text)
             
+            # ==================================================
+            # SANITIZACIÓN DEL BOOLEANO
+            # ==================================================
+            # Forzamos que, aunque la IA devuelva un string ("false" / "False"), 
+            # Python lo interprete correctamente como un booleano real.
+            apto_raw = datos_ia.get("apto_autonomos", False)
+            apto_autonomos = str(apto_raw).lower().strip() == "true"
+            
+            motivo = datos_ia.get("motivo_autonomos", "Sin motivo especificado")
+            
+            # ==================================================
+            # FILTRO ESTRICTO: DESCARTAR SI NO ES PARA AUTÓNOMOS
+            # ==================================================
+            if not apto_autonomos:
+                print(f"🚫 DESCARTADA (No es para autónomos): {sub['id_bdns']} - Motivo: {motivo}")
+                continue
+
+            # Preparamos el texto enriquecido para BD
+            texto_enriquecido = f"*** ANÁLISIS IA - ¿APTO AUTÓNOMOS?: SÍ ***\n*** MOTIVO: {motivo} ***\n\n{texto}"
+
+            # ==================================================
+            # INSERTAR EN BBDD
+            # ==================================================
+
             with pool.connect() as db_conn:
+
                 insert_stmt = sqlalchemy.text("""
-                    INSERT INTO subvenciones (id_bdns, titulo, cnae_target, fecha_cierre, texto_completo) 
-                    VALUES (:id_bdns, :titulo, :cnae_target, CAST(:fecha_cierre AS DATE), :texto_completo)
+                    INSERT INTO subvenciones (
+                        id_bdns,
+                        titulo,
+                        cnae_target,
+                        fecha_cierre,
+                        texto_completo
+                    )
+                    VALUES (
+                        :id_bdns,
+                        :titulo,
+                        :cnae_target,
+                        CAST(:fecha_cierre AS DATE),
+                        :texto_completo
+                    )
                     ON CONFLICT (id_bdns) DO NOTHING;
                 """)
-                
-                db_conn.execute(insert_stmt, {
-                    "id_bdns": sub["id_bdns"],
-                    "titulo": datos_ia.get("titulo", "Subvención sin título"),
-                    "cnae_target": datos_ia.get("cnae_target", ""),
-                    "fecha_cierre": datos_ia.get("fecha_cierre"),
-                    "texto_completo": texto
-                })
-                
+
+                db_conn.execute(
+                    insert_stmt,
+                    {
+                        "id_bdns": sub["id_bdns"],
+                        "titulo": datos_ia.get("titulo", "Subvención sin título"),
+                        "cnae_target": datos_ia.get("cnae_target", ""),
+                        "fecha_cierre": datos_ia.get("fecha_cierre"),
+                        "texto_completo": texto_enriquecido
+                    }
+                )
+
                 db_conn.commit()
-                
-            print(f"✅ Guardado (o ignorado si ya existía): {sub['id_bdns']}")
-            
+
+            print(f"✅ GUARDADA: {sub['id_bdns']} | CNAE: '{datos_ia.get('cnae_target')}' | Cierre: {datos_ia.get('fecha_cierre')}")
+
         except Exception as error:
+
             print(f"❌ ERROR procesando {sub['id_bdns']}: {str(error)}")
+
             continue
-            
+
     return "Ejecución finalizada", 200
