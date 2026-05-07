@@ -164,7 +164,7 @@
                     <li><a href="#" class="nav-item" data-view="consultant-view"><i class="fa-solid fa-microphone"></i>
                             Consultor IA</a></li>
                     <li><a href="#" class="nav-item" data-view="subsidies-view"><i class="fa-solid fa-hand-holding-dollar"></i>
-                            Subvenciones RAG</a></li>
+                            Subvenciones</a></li>
                     <li><a href="#" class="nav-item" data-view="calendar-view"><i class="fa-solid fa-calendar-days"></i>
                             Calendario</a></li>
                 </ul>
@@ -1175,43 +1175,27 @@
 
                     <!-- Subsidies View -->
                     <main id="subsidies-view" class="view hidden fade-in">
-                        <div class="section-block box-shadow mb-4">
+                        <div class="section-block box-shadow">
                             <div class="section-header">
-                                <h3><i class="fa-solid fa-hand-holding-dollar text-accent"></i> Subvenciones Personalizadas (RAG Engine)</h3>
+                                <h3><i class="fa-solid fa-hand-holding-dollar text-accent"></i> SUBVENCIONES</h3>
                                 <button class="btn btn-primary btn-sm" id="btn-refresh-subsidies">
-                                    <i class="fa-solid fa-sync"></i> Recalcular Ayudas
+                                    <i class="fa-solid fa-sync"></i> Buscar Ayudas
                                 </button>
                             </div>
-                            <p class="text-muted mt-2">Nuestro sistema de Inteligencia Artificial consulta el motor RAG de Vertex AI para cruzar tu CNAE y provincia con la base de datos nacional de subvenciones.</p>
+                            <p class="text-muted mt-2">Subvenciones disponibles según tu código CNAE y provincia registrados en tu perfil.</p>
                             
                             <div id="subsidies-loading" class="empty-state hidden mt-4">
                                 <i class="fa-solid fa-spinner fa-spin text-accent" style="font-size: 2rem;"></i>
-                                <p class="mt-2">Consultando Vertex AI RAG Engine...</p>
+                                <p class="mt-2">Buscando subvenciones disponibles...</p>
                             </div>
 
-                            <div id="subsidies-container" class="mt-4 grid-2-col gap-3">
-                                <!-- Recomendaciones renderizadas por JS -->
+                            <div id="subsidies-all-container" class="mt-4 grid-2-col gap-3">
+                                <!-- Todas las subvenciones renderizadas por JS -->
                             </div>
 
                             <div id="subsidies-empty" class="empty-state mt-4">
                                 <i class="fa-solid fa-magnifying-glass text-muted" style="font-size: 2rem;"></i>
-                                <p class="mt-2">No se han encontrado subvenciones específicas vía RAG.</p>
-                            </div>
-                        </div>
-
-                        <!-- Direct Matching Section -->
-                        <div class="section-block box-shadow">
-                            <div class="section-header">
-                                <h3><i class="fa-solid fa-bullseye text-accent"></i> Coincidencias Directas (CNAE)</h3>
-                            </div>
-                            <p class="text-muted mt-2">Subvenciones encontradas por coincidencia exacta con tu código CNAE en nuestra base de datos estructurada.</p>
-                            
-                            <div id="subsidies-matching-container" class="mt-4 grid-2-col gap-3">
-                                <!-- Coincidencias renderizadas por JS -->
-                            </div>
-
-                            <div id="subsidies-matching-empty" class="empty-state mt-4 hidden">
-                                <p>No hay coincidencias directas en este momento.</p>
+                                <p class="mt-2">No se han encontrado subvenciones disponibles en este momento.</p>
                             </div>
                         </div>
                     </main>

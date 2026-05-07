@@ -253,7 +253,7 @@ const UI = {
                 'expenses-view': 'Gastos',
                 'consultant-view': 'Consultor Financiero IA',
                 'taxes-view': 'Impuestos y Modelos',
-                'subsidies-view': 'Subvenciones RAG',
+                'subsidies-view': 'Subvenciones',
                 'calendar-view': 'Calendario Fiscal'
             };
             document.getElementById('page-title').textContent = titles[viewId] || 'Altonomo';
@@ -1941,7 +1941,7 @@ const appLogic = {
     },
 
     loadSubsidies: async () => {
-        const container = document.getElementById('subsidies-container');
+        const container = document.getElementById('subsidies-all-container');
         const loading = document.getElementById('subsidies-loading');
         const empty = document.getElementById('subsidies-empty');
         if (!container) return;
@@ -1950,49 +1950,51 @@ const appLogic = {
         loading.classList.remove('hidden');
         empty.classList.add('hidden');
 
+        let allSubsidies = [];
+
         try {
-            const res = await API.request(`/api/subsidies/recommendations/${AppState.userId}`);
+            // Fetch RAG recommendations
+            try {
+                const ragRes = await API.request(`/api/subsidies/recommendations/${AppState.userId}`);
+                if (ragRes.success && ragRes.recommendations && ragRes.recommendations.length > 0) {
+                    allSubsidies = allSubsidies.concat(ragRes.recommendations);
+                }
+            } catch (e) {
+                console.warn('RAG subsidies unavailable:', e);
+            }
+
+            // Fetch CNAE matching subsidies
+            try {
+                const matchRes = await API.request(`/api/subsidies/matching/${AppState.userId}`);
+                if (matchRes.success && matchRes.subsidies && matchRes.subsidies.length > 0) {
+                    // Avoid duplicates by ID
+                    const existingIds = new Set(allSubsidies.map(s => s.id || s.id_bdns));
+                    matchRes.subsidies.forEach(sub => {
+                        const subId = sub.id || sub.id_bdns;
+                        if (!existingIds.has(subId)) {
+                            allSubsidies.push(sub);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('Matching subsidies unavailable:', e);
+            }
+
             loading.classList.add('hidden');
 
-            if (res.success && res.recommendations && res.recommendations.length > 0) {
-                res.recommendations.forEach(sub => {
-                    const card = appLogic._createSubCard(sub, 'var(--clr-gold)');
+            if (allSubsidies.length > 0) {
+                allSubsidies.forEach(sub => {
+                    const card = appLogic._createSubCard(sub, 'var(--clr-accent)');
                     container.appendChild(card);
                 });
+                empty.classList.add('hidden');
             } else {
                 empty.classList.remove('hidden');
             }
-
-            // --- Carga de Coincidencias Directas (CNAE) ---
-            appLogic.loadMatchingSubsidies();
 
         } catch (e) {
             console.error('Error loading subsidies:', e);
             loading.classList.add('hidden');
-            empty.classList.remove('hidden');
-        }
-    },
-
-    loadMatchingSubsidies: async () => {
-        const container = document.getElementById('subsidies-matching-container');
-        const empty = document.getElementById('subsidies-matching-empty');
-        if (!container) return;
-
-        container.innerHTML = '';
-        empty.classList.add('hidden');
-
-        try {
-            const res = await API.request(`/api/subsidies/matching/${AppState.userId}`);
-            if (res.success && res.subsidies && res.subsidies.length > 0) {
-                res.subsidies.forEach(sub => {
-                    const card = appLogic._createSubCard(sub, 'var(--clr-accent)');
-                    container.appendChild(card);
-                });
-            } else {
-                empty.classList.remove('hidden');
-            }
-        } catch (e) {
-            console.error('Error loading matching subsidies:', e);
             empty.classList.remove('hidden');
         }
     },
