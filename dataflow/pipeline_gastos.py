@@ -1,8 +1,5 @@
 """
-Pipeline: Dataflow Streaming — Extracción de gastos con Gemini
-
-topic-tickets → Gemini extrae datos → UPDATE draft en PostgreSQL (status='draft' con datos)
-Datastream replica automáticamente los cambios a BigQuery.
+Pipeline: Dataflow Streaming — Extracción de gastos 
 """
 import argparse
 import json

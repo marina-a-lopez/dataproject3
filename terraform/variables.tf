@@ -19,12 +19,6 @@ variable "admin_ip" {
   type        = string
 }
 
-variable "gemini_api_key" {
-  description = "Clave API para Google Gemini"
-  type        = string
-  sensitive   = true
-}
-
 variable "database_url" {
   description = "URL de conexión a la base de datos PostgreSQL"
   type        = string
