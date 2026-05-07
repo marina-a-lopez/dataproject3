@@ -1088,7 +1088,10 @@ const appLogic = {
         if (!tr) return;
         const cells = tr.querySelectorAll('td');
         document.getElementById('exp-provider').value = cells[1].textContent.trim();
-        document.getElementById('exp-date').value = cells[2].textContent.trim();
+        const fecha = cells[2].textContent.trim();
+        const [dia, mes, año] = fecha.split('-');
+        document.getElementById('exp-date').value = `${año}-${mes}-${dia}`;
+        // document.getElementById('exp-date').value = cells[2].textContent.trim();
         document.getElementById('exp-concept').value = cells[3].textContent.trim();
         document.getElementById('exp-amount').value = parseFloat(cells[4].textContent).toFixed(2);
         document.getElementById('expense-form').dataset.expenseId = expenseId;
