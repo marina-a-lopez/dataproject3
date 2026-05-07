@@ -8,7 +8,9 @@
     <!-- Modern Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap"
+        rel="stylesheet">
     <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
@@ -30,10 +32,13 @@
                 onclick="window.location.href='/'"><i class="fa-solid fa-arrow-left"></i> Volver</button>
             <div class="auth-container">
                 <div class="auth-branding">
-                    <h1 class="brand-title" style="display: flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-weight: 700;">
+                    <h1 class="brand-title"
+                        style="display: flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-weight: 700;">
                         <span style="color: var(--green);">AI</span><span style="color: var(--white);">tonomo</span>
                     </h1>
-                    <p class="brand-subtitle" style="color: var(--green-mid); font-family: var(--font-body); letter-spacing: 0.1em;">GESTIONA. SIN PARAR DE TRABAJAR.</p>
+                    <p class="brand-subtitle"
+                        style="color: var(--green-mid); font-family: var(--font-body); letter-spacing: 0.1em;">GESTIONA.
+                        SIN PARAR DE TRABAJAR.</p>
                 </div>
 
                 <div class="auth-box box-shadow">
@@ -130,7 +135,8 @@
             <nav id="sidebar">
                 <div class="sidebar-header" style="border-bottom: 1px solid var(--border);">
                     <div class="logo">
-                        <h2 class="brand-heading" style="display: flex; align-items: center; font-family: var(--font-heading); font-weight: 700; font-size: 1.5rem;">
+                        <h2 class="brand-heading"
+                            style="display: flex; align-items: center; font-family: var(--font-heading); font-weight: 700; font-size: 1.5rem;">
                             <span style="color: var(--green);">AI</span><span style="color: var(--navy);">tonomo</span>
                         </h2>
                     </div>
@@ -163,8 +169,9 @@
                             Gastos</a></li>
                     <li><a href="#" class="nav-item" data-view="consultant-view"><i class="fa-solid fa-microphone"></i>
                             Consultor IA</a></li>
-                    <li><a href="#" class="nav-item" data-view="subsidies-view"><i class="fa-solid fa-hand-holding-dollar"></i>
-                            Subvenciones RAG</a></li>
+                    <li><a href="#" class="nav-item" data-view="subsidies-view"><i
+                                class="fa-solid fa-hand-holding-dollar"></i>
+                            Subvenciones</a></li>
                     <li><a href="#" class="nav-item" data-view="calendar-view"><i class="fa-solid fa-calendar-days"></i>
                             Calendario</a></li>
                 </ul>
@@ -188,17 +195,24 @@
                         <button id="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menú">
                             <i class="fa-solid fa-bars"></i>
                         </button>
-                        <h2 id="page-title" class="page-title font-heading" style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">Resumen Financiero</h2>
+                        <h2 id="page-title" class="page-title font-heading"
+                            style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">Resumen
+                            Financiero</h2>
                     </div>
                     <div class="topbar-right">
                         <div class="status-indicator">
-                            <span class="status-dot online" id="ai-status-dot" style="background-color: var(--green); box-shadow: 0 0 12px var(--green);"></span>
-                            <span class="status-text" id="ai-status-text" style="color: var(--green); font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em;">Gemini 2.5 Active</span>
+                            <span class="status-dot online" id="ai-status-dot"
+                                style="background-color: var(--green); box-shadow: 0 0 12px var(--green);"></span>
+                            <span class="status-text" id="ai-status-text"
+                                style="color: var(--green); font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em;">Gemini
+                                2.5 Active</span>
                         </div>
-                        <div class="date-display" id="current-date" style="font-family: var(--font-body); font-size: 0.8rem; color: var(--charcoal-lt);">--</div>
+                        <div class="date-display" id="current-date"
+                            style="font-family: var(--font-body); font-size: 0.8rem; color: var(--charcoal-lt);">--
+                        </div>
                     </div>
                 </header>
-                
+
 
 
                 <div class="main-content-scroll">
@@ -244,31 +258,43 @@
 
                         <div class="stats-grid">
                             <div class="stat-card">
-                                <div class="stat-icon" style="background: var(--green-lt); color: var(--green);"><i class="fa-solid fa-clock"></i></div>
+                                <div class="stat-icon" style="background: var(--green-lt); color: var(--green);"><i
+                                        class="fa-solid fa-clock"></i></div>
                                 <div class="stat-details">
                                     <p class="stat-label">Pendiente</p>
-                                    <h3 class="stat-value" id="dash-pending" style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">€0.00</h3>
+                                    <h3 class="stat-value" id="dash-pending"
+                                        style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">
+                                        €0.00</h3>
                                 </div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-icon" style="background: #FEE2E2; color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                                <div class="stat-icon" style="background: #FEE2E2; color: var(--danger);"><i
+                                        class="fa-solid fa-triangle-exclamation"></i></div>
                                 <div class="stat-details">
                                     <p class="stat-label">Vencido</p>
-                                    <h3 class="stat-value" id="dash-overdue" style="font-family: var(--font-heading); font-weight: 700; color: var(--danger);">€0.00</h3>
+                                    <h3 class="stat-value" id="dash-overdue"
+                                        style="font-family: var(--font-heading); font-weight: 700; color: var(--danger);">
+                                        €0.00</h3>
                                 </div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-icon" style="background: var(--off-white); color: var(--charcoal);"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                                <div class="stat-icon" style="background: var(--off-white); color: var(--charcoal);"><i
+                                        class="fa-solid fa-arrow-trend-down"></i></div>
                                 <div class="stat-details">
                                     <p class="stat-label">Gastos Totales</p>
-                                    <h3 class="stat-value" id="dash-expenses" style="font-family: var(--font-heading); font-weight: 700; color: var(--charcoal);">€0.00</h3>
+                                    <h3 class="stat-value" id="dash-expenses"
+                                        style="font-family: var(--font-heading); font-weight: 700; color: var(--charcoal);">
+                                        €0.00</h3>
                                 </div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-icon" style="background: var(--green-lt); color: var(--green);"><i class="fa-solid fa-building-user"></i></div>
+                                <div class="stat-icon" style="background: var(--green-lt); color: var(--green);"><i
+                                        class="fa-solid fa-building-user"></i></div>
                                 <div class="stat-details">
                                     <p class="stat-label">Clientes</p>
-                                    <h3 class="stat-value" id="dash-clients" style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">0</h3>
+                                    <h3 class="stat-value" id="dash-clients"
+                                        style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">
+                                        0</h3>
                                 </div>
                             </div>
                         </div>
@@ -318,7 +344,8 @@
                                             style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
                                             <option value="">Selecciona un presupuesto aprobado...</option>
                                         </select>
-                                        <button type="button" class="btn btn-primary" id="btn-import-quote">Cargar</button>
+                                        <button type="button" class="btn btn-primary"
+                                            id="btn-import-quote">Cargar</button>
                                     </div>
                                 </div>
 
@@ -845,7 +872,8 @@
                                     <button class="period-nav-arrow" id="cal-prev-btn" onclick="calShiftMonth(-1)">
                                         <i class="fa-solid fa-chevron-left"></i>
                                     </button>
-                                    <h2 class="calendar-month-title" id="cal-month-title" style="margin: 0; min-width: 180px; color: var(--off-white) !important;">–</h2>
+                                    <h2 class="calendar-month-title" id="cal-month-title"
+                                        style="margin: 0; min-width: 180px; color: var(--off-white) !important;">–</h2>
                                     <button class="period-nav-arrow" id="cal-next-btn" onclick="calShiftMonth(1)">
                                         <i class="fa-solid fa-chevron-right"></i>
                                     </button>
@@ -1093,8 +1121,10 @@
                         <!-- Pending Confirmation Table -->
                         <div class="section-block box-shadow mt-4" id="expense-pending-section">
                             <div class="section-header">
-                                <h3>Pendientes de Confirmar <span id="expense-pending-count" class="text-accent text-sm font-normal"></span></h3>
-                                <p class="text-muted text-sm" style="margin-top:5px;">Haz clic en "Revisar" para cargar los datos en el formulario, corrígelos si es necesario y guárdalos</p>
+                                <h3>Pendientes de Confirmar <span id="expense-pending-count"
+                                        class="text-accent text-sm font-normal"></span></h3>
+                                <p class="text-muted text-sm" style="margin-top:5px;">Haz clic en "Revisar" para cargar
+                                    los datos en el formulario, corrígelos si es necesario y guárdalos</p>
                             </div>
                             <div class="table-responsive">
                                 <table class="corporate-table">
@@ -1175,43 +1205,27 @@
 
                     <!-- Subsidies View -->
                     <main id="subsidies-view" class="view hidden fade-in">
-                        <div class="section-block box-shadow mb-4">
+                        <div class="section-block box-shadow">
                             <div class="section-header">
-                                <h3><i class="fa-solid fa-hand-holding-dollar text-accent"></i> Subvenciones Personalizadas (RAG Engine)</h3>
+                                <h3><i class="fa-solid fa-hand-holding-dollar text-accent"></i> SUBVENCIONES</h3>
                                 <button class="btn btn-primary btn-sm" id="btn-refresh-subsidies">
-                                    <i class="fa-solid fa-sync"></i> Recalcular Ayudas
+                                    <i class="fa-solid fa-sync"></i> Buscar Ayudas
                                 </button>
                             </div>
-                            <p class="text-muted mt-2">Nuestro sistema de Inteligencia Artificial consulta el motor RAG de Vertex AI para cruzar tu CNAE y provincia con la base de datos nacional de subvenciones.</p>
-                            
+                            <p class="text-muted mt-2">Subvenciones disponibles según tu código CNAE y provincia registrados en tu perfil.</p>
+
                             <div id="subsidies-loading" class="empty-state hidden mt-4">
                                 <i class="fa-solid fa-spinner fa-spin text-accent" style="font-size: 2rem;"></i>
-                                <p class="mt-2">Consultando Vertex AI RAG Engine...</p>
+                                <p class="mt-2">Buscando subvenciones disponibles...</p>
                             </div>
 
-                            <div id="subsidies-container" class="mt-4 grid-2-col gap-3">
-                                <!-- Recomendaciones renderizadas por JS -->
+                            <div id="subsidies-all-container" class="mt-4 grid-2-col gap-3">
+                                <!-- Todas las subvenciones renderizadas por JS -->
                             </div>
 
                             <div id="subsidies-empty" class="empty-state mt-4">
                                 <i class="fa-solid fa-magnifying-glass text-muted" style="font-size: 2rem;"></i>
-                                <p class="mt-2">No se han encontrado subvenciones específicas vía RAG.</p>
-                            </div>
-                        </div>
-
-                        <!-- Direct Matching Section -->
-                        <div class="section-block box-shadow">
-                            <div class="section-header">
-                                <h3><i class="fa-solid fa-bullseye text-accent"></i> Coincidencias Directas (CNAE)</h3>
-                            </div>
-                            <p class="text-muted mt-2">Subvenciones encontradas por coincidencia exacta con tu código CNAE en nuestra base de datos estructurada.</p>
-                            
-                            <div id="subsidies-matching-container" class="mt-4 grid-2-col gap-3">
-                                <!-- Coincidencias renderizadas por JS -->
-                            </div>
-
-                            <div id="subsidies-matching-empty" class="empty-state mt-4 hidden">
-                                <p>No hay coincidencias directas en este momento.</p>
+                                <p class="mt-2">No se han encontrado subvenciones disponibles en este momento.</p>
                             </div>
                         </div>
                     </main>
@@ -1409,8 +1423,7 @@
 
                     <!-- Client Invoices -->
                     <div>
-                        <h4 style="margin-top: 0; color: var(--green);"><i
-                                class="fa-solid fa-file-invoice-dollar"></i>
+                        <h4 style="margin-top: 0; color: var(--green);"><i class="fa-solid fa-file-invoice-dollar"></i>
                             Historial de Facturas</h4>
                         <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
                             <table class="corporate-table" id="modal-client-invoices">
@@ -1456,7 +1469,8 @@
                         <label class="form-label">Título del evento</label>
                         <div style="display:flex; gap:10px; width: 100%;">
                             <input class="form-input" id="event-title-input" placeholder="Ej: Reunión con asesor...">
-                            <button class="btn-icon-alt" id="voice-btn" onclick="startVoiceInput()" title="Dictar por voz">
+                            <button class="btn-icon-alt" id="voice-btn" onclick="startVoiceInput()"
+                                title="Dictar por voz">
                                 <i class="fa-solid fa-microphone"></i>
                             </button>
                         </div>
