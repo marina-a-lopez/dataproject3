@@ -6,6 +6,7 @@ import vertexai
 import requests
 import os
 import xml.etree.ElementTree as ET
+import time  # <-- IMPORTANTE: Añadimos time para las pausas
 
 from vertexai.generative_models import (
     GenerativeModel,
@@ -240,18 +241,13 @@ def procesar_bdns(request):
     # MODELO IA
     # ======================================================
 
-    # ======================================================
-    # MODELO IA
-    # ======================================================
-
     model = GenerativeModel("gemini-2.5-flash")
 
     config_json = GenerationConfig(
         response_mime_type="application/json",
-        temperature=0.1 # Temperatura baja para precisión en los CNAE
+        temperature=0.1 # Temperatura baja para precisión
     )
 
-    # Asegúrate de poner aquí tu diccionario completo
     CNAE_MAPPING = {
     "011": "Cultivos no perennes",
     "0111": "Cultivo de cereales, distintos de arroz, leguminosas y oleaginosas",
@@ -370,7 +366,7 @@ def procesar_bdns(request):
     "110": "Fabricación de bebidas",
     "1101": "Destilación, rectificación y mezcla de bebidas alcohólicas",
     "1102": "Elaboración de vinos",
-    "1103": "Elaboración de sidra y otras bebidas fermentadas a partir de frutas",
+    "1103": "Elaboración de sidra y  otras bebidas fermentadas a partir de frutas",
     "1104": "Elaboración de otras bebidas no destiladas, procedentes de la \nfermentación",
     "1105": "Fabricación de cerveza",
     "1106": "Fabricación de malta",
@@ -1203,15 +1199,10 @@ def procesar_bdns(request):
     "9820": "Actividades de los hogares como productores de servicios para uso \npropio  \nV ORGANISMOS EXTRATERRITORIALES",
     "990": "Actividades de organizaciones y organismos extraterritoriales",
     "9900": "Actividades de organizaciones y organismos extraterritoriales  \nINE"
-}
-
-
-    # ======================================================
-    # PROCESAR SUBVENCIONES
-    # ======================================================
+    }
 
     # ======================================================
-    # PROCESAR SUBVENCIONES
+    # PROCESAR SUBVENCIONES (CON RETRY Y PAUSAS)
     # ======================================================
 
     for sub in subvenciones:
@@ -1262,78 +1253,86 @@ def procesar_bdns(request):
         {texto}
         """
 
-        try:
+        max_reintentos = 3
+        retraso_base = 5  # Segundos de espera base si salta el error 429
 
-            respuesta = model.generate_content(
-                prompt,
-                generation_config=config_json
-            )
-
-            datos_ia = json.loads(respuesta.text)
-            
-            # ==================================================
-            # SANITIZACIÓN DEL BOOLEANO
-            # ==================================================
-            # Forzamos que, aunque la IA devuelva un string ("false" / "False"), 
-            # Python lo interprete correctamente como un booleano real.
-            apto_raw = datos_ia.get("apto_autonomos", False)
-            apto_autonomos = str(apto_raw).lower().strip() == "true"
-            
-            motivo = datos_ia.get("motivo_autonomos", "Sin motivo especificado")
-            
-            # ==================================================
-            # FILTRO ESTRICTO: DESCARTAR SI NO ES PARA AUTÓNOMOS
-            # ==================================================
-            if not apto_autonomos:
-                print(f"🚫 DESCARTADA (No es para autónomos): {sub['id_bdns']} - Motivo: {motivo}")
-                continue
-
-            # Preparamos el texto enriquecido para BD
-            texto_enriquecido = f"*** ANÁLISIS IA - ¿APTO AUTÓNOMOS?: SÍ ***\n*** MOTIVO: {motivo} ***\n\n{texto}"
-
-            # ==================================================
-            # INSERTAR EN BBDD
-            # ==================================================
-
-            with pool.connect() as db_conn:
-
-                insert_stmt = sqlalchemy.text("""
-                    INSERT INTO subvenciones (
-                        id_bdns,
-                        titulo,
-                        cnae_target,
-                        fecha_cierre,
-                        texto_completo
-                    )
-                    VALUES (
-                        :id_bdns,
-                        :titulo,
-                        :cnae_target,
-                        CAST(:fecha_cierre AS DATE),
-                        :texto_completo
-                    )
-                    ON CONFLICT (id_bdns) DO NOTHING;
-                """)
-
-                db_conn.execute(
-                    insert_stmt,
-                    {
-                        "id_bdns": sub["id_bdns"],
-                        "titulo": datos_ia.get("titulo", "Subvención sin título"),
-                        "cnae_target": datos_ia.get("cnae_target", ""),
-                        "fecha_cierre": datos_ia.get("fecha_cierre"),
-                        "texto_completo": texto_enriquecido
-                    }
+        for intento in range(max_reintentos):
+            try:
+                respuesta = model.generate_content(
+                    prompt,
+                    generation_config=config_json
                 )
 
-                db_conn.commit()
+                datos_ia = json.loads(respuesta.text)
+                
+                # ==================================================
+                # SANITIZACIÓN DEL BOOLEANO
+                # ==================================================
+                apto_raw = datos_ia.get("apto_autonomos", False)
+                apto_autonomos = str(apto_raw).lower().strip() == "true"
+                motivo = datos_ia.get("motivo_autonomos", "Sin motivo especificado")
+                
+                # ==================================================
+                # FILTRO ESTRICTO: DESCARTAR SI NO ES PARA AUTÓNOMOS
+                # ==================================================
+                if not apto_autonomos:
+                    print(f"🚫 DESCARTADA (No es para autónomos): {sub['id_bdns']} - Motivo: {motivo}")
+                    time.sleep(3) # Pausa incluso si descartamos para no ahogar la API
+                    break # Rompe el bucle de reintentos para pasar a la siguiente subvención
 
-            print(f"✅ GUARDADA: {sub['id_bdns']} | CNAE: '{datos_ia.get('cnae_target')}' | Cierre: {datos_ia.get('fecha_cierre')}")
+                # Preparamos el texto enriquecido
+                texto_enriquecido = f"*** ANÁLISIS IA - ¿APTO AUTÓNOMOS?: SÍ ***\n*** MOTIVO: {motivo} ***\n\n{texto}"
 
-        except Exception as error:
+                # ==================================================
+                # INSERTAR EN BBDD
+                # ==================================================
+                with pool.connect() as db_conn:
+                    insert_stmt = sqlalchemy.text("""
+                        INSERT INTO subvenciones (
+                            id_bdns,
+                            titulo,
+                            cnae_target,
+                            fecha_cierre,
+                            texto_completo
+                        )
+                        VALUES (
+                            :id_bdns,
+                            :titulo,
+                            :cnae_target,
+                            CAST(:fecha_cierre AS DATE),
+                            :texto_completo
+                        )
+                        ON CONFLICT (id_bdns) DO NOTHING;
+                    """)
 
-            print(f"❌ ERROR procesando {sub['id_bdns']}: {str(error)}")
+                    db_conn.execute(
+                        insert_stmt,
+                        {
+                            "id_bdns": sub["id_bdns"],
+                            "titulo": datos_ia.get("titulo", "Subvención sin título"),
+                            "cnae_target": datos_ia.get("cnae_target", ""),
+                            "fecha_cierre": datos_ia.get("fecha_cierre"),
+                            "texto_completo": texto_enriquecido
+                        }
+                    )
+                    db_conn.commit()
 
-            continue
+                print(f"✅ GUARDADA: {sub['id_bdns']} | CNAE: '{datos_ia.get('cnae_target')}' | Cierre: {datos_ia.get('fecha_cierre')}")
+                
+                # 👉 PAUSA ESTRATÉGICA AL TERMINAR BIEN 👈
+                time.sleep(3)
+                break # Rompe el bucle de reintentos porque todo ha ido bien
+
+            except Exception as error:
+                # Si es error de cuota (429), aplicamos Backoff exponencial
+                if "429" in str(error) and intento < max_reintentos - 1:
+                    espera = retraso_base * (intento + 1)
+                    print(f"⚠️ Límite de API alcanzado (429). Reintentando en {espera} segundos...")
+                    time.sleep(espera)
+                else:
+                    # Si es otro error o ya hemos agotado los intentos, pasamos a la siguiente
+                    print(f"❌ ERROR definitivo procesando {sub['id_bdns']}: {str(error)}")
+                    time.sleep(3)
+                    break 
 
     return "Ejecución finalizada", 200
