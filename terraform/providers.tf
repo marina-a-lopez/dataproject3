@@ -26,8 +26,6 @@ provider "google-beta" {
   region                = var.region
   user_project_override = true
 }
-
-# Configuración para que el provider de Docker pueda subir imágenes a Google Artifact Registry
 data "google_client_config" "default" {}
 
 provider "docker" {
