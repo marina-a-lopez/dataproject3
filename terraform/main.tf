@@ -75,7 +75,7 @@ resource "google_sql_database_instance" "postgres_instance" {
     edition           = "ENTERPRISE"
 
     ip_configuration {
-      ipv4_enabled    = true
+      ipv4_enabled    = false
       private_network = google_compute_network.vpc_aitonomo.id
       enable_private_path_for_google_cloud_services = true
     }
@@ -156,6 +156,14 @@ resource "google_cloud_run_v2_service" "backend_cloud_run" {
 
   template {
     service_account = google_service_account.backend_sa.email
+
+    vpc_access {
+      network_interfaces {
+        network    = google_compute_network.vpc_aitonomo.id
+        subnetwork = google_compute_subnetwork.subnet_aitonomo.id
+      }
+      egress = "PRIVATE_RANGES_ONLY"
+    }
 
     volumes {
       name = "cloudsql"
@@ -681,6 +689,20 @@ resource "google_compute_firewall" "permitir_datastream_proxy" {
   source_ranges = ["10.3.0.0/29"]
 }
 
+# Firewall: puertos internos requeridos por Dataflow workers
+resource "google_compute_firewall" "permitir_dataflow_interno" {
+  name    = "permitir-dataflow-interno"
+  network = google_compute_network.vpc_aitonomo.id
+
+  allow {
+    protocol = "tcp"
+    ports    = ["12345-12346"]
+  }
+
+  source_ranges = ["10.0.0.0/24"]
+  target_tags   = ["dataflow"]
+}
+
 # Túnel privado entre Datastream y nuestra VPC
 resource "google_datastream_private_connection" "datastream_pc" {
   display_name          = "Private connectivity Datastream"
@@ -761,37 +783,40 @@ resource "google_datastream_stream" "postgres_to_bq" {
 # ---------------------------------------------------------
 # 11. DATAFLOW JOB (Pipeline Streaming de Gastos)
 # ---------------------------------------------------------
-# resource "null_resource" "lanzar_dataflow" {
-#   triggers = {
-#     db_host       = google_sql_database_instance.postgres_instance.public_ip_address
-#     pipeline_hash = filesha1("${path.module}/../dataflow/pipeline_gastos.py")
-#   }
+resource "null_resource" "lanzar_dataflow" {
+  triggers = {
+    db_host       = google_sql_database_instance.postgres_instance.private_ip_address
+    pipeline_hash = filesha1("${path.module}/../dataflow/pipeline_gastos.py")
+  }
 
-#   provisioner "local-exec" {
-#     command = <<EOT
-# python ../dataflow/pipeline_gastos.py \
-#   --project_id=${var.project_id} \
-#   --db_host=${google_sql_database_instance.postgres_instance.public_ip_address} \
-#   --db_name=aitonomo_db \
-#   --db_user=admin \
-#   --db_pass="${var.postgres_password}" \
-#   --runner=DataflowRunner \
-#   --region=${var.region} \
-#   --temp_location=gs://${google_storage_bucket.dataflow_staging.name}/temp \
-#   --staging_location=gs://${google_storage_bucket.dataflow_staging.name}/staging \
-#   --service_account_email=${google_service_account.dataflow_sa.email} \
-#   --requirements_file=../dataflow/requirements.txt \
-#   --job_name=pipeline-gastos-${substr(filesha1("${path.module}/../dataflow/pipeline_gastos.py"), 0, 6)} \
-#   --streaming \
-#   --no_wait_until_finish
-# EOT
-#   }
+  provisioner "local-exec" {
+    command = <<EOT
+python ../dataflow/pipeline_gastos.py \
+  --project_id=${var.project_id} \
+  --db_host=${google_sql_database_instance.postgres_instance.private_ip_address} \
+  --db_name=aitonomo_db \
+  --db_user=admin \
+  --db_pass="${var.postgres_password}" \
+  --runner=DataflowRunner \
+  --region=${var.region} \
+  --network=${google_compute_network.vpc_aitonomo.name} \
+  --subnetwork=regions/${var.region}/subnetworks/${google_compute_subnetwork.subnet_aitonomo.name} \
+  --temp_location=gs://${google_storage_bucket.dataflow_staging.name}/temp \
+  --staging_location=gs://${google_storage_bucket.dataflow_staging.name}/staging \
+  --service_account_email=${google_service_account.dataflow_sa.email} \
+  --requirements_file=../dataflow/requirements.txt \
+  --job_name=pipeline-gastos-${substr(filesha1("${path.module}/../dataflow/pipeline_gastos.py"), 0, 6)} \
+  --streaming \
+  --no_wait_until_finish
+EOT
+  }
 
-#   depends_on = [
-#     google_service_account.dataflow_sa,
-#     google_project_iam_member.dataflow_permissions,
-#     google_storage_bucket.dataflow_staging,
-#     google_pubsub_subscription.sub_tickets,
-#     google_sql_database_instance.postgres_instance,
-#   ]
-# }
+  depends_on = [
+    google_service_account.dataflow_sa,
+    google_project_iam_member.dataflow_permissions,
+    google_storage_bucket.dataflow_staging,
+    google_pubsub_subscription.sub_tickets,
+    google_sql_database_instance.postgres_instance,
+    google_service_networking_connection.private_vpc_connection,
+  ]
+}
