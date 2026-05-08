@@ -75,7 +75,7 @@ resource "google_sql_database_instance" "postgres_instance" {
     edition           = "ENTERPRISE"
 
     ip_configuration {
-      ipv4_enabled    = false
+      ipv4_enabled    = true
       private_network = google_compute_network.vpc_aitonomo.id
       enable_private_path_for_google_cloud_services = true
     }
@@ -607,7 +607,77 @@ resource "google_bigquery_table" "view_investor_kpis" {
 # 9. DATASTREAM (Replicación PostgreSQL -> BigQuery)
 # ---------------------------------------------------------
 
-# Private Connectivity Config: túnel privado entre Datastream y nuestra VPC
+# Imagen Debian para la VM proxy
+data "google_compute_image" "debian" {
+  family  = "debian-12"
+  project = "debian-cloud"
+}
+
+# VM con HAProxy: intermediario entre Datastream y Cloud SQL (IP privada)
+resource "google_compute_instance" "proxy_datastream" {
+  name         = "proxy-datastream-cloudsql"
+  machine_type = "e2-micro"
+  zone         = "${var.region}-a"
+
+  boot_disk {
+    initialize_params {
+      image = data.google_compute_image.debian.id
+    }
+  }
+
+  network_interface {
+    network    = google_compute_network.vpc_aitonomo.id
+    subnetwork = google_compute_subnetwork.subnet_aitonomo.id
+    access_config {}
+  }
+
+  metadata_startup_script = <<-EOF
+    #! /bin/bash
+    apt-get update
+    apt-get install -y haproxy
+    
+    cat > /etc/haproxy/haproxy.cfg << 'HAPROXY'
+    global
+        daemon
+        maxconn 256
+    defaults
+        mode tcp
+        timeout connect 5000ms
+        timeout client 50000ms
+        timeout server 50000ms
+    frontend postgres_in
+        bind *:5432
+        default_backend postgres_out
+    backend postgres_out
+        server cloudsql ${google_sql_database_instance.postgres_instance.private_ip_address}:5432 check
+    HAPROXY
+    
+    systemctl restart haproxy
+  EOF
+
+  depends_on = [google_sql_database_instance.postgres_instance]
+}
+
+# Esperar a que HAProxy arranque antes de crear el connection profile
+resource "time_sleep" "esperar_proxy" {
+  depends_on      = [google_compute_instance.proxy_datastream]
+  create_duration = "300s"
+}
+
+# Firewall: permitir que Datastream (desde su rango de peering) llegue al proxy
+resource "google_compute_firewall" "permitir_datastream_proxy" {
+  name    = "permitir-datastream-proxy"
+  network = google_compute_network.vpc_aitonomo.id
+
+  allow {
+    protocol = "tcp"
+    ports    = ["5432"]
+  }
+
+  source_ranges = ["10.3.0.0/29"]
+}
+
+# Túnel privado entre Datastream y nuestra VPC
 resource "google_datastream_private_connection" "datastream_pc" {
   display_name          = "Private connectivity Datastream"
   location              = var.region
@@ -615,7 +685,7 @@ resource "google_datastream_private_connection" "datastream_pc" {
 
   vpc_peering_config {
     vpc    = google_compute_network.vpc_aitonomo.id
-    subnet = "10.1.0.0/29"
+    subnet = "10.3.0.0/29"
   }
 }
 
@@ -625,7 +695,7 @@ resource "google_datastream_connection_profile" "postgres_cp" {
   connection_profile_id = "postgres-source-cp"
 
   postgresql_profile {
-    hostname = google_sql_database_instance.postgres_instance.private_ip_address
+    hostname = google_compute_instance.proxy_datastream.network_interface[0].network_ip
     port     = 5432
     username = google_sql_user.postgres_user.name
     password = google_sql_user.postgres_user.password
@@ -636,7 +706,10 @@ resource "google_datastream_connection_profile" "postgres_cp" {
     private_connection = google_datastream_private_connection.datastream_pc.id
   }
 
-  depends_on = [google_datastream_private_connection.datastream_pc]
+  depends_on = [
+    google_datastream_private_connection.datastream_pc,
+    time_sleep.esperar_proxy
+  ]
 }
 
 resource "google_datastream_connection_profile" "bigquery_cp" {
