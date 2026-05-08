@@ -1482,6 +1482,53 @@ async def get_subsidy_details(sub_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Error procesando detalles de la subvención")
 
 
+@app.get("/api/subsidies/recommendations/{user_id}")
+async def get_rag_recommendations(user_id: str, db: Session = Depends(get_db)):
+    """Obtiene recomendaciones de subvenciones usando Vertex AI RAG Engine."""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    try:
+        recs = rag_subsidies_agent_instance.get_recommendations(user, db)
+        return {"success": True, "recommendations": recs}
+    except Exception as e:
+        logger.error(f"Error en RAG recommendations: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando recomendaciones RAG")
+
+
+@app.get("/api/subsidies/matching/{user_id}")
+async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
+    """Busca subvenciones en la BD que coincidan exactamente con el CNAE del usuario."""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    user_cnae = user.cnae
+    if not user_cnae:
+        return {"success": True, "subsidies": [], "message": "Usuario sin CNAE definido"}
+    
+    # Buscamos coincidencias en cnae_target. 
+    # El scraper guarda strings tipo '6201, 6202' o similares.
+    subsidies = db.query(Subvencion).filter(
+        Subvencion.cnae_target.ilike(f"%{user_cnae}%")
+    ).all()
+    
+    # Formateamos para el front
+    results = []
+    for s in subsidies:
+        results.append({
+            "id": str(s.id),
+            "id_bdns": s.id_bdns,
+            "titulo": s.titulo,
+            "cnae_target": s.cnae_target,
+            "fecha_cierre": s.fecha_cierre.isoformat() if s.fecha_cierre else None,
+            "texto_completo": s.texto_completo[:300] + "..." if s.texto_completo else ""
+        })
+    
+    return {"success": True, "subsidies": results}
+
+
 @app.get("/api/subsidies/{user_id}")
 async def get_subsidies(user_id: str, db: Session = Depends(get_db)):
     user = get_user_by_id(db, user_id)
@@ -1609,53 +1656,6 @@ async def update_profile(
         
     db.commit()
     return {"success": True, "message": "Perfil actualizado", "profile_picture": user.profile_picture, "nombre": user.nombre}
-
-
-@app.get("/api/subsidies/recommendations/{user_id}")
-async def get_rag_recommendations(user_id: str, db: Session = Depends(get_db)):
-    """Obtiene recomendaciones de subvenciones usando Vertex AI RAG Engine."""
-    user = get_user_by_id(db, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    try:
-        recs = rag_subsidies_agent_instance.get_recommendations(user, db)
-        return {"success": True, "recommendations": recs}
-    except Exception as e:
-        logger.error(f"Error en RAG recommendations: {e}")
-        raise HTTPException(status_code=500, detail="Error procesando recomendaciones RAG")
-
-
-@app.get("/api/subsidies/matching/{user_id}")
-async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
-    """Busca subvenciones en la BD que coincidan exactamente con el CNAE del usuario."""
-    user = get_user_by_id(db, user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    user_cnae = user.cnae
-    if not user_cnae:
-        return {"success": True, "subsidies": [], "message": "Usuario sin CNAE definido"}
-    
-    # Buscamos coincidencias en cnae_target. 
-    # El scraper guarda strings tipo '6201, 6202' o similares.
-    subsidies = db.query(Subvencion).filter(
-        Subvencion.cnae_target.ilike(f"%{user_cnae}%")
-    ).all()
-    
-    # Formateamos para el front
-    results = []
-    for s in subsidies:
-        results.append({
-            "id": str(s.id),
-            "id_bdns": s.id_bdns,
-            "titulo": s.titulo,
-            "cnae_target": s.cnae_target,
-            "fecha_cierre": s.fecha_cierre.isoformat() if s.fecha_cierre else None,
-            "texto_completo": s.texto_completo[:300] + "..." if s.texto_completo else ""
-        })
-    
-    return {"success": True, "subsidies": results}
 
 
 

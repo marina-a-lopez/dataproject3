@@ -49,13 +49,15 @@ const Utils = {
 };
 
 // IMPORTANTE: URL del Backend
-const API_BASE_URL = "https://api-backend-jkxxdq53jq-no.a.run.app"; //https://api-backend-4nrtuy3yca-no.a.run.app
+// Si estamos en localhost, usamos el backend local. Si no, usamos la URL de producción.
+const API_BASE_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" 
+    ? "" 
+    : "https://api-backend-jkxxdq53jq-no.a.run.app";
 
 const API = {
     request: async (endpoint, options = {}) => {
         try {
-            // En local usa rutas relativas, en producción usará la URL completa del backend
-            const finalUrl = API_BASE_URL.includes("PON_AQUI_LA_URL") ? endpoint : API_BASE_URL + endpoint;
+            const finalUrl = API_BASE_URL + endpoint;
             const res = await fetch(finalUrl, options);
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
@@ -249,7 +251,7 @@ const UI = {
                 'subsidies-view': 'Subvenciones',
                 'calendar-view': 'Calendario Fiscal'
             };
-            document.getElementById('page-title').textContent = titles[viewId] || 'Altonomo';
+            document.getElementById('page-title').textContent = titles[viewId] || 'AItonomo';
         }
 
         // Hide all views, show target
@@ -260,6 +262,42 @@ const UI = {
 
         if (viewId === 'expenses-view') appLogic.loadExpenseDrafts();
         if (viewId === 'subsidies-view') appLogic.loadSubsidies();
+    },
+
+    openSubsidyModal: () => {
+        const modal = document.getElementById('subsidy-detail-modal');
+        const backdrop = document.getElementById('subsidy-detail-modal-backdrop');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.classList.remove('hidden');
+        }
+        if (backdrop) backdrop.classList.remove('hidden');
+    },
+
+    closeSubsidyModal: () => {
+        const modal = document.getElementById('subsidy-detail-modal');
+        const backdrop = document.getElementById('subsidy-detail-modal-backdrop');
+        if (modal) {
+            modal.style.display = 'none';
+            modal.classList.add('hidden');
+        }
+        if (backdrop) backdrop.classList.add('hidden');
+    },
+
+    updateSubsidyModal: (sub) => {
+        document.getElementById('sub-modal-loading').classList.add('hidden');
+        document.getElementById('sub-modal-content').classList.remove('hidden');
+        
+        document.getElementById('sub-modal-title').textContent = sub.titulo;
+        document.getElementById('sub-modal-id').textContent = sub.id_bdns;
+        document.getElementById('sub-modal-date').textContent = sub.fecha_cierre || 'No especificada';
+        document.getElementById('sub-modal-official-text').textContent = sub.texto_completo;
+        
+        const explanationEl = document.getElementById('sub-modal-ai-explanation');
+        explanationEl.innerHTML = sub.ai_explanation || 'Analizando impacto...';
+        
+        const linkEl = document.getElementById('sub-modal-link');
+        linkEl.href = `https://www.pap.hacienda.gob.es/bdnstrans/GE/es/convocatoria/${sub.id_bdns}`;
     }
 };
 
@@ -1995,8 +2033,30 @@ const appLogic = {
         }
     },
 
-    viewSubsidiesDetail: (id) => {
-        Utils.showToast(`Detalles de la subvención ${id} próximamente.`, 'info');
+    viewSubsidiesDetail: async (id) => {
+        UI.openSubsidyModal();
+        
+        // Reset modal state
+        document.getElementById('sub-modal-loading').classList.remove('hidden');
+        document.getElementById('sub-modal-content').classList.add('hidden');
+        document.getElementById('sub-modal-title').textContent = "Cargando...";
+
+        try {
+            // El backend tiene /api/subsidies/{user_id}/{sub_id}
+            // Pero nosotros queremos buscar por ID de base de datos o BDNS
+            // Reutilizamos la lógica del backend si es posible, o usamos el ID
+            const res = await API.request(`/api/subsidies/${AppState.userId}/${id}`);
+            if (res.success && res.subsidy) {
+                UI.updateSubsidyModal(res.subsidy);
+            } else {
+                Utils.showToast("No se pudo cargar el detalle", "error");
+                UI.closeSubsidyModal();
+            }
+        } catch (e) {
+            console.error(e);
+            Utils.showToast("Error al conectar con el servidor", "error");
+            UI.closeSubsidyModal();
+        }
     }
 };
 
