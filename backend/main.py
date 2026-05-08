@@ -39,7 +39,6 @@ import processor as proc
 from agents.extraction_agent import extraction_agent_instance
 from agents.subsidies_agent import subsidies_agent_instance
 from agents.rag_subsidies_agent import rag_subsidies_agent_instance
-from agents.subsidies_extractor import subsidies_extractor_instance
 from werkzeug.security import generate_password_hash, check_password_hash
 import smtplib
 from email.mime.multipart import MIMEMultipart
