@@ -1,5 +1,9 @@
-#storage bucket para almacenar pdfs, etc
-
+terraform {
+  backend "gcs" {
+    bucket  = "tfstate-aitonomo"
+    prefix  = "terraform/state" 
+  }
+}
 resource "google_storage_bucket" "document_bucket" {
   name          = "bucket-aitonomo-docs"
   location      = var.region
