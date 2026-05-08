@@ -10,6 +10,7 @@ from sqlalchemy import (
     Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text, Boolean
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from pgvector.sqlalchemy import Vector
@@ -227,7 +228,7 @@ DB_PATH = DB_URL_SECRET or os.getenv("DATABASE_URL")
 try:
     if DB_PATH:
         # Si es una conexión a Cloud SQL, aseguramos que use el driver correcto si es necesario
-        engine = create_engine(DB_PATH, echo=False)
+        engine = create_engine(DB_PATH, echo=False, poolclass=NullPool)
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     else:
         raise ValueError("La variable DATABASE_URL no está definida ni en el entorno ni en Secret Manager.")
