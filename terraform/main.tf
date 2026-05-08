@@ -1,9 +1,41 @@
 terraform {
   backend "gcs" {
     bucket  = "tfstate-aitonomo"
-    prefix  = "terraform/state" 
+    prefix  = "terraform/state"
   }
 }
+
+# ---------------------------------------------------------
+# 0. RED PRIVADA (VPC + Private Service Access para Cloud SQL)
+# ---------------------------------------------------------
+resource "google_compute_network" "vpc_aitonomo" {
+  name                    = "vpc-aitonomo"
+  auto_create_subnetworks = false
+}
+
+resource "google_compute_subnetwork" "subnet_aitonomo" {
+  name          = "subnet-aitonomo"
+  ip_cidr_range = "10.0.0.0/24"
+  region        = var.region
+  network       = google_compute_network.vpc_aitonomo.id
+}
+
+# Rango de IPs reservado para el peering con los servicios de Google (Cloud SQL)
+resource "google_compute_global_address" "private_ip_range" {
+  name          = "private-ip-range-aitonomo"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 16
+  network       = google_compute_network.vpc_aitonomo.id
+}
+
+# Peering entre nuestra VPC y la red interna de Google (necesario para Cloud SQL privado)
+resource "google_service_networking_connection" "private_vpc_connection" {
+  network                 = google_compute_network.vpc_aitonomo.id
+  service                 = "servicenetworking.googleapis.com"
+  reserved_peering_ranges = [google_compute_global_address.private_ip_range.name]
+}
+
 resource "google_storage_bucket" "document_bucket" {
   name          = "bucket-aitonomo-docs"
   location      = var.region
@@ -43,17 +75,9 @@ resource "google_sql_database_instance" "postgres_instance" {
     edition           = "ENTERPRISE"
 
     ip_configuration {
-      ipv4_enabled    = true
-      authorized_networks {
-        name  = "Admin-IP"
-        value = var.admin_ip
-      }
-      # Permitimos todas las IPs para que Datastream pueda conectarse sin VPC
-      authorized_networks {
-        name  = "Datastream-IPs"
-        value = "0.0.0.0/0"
-      }
-      # private_network = data.google_compute_network.vpc_aitonomo.id
+      ipv4_enabled    = false
+      private_network = google_compute_network.vpc_aitonomo.id
+      enable_private_path_for_google_cloud_services = true
     }
 
     # Obligatorio para que Datastream pueda leer los cambios (CDC)
@@ -62,6 +86,7 @@ resource "google_sql_database_instance" "postgres_instance" {
       value = "on"
     }
    }
+  depends_on = [google_service_networking_connection.private_vpc_connection]
   }
   # lifecycle {
   #   prevent_destroy = true
@@ -591,18 +616,36 @@ resource "google_bigquery_table" "view_investor_kpis" {
 # 9. DATASTREAM (Replicación PostgreSQL -> BigQuery)
 # ---------------------------------------------------------
 
+# Private Connectivity Config: túnel privado entre Datastream y nuestra VPC
+resource "google_datastream_private_connection" "datastream_pc" {
+  display_name          = "Private connectivity Datastream"
+  location              = var.region
+  private_connection_id = "datastream-private-conn"
+
+  vpc_peering_config {
+    vpc    = google_compute_network.vpc_aitonomo.id
+    subnet = "10.1.0.0/29"
+  }
+}
+
 resource "google_datastream_connection_profile" "postgres_cp" {
   display_name          = "Conexion origen Postgres"
   location              = var.region
   connection_profile_id = "postgres-source-cp"
 
   postgresql_profile {
-    hostname = google_sql_database_instance.postgres_instance.public_ip_address
+    hostname = google_sql_database_instance.postgres_instance.private_ip_address
     port     = 5432
     username = google_sql_user.postgres_user.name
     password = google_sql_user.postgres_user.password
     database = google_sql_database.aitonomo_db.name
   }
+
+  private_connectivity {
+    private_connection = google_datastream_private_connection.datastream_pc.id
+  }
+
+  depends_on = [google_datastream_private_connection.datastream_pc]
 }
 
 resource "google_datastream_connection_profile" "bigquery_cp" {

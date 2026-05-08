@@ -68,6 +68,19 @@ resource "google_bigquery_dataset_iam_member" "datastream_bq_editor" {
   member     = "serviceAccount:${google_project_service_identity.datastream_sa.email}"
 }
 
+# Permisos para que Datastream pueda usar la red privada (VPC peering)
+resource "google_project_iam_member" "datastream_network_viewer" {
+  project = var.project_id
+  role    = "roles/compute.networkViewer"
+  member  = "serviceAccount:${google_project_service_identity.datastream_sa.email}"
+}
+
+resource "google_project_iam_member" "datastream_cloudsql_viewer" {
+  project = var.project_id
+  role    = "roles/cloudsql.viewer"
+  member  = "serviceAccount:${google_project_service_identity.datastream_sa.email}"
+}
+
 # ---------------------------------------------------------
 # ACCESO PÚBLICO A INTERNET (Para que la gente vea la web)
 # ---------------------------------------------------------
