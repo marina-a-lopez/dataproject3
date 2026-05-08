@@ -224,6 +224,10 @@ resource "google_cloud_run_v2_service" "frontend_cloud_run" {
       ports {
         container_port = 80
       }
+      env {
+        name  = "BACKEND_URL"
+        value = google_cloud_run_v2_service.backend_cloud_run.uri
+      }
     }
   }
   depends_on = [docker_registry_image.frontend_push]
