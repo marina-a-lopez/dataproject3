@@ -183,15 +183,6 @@ resource "google_cloud_run_v2_service" "backend_cloud_run" {
         }
       }
       env {
-        name  = "GEMINI_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.gemini_api_key.secret_id
-            version = "latest"
-          }
-        }
-      }
-      env {
         name  = "GCP_PROJECT_ID"
         value = var.project_id
       }
