@@ -965,7 +965,7 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
     gastos = db.query(Gasto).filter(Gasto.usuario_id == user_id, Gasto.status == 'confirmed').order_by(Gasto.fecha.desc()).all()
     return [{
         "id": str(g.id),
-        "fecha": g.fecha.strftime("%d-%m-%Y"),
+        "fecha": g.fecha.strftime("%Y-%m-%d"),
         "proveedor": g.proveedor or "Varios",
         "concepto": g.concepto or "Gasto genérico",
         "importe_total": float(g.importe_total),
@@ -976,7 +976,7 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
 @app.get("/api/expense_drafts/{user_id}")
 async def get_expense_drafts(user_id: str, db: Session = Depends(get_db)):
     drafts = db.query(Gasto).filter(Gasto.usuario_id == user_id, Gasto.status == 'draft').order_by(Gasto.created_at.desc()).all()
-    return [{"id": str(g.id), "fecha": g.fecha.strftime("%d-%m-%Y"), "proveedor": g.proveedor or "", "concepto": g.concepto or "", "importe_total": float(g.importe_total), "url_ticket": g.url_ticket or ""} for g in drafts]
+    return [{"id": str(g.id), "fecha": g.fecha.strftime("%Y-%m-%d"), "proveedor": g.proveedor or "", "concepto": g.concepto or "", "importe_total": float(g.importe_total), "url_ticket": g.url_ticket or ""} for g in drafts]
 
 @app.patch("/api/expenses/{expense_id}/confirm")
 async def confirm_expense_patch(expense_id: str, req: ExpenseCreate, db: Session = Depends(get_db)):
@@ -984,7 +984,7 @@ async def confirm_expense_patch(expense_id: str, req: ExpenseCreate, db: Session
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado")
     try:
-        gasto.fecha = datetime.strptime(req.fecha, '%d-%m-%Y').replace(tzinfo=timezone.utc)
+        gasto.fecha = datetime.strptime(req.fecha, '%Y-%m-%d').replace(tzinfo=timezone.utc)
     except:
         pass
     gasto.proveedor = req.proveedor
@@ -1002,7 +1002,7 @@ async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
         
         try:
-            fecha_obj = datetime.strptime(req.fecha, '%d-%m-%Y').replace(tzinfo=timezone.utc)
+            fecha_obj = datetime.strptime(req.fecha, '%Y-%m-%d').replace(tzinfo=timezone.utc)
         except:
             fecha_obj = datetime.now(timezone.utc)
             
@@ -1145,7 +1145,7 @@ async def expense_status(expense_id: str, db: Session = Depends(get_db)):
         "status": gasto.status,
         "data": {
             "proveedor": gasto.proveedor or "",
-            "fecha": gasto.fecha.strftime("%d-%m-%Y") if gasto.proveedor else "",
+            "fecha": gasto.fecha.strftime("%Y-%m-%d") if gasto.proveedor else "",
             "concepto": gasto.concepto or "",
             "importe_total": float(gasto.importe_total),
             "url_ticket": gasto.url_ticket or ""

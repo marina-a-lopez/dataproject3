@@ -51,7 +51,7 @@ const Utils = {
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const year = d.getFullYear();
-        return `${day}-${month}-${year}`;
+        return `${year}-${month}-${day}`;
     }
 };
 
@@ -1061,7 +1061,7 @@ const appLogic = {
             <td>—</td><td>—</td>` : `
             <td>${previewHtml || '<i class="fa-solid fa-receipt text-gold"></i>'}</td>
             <td class="font-bold">${p}</td>
-            <td>${f}</td>
+            <td data-raw-date="${f}">${f}</td>
             <td class="text-muted text-sm">${c}</td>
             <td class="text-accent font-bold">${i}€</td>
             <td style="display:flex;gap:6px;">
@@ -1095,7 +1095,7 @@ const appLogic = {
         if (!tr) return;
         const cells = tr.querySelectorAll('td');
         document.getElementById('exp-provider').value = cells[1].textContent.trim();
-        document.getElementById('exp-date').value = cells[2].textContent.trim();
+        document.getElementById('exp-date').value = cells[2].dataset.rawDate || cells[2].textContent.trim();
         document.getElementById('exp-concept').value = cells[3].textContent.trim();
         document.getElementById('exp-amount').value = parseFloat(cells[4].textContent).toFixed(2);
         document.getElementById('expense-form').dataset.expenseId = expenseId;

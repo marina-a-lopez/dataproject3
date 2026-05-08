@@ -40,7 +40,7 @@ class ExtractionAgent:
             [ESQUEMA_JSON]
             {
               "proveedor": "Nombre del comercio o empresa emisora",
-              "fecha": "DD-MM-YYYY",
+              "fecha": "YYYY-MM-DD",
               "concepto": "Resumen en 2-3 palabras",
               "importe_total": 0.00
             }
