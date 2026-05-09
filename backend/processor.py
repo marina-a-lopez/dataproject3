@@ -14,7 +14,7 @@ def configure_gemini(api_key=None):
         # Pero si se llama de forma aislada, aseguramos que tenga contexto
         if not vertexai.preview.initializer._global_config.project:
             vertexai.init(
-                project=os.getenv('GCP_PROJECT_ID', 'project3grupo4'),
+                project=os.getenv('GCP_PROJECT_ID'),
                 location=os.getenv('GCP_LOCATION', 'europe-southwest1')
             )
         return True

@@ -13,7 +13,7 @@ logger = logging.getLogger("RAG_Subsidies_Agent")
 
 class RagSubsidiesAgent:
     def __init__(self):
-        self.project_id = os.getenv("GCP_PROJECT_ID", "Project3Grupo4")
+        self.project_id = os.getenv("GCP_PROJECT_ID")
         self.location = os.getenv("GCP_LOCATION", "us-central1")
         self.corpus_id = os.getenv("RAG_CORPUS_ID", "subvenciones_corpus")
         self.initialized = False

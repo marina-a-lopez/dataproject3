@@ -192,6 +192,8 @@ class Subvencion(Base):
     id_bdns = Column(String(100), unique=True, nullable=False)
     titulo = Column(Text, nullable=False)
     cnae_target = Column(String(50), nullable=True)
+    apto_autonomos = Column(Boolean, nullable=True)
+    fecha_publicacion = Column(DateTime, nullable=True)
     fecha_cierre = Column(DateTime, nullable=True)
     texto_completo = Column(Text, nullable=False)
     embedding = Column(Vector(768))

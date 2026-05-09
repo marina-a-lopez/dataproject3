@@ -1086,6 +1086,8 @@ CREATE TABLE IF NOT EXISTS subvenciones (
     id_bdns VARCHAR(100) UNIQUE NOT NULL,
     titulo TEXT NOT NULL,
     cnae_target VARCHAR(50),
+    apto_autonomos BOOLEAN,
+    fecha_publicacion TIMESTAMP WITH TIME ZONE,
     fecha_cierre TIMESTAMP WITH TIME ZONE,
     texto_completo TEXT NOT NULL,
     embedding vector(768)

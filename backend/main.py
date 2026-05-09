@@ -27,7 +27,7 @@ load_dotenv()
 
 # Inicialización de Vertex AI (debe ocurrir antes de importar los agentes que usan GenerativeModel)
 vertexai.init(
-    project=os.getenv('GCP_PROJECT_ID', 'project3grupo4'),
+    project=os.getenv('GCP_PROJECT_ID'),
     location=os.getenv('GCP_LOCATION', 'europe-southwest1')
 )
 

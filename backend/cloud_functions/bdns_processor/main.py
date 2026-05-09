@@ -17,15 +17,15 @@ from vertexai.generative_models import (
 # CONFIGURACIÓN
 # ==========================================================
 
-PROJECT_ID = os.getenv("GCP_PROJECT_ID", "project3grupo4")
+PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 
 # Región de Cloud SQL
 REGION = os.getenv("GCP_REGION", "europe-southwest1")
 
-DB_USER = os.getenv("DB_USER", "admin")
-DB_PASS = os.getenv("DB_PASS", "Edem2526.")
-DB_NAME = os.getenv("DB_NAME", "aitonomo_db")
-DB_HOST = os.getenv("DB_HOST", "34.175.20.225")
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_NAME = os.getenv("DB_NAME")
+DB_HOST = os.getenv("DB_HOST")
 
 # ==========================================================
 # INICIALIZACIÓN VERTEX AI
@@ -111,6 +111,20 @@ def obtener_nuevas_subvenciones(limite=50):
                     if item.find("description") is not None
                     else ""
                 )
+
+                pub_date_raw = (
+                    item.find("pubDate").text
+                    if item.find("pubDate") is not None
+                    else None
+                )
+
+                fecha_publicacion = None
+                if pub_date_raw:
+                    try:
+                        from email.utils import parsedate_to_datetime
+                        fecha_publicacion = parsedate_to_datetime(pub_date_raw).strftime("%Y-%m-%d")
+                    except Exception:
+                        fecha_publicacion = None
 
                 # ==================================================
                 # EXTRAER ID BOE
@@ -206,6 +220,7 @@ def obtener_nuevas_subvenciones(limite=50):
 
                 subvenciones.append({
                     "id_bdns": id_bdns,
+                    "fecha_publicacion": fecha_publicacion,
                     "texto_legal": texto_para_analizar.strip()
                 })
 
@@ -1292,6 +1307,8 @@ def procesar_bdns(request):
                             id_bdns,
                             titulo,
                             cnae_target,
+                            apto_autonomos,
+                            fecha_publicacion,
                             fecha_cierre,
                             texto_completo
                         )
@@ -1299,6 +1316,8 @@ def procesar_bdns(request):
                             :id_bdns,
                             :titulo,
                             :cnae_target,
+                            :apto_autonomos,
+                            CAST(:fecha_publicacion AS DATE),
                             CAST(:fecha_cierre AS DATE),
                             :texto_completo
                         )
@@ -1311,6 +1330,8 @@ def procesar_bdns(request):
                             "id_bdns": sub["id_bdns"],
                             "titulo": datos_ia.get("titulo", "Subvención sin título"),
                             "cnae_target": datos_ia.get("cnae_target", ""),
+                            "apto_autonomos": datos_ia.get("apto_autonomos"),
+                            "fecha_publicacion": sub.get("fecha_publicacion"),
                             "fecha_cierre": datos_ia.get("fecha_cierre"),
                             "texto_completo": texto_enriquecido
                         }

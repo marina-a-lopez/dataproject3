@@ -14,7 +14,7 @@ from database import SessionLocal, ReglaDeduccion, init_db
 
 load_dotenv()
 
-GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "project3grupo4")
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 GCP_BUCKET_NAME = os.getenv("GCP_BUCKET_NAME", f"bucket-aitonomo-docs-{GCP_PROJECT_ID}")
 
 def get_text_from_pdf(pdf_bytes):
