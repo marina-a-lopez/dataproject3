@@ -1017,6 +1017,8 @@ const appLogic = {
                     url_ticket: '',
                     status: 'draft', // Todo lo que viene de IA va a revisión manual
                     is_deducible: extData.is_deducible !== false,
+                    porcentaje_iva: extData.porcentaje_iva ?? 100,
+                    porcentaje_irpf: extData.porcentaje_irpf ?? 100,
                     clarification_reason: reason
                 })
             });
@@ -1224,12 +1226,17 @@ const appLogic = {
         tbody.innerHTML = '';
 
         if (!res || res.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No se encontraron gastos.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No se encontraron gastos.</td></tr>';
             return;
         }
 
         res.forEach(exp => {
-            const isDeducible = !exp.clarification_reason || !exp.clarification_reason.toLowerCase().includes('no es deducible');
+            // Retrocompatibilidad: Si en BD está como deducible pero el motivo aclara que no lo es
+            const isDeducible = exp.is_deducible && (!exp.clarification_reason || !exp.clarification_reason.toLowerCase().includes('no es deducible'));
+            
+            const pIva = isDeducible ? (exp.porcentaje_iva ?? 100) : 0;
+            const pIrpf = isDeducible ? (exp.porcentaje_irpf ?? 100) : 0;
+            
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${exp.fecha.split('T')[0]}</td>
@@ -1241,10 +1248,12 @@ const appLogic = {
                     </div>` : ''}
                 </td>
                 <td style="text-align: center;">
-                    ${exp.is_deducible ?
+                    ${isDeducible ?
                     `<i class="fa-solid fa-circle-check text-green" title="${exp.clarification_reason || 'Gasto validado'}"></i>` :
                     `<i class="fa-solid fa-circle-xmark text-red" title="${exp.clarification_reason || 'Gasto no deducible'}"></i>`}
                 </td>
+                <td style="text-align: center; font-weight: 600; color: ${pIva === 100 ? 'var(--green)' : pIva === 0 ? '#e74c3c' : '#f39c12'};">${pIva}%</td>
+                <td style="text-align: center; font-weight: 600; color: ${pIrpf === 100 ? 'var(--green)' : pIrpf === 0 ? '#e74c3c' : '#f39c12'};">${pIrpf}%</td>
                 <td class="text-accent font-bold">${Utils.formatCurrency(exp.importe_total)}</td>
                 <td>
                     <button class="btn-icon text-red hover-animate" onclick="appLogic.deleteExpense('${exp.id}')" title="Eliminar Gasto">

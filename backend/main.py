@@ -154,6 +154,8 @@ class ExpenseCreate(BaseModel):
     url_ticket: str = ""
     status: str = "confirmed"
     is_deducible: bool = True
+    porcentaje_iva: int = 100
+    porcentaje_irpf: int = 100
     clarification_reason: Optional[str] = None
 
 class InvoiceStatusUpdate(BaseModel):
@@ -969,6 +971,8 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
         "concepto": g.concepto or "Gasto genérico",
         "importe_total": float(g.importe_total),
         "is_deducible": g.is_deducible,
+        "porcentaje_iva": g.porcentaje_iva if g.porcentaje_iva is not None else 100,
+        "porcentaje_irpf": g.porcentaje_irpf if g.porcentaje_irpf is not None else 100,
         "clarification_reason": g.clarification_reason
     } for g in gastos]
 
@@ -1014,6 +1018,8 @@ async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
             url_ticket=req.url_ticket,
             status=req.status,
             is_deducible=req.is_deducible,
+            porcentaje_iva=req.porcentaje_iva,
+            porcentaje_irpf=req.porcentaje_irpf,
             clarification_reason=req.clarification_reason
         )
         db.add(nuevo_gasto)

@@ -13,7 +13,9 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.pool import NullPool
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+# pyrefly: ignore [missing-import]
 from pgvector.sqlalchemy import Vector
+
 
 Base = declarative_base()
 
@@ -182,6 +184,8 @@ class Gasto(Base):
     status = Column(String(20), default='confirmed', nullable=False)
     clarification_reason = Column(Text, nullable=True)
     is_deducible = Column(Boolean, default=True)
+    porcentaje_iva = Column(Integer, default=100)
+    porcentaje_irpf = Column(Integer, default=100)
     
     usuario = relationship("Usuario", back_populates="gastos")
 
