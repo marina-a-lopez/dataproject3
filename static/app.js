@@ -322,7 +322,7 @@ const appLogic = {
             provincia: document.getElementById('reg-provincia').value || "",
             codigo_postal: document.getElementById('reg-cp').value || "",
             cnae: document.getElementById('reg-cnae').value || "",
-            iae: document.getElementById('reg-iae').value || "",
+            iae: (document.getElementById('reg-iae').value || "").replace(',', '.'),
             password: document.getElementById('reg-pwd').value
         };
 
@@ -1554,7 +1554,7 @@ const appLogic = {
             formData.append("telefono", document.getElementById('prof-telefono').value);
             formData.append("nif_cif", document.getElementById('prof-nif').value);
             formData.append("cnae", document.getElementById('prof-cnae').value);
-            formData.append("iae", document.getElementById('prof-iae').value);
+            formData.append("iae", (document.getElementById('prof-iae').value || "").replace(',', '.'));
             formData.append("iban", document.getElementById('prof-iban').value);
             formData.append("gmail_token", document.getElementById('prof-gmail-token').value);
             formData.append("domicilio", document.getElementById('prof-domicilio').value);
