@@ -50,7 +50,7 @@ const Utils = {
 
 // IMPORTANTE: Cuando despliegues el backend, pega su 
 //  aquí
-const API_BASE_URL = "https://api-backend-4nrtuy3yca-no.a.run.app";
+const API_BASE_URL = "BACKEND_URL_PLACEHOLDER";
 
 const API = {
     request: async (endpoint, options = {}) => {
