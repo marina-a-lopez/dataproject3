@@ -199,6 +199,8 @@ resource "google_bigquery_table" "bq_subvenciones" {
   {"name": "id_bdns", "type": "STRING", "mode": "NULLABLE"},
   {"name": "titulo", "type": "STRING", "mode": "NULLABLE"},
   {"name": "cnae_target", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "apto_autonomos", "type": "BOOLEAN", "mode": "NULLABLE"},
+  {"name": "fecha_publicacion", "type": "TIMESTAMP", "mode": "NULLABLE"},
   {"name": "fecha_cierre", "type": "TIMESTAMP", "mode": "NULLABLE"},
   {"name": "texto_completo", "type": "STRING", "mode": "NULLABLE"},
   {"name": "embedding", "type": "STRING", "mode": "NULLABLE"}

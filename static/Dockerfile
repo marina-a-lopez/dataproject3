@@ -1,4 +1,4 @@
-FROM nginx:alpine
+FROM mirror.gcr.io/library/nginx:alpine
 
 COPY . /usr/share/nginx/html
 

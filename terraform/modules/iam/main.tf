@@ -137,3 +137,49 @@ resource "google_project_iam_member" "roles_cicd" {
   role    = each.value
   member  = "serviceAccount:${google_service_account.github_actions_sa.email}"
 }
+
+# Cloud Function service account
+resource "google_service_account" "cloud_function_sa" {
+  account_id   = "bdns-processor-sa"
+  display_name = "Service Account para Cloud Function BDNS Processor"
+}
+
+resource "google_project_iam_member" "cf_permissions" {
+  for_each = toset([
+    "roles/cloudsql.client",
+    "roles/secretmanager.secretAccessor",
+    "roles/aiplatform.user",
+    "roles/storage.objectAdmin",
+  ])
+  project = var.project_id
+  role    = each.key
+  member  = "serviceAccount:${google_service_account.cloud_function_sa.email}"
+}
+
+# Secret Manager: GEMINI_API_KEY
+resource "google_secret_manager_secret" "gemini_api_key" {
+  secret_id = "gemini-api-key"
+  project   = var.project_id
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "gemini_api_key_version" {
+  secret      = google_secret_manager_secret.gemini_api_key.id
+  secret_data = var.gemini_api_key
+}
+
+# Secret Manager: RAG_CORPUS_ID
+resource "google_secret_manager_secret" "rag_corpus_id" {
+  secret_id = "rag-corpus-id"
+  project   = var.project_id
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "rag_corpus_id_version" {
+  secret      = google_secret_manager_secret.rag_corpus_id.id
+  secret_data = var.rag_corpus_id
+}
