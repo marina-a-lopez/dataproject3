@@ -55,8 +55,7 @@ const Utils = {
     }
 };
 
-// IMPORTANTE: URL del Backend
-const API_BASE_URL = "https://api-backend-jkxxdq53jq-no.a.run.app"; //https://api-backend-4nrtuy3yca-no.a.run.app
+const API_BASE_URL = "BACKEND_URL_PLACEHOLDER";
 
 const API = {
     request: async (endpoint, options = {}) => {

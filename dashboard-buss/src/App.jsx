@@ -76,9 +76,16 @@ export default function App() {
                   <div className="p-4 bg-orange-50 rounded-full text-orange-600"><CloudLightning size={28} /></div>
                   <div>
                     <p className="text-sm font-medium text-gray-500">Coste de Infra (Burn)</p>
-                    <p className="text-3xl font-bold text-gray-800">
-                      {data.billing.reduce((acc, curr) => acc + curr.coste_gcp, 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })} €
-                    </p>
+                    {(() => {
+                      const currentMonth = new Date().toISOString().slice(0, 7);
+                      const last = data.billing.at(-1);
+                      return last?.mes === currentMonth
+                        ? <>
+                            <p className="text-3xl font-bold text-gray-800">{last.coste_gcp.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €</p>
+                            <p className="text-xs text-gray-400 mt-1">{last.mes} · mensual</p>
+                          </>
+                        : <p className="text-sm text-gray-400 mt-1">Sin datos este mes aún</p>;
+                    })()}
                   </div>
                 </div>
               </div>

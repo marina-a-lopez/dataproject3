@@ -1874,8 +1874,10 @@ async def get_investor_metrics():
             query_billing = f"""
                 SELECT 
                     FORMAT_TIMESTAMP('%Y-%m', usage_start_time) as mes,
-                    SUM(cost) as coste_gcp
+                    ROUND(SUM(cost), 2) as coste_gcp
                 FROM `{project_id}.gcp_billing_export.gcp_billing_export_v1_*`
+                WHERE cost_type = 'regular'
+                  AND currency = 'EUR'
                 GROUP BY 1
                 ORDER BY 1 ASC
             """
