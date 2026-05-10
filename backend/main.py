@@ -354,8 +354,9 @@ async def get_dashboard(
     ).all()
 
     # Cálculo financiero sobre el período
-    total_base_ingresos = sum(f.total_base for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
-    total_iva_repercutido = sum(f.total_impuestos for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
+    total_base_ingresos = float(sum(f.total_base or 0 for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada']))
+    total_iva_repercutido = float(sum(f.total_impuestos or 0 for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada']))
+
 
     total_base_gastos = 0
     total_iva_soportado = 0
@@ -376,7 +377,7 @@ async def get_dashboard(
     net_balance = total_base_ingresos - total_base_gastos
     iva_a_pagar = total_iva_repercutido - total_iva_soportado
 
-    current_irpf_rate = user.irpf_rate if user.irpf_rate is not None else 0.20
+    current_irpf_rate = float(user.irpf_rate) if user.irpf_rate is not None else 0.20
     irpf_estimado = (net_balance * current_irpf_rate) if net_balance > 0 else 0
     net_balance_after_taxes = net_balance - irpf_estimado
 
@@ -391,10 +392,10 @@ async def get_dashboard(
     rendimiento_neto_mensual = (net_for_ss * 0.93) if net_for_ss > 0 else 0
     cuota_ss = calcular_cuota_autonomo(rendimiento_neto_mensual)
 
-    total_revenue_pagadas = sum(f.importe_total for f in invoices if f.estado_verifactu == 'Pagada')
-    pending_revenue = sum(f.importe_total for f in invoices if f.estado_verifactu in ['Pendiente', 'Enviada'])
-    overdue_revenue = sum(f.importe_total for f in invoices if f.estado_verifactu == 'Moroso')
-    total_expenses = sum(g.importe_total for g in gastos)
+    total_revenue_pagadas = float(sum(f.importe_total or 0 for f in invoices if f.estado_verifactu == 'Pagada'))
+    pending_revenue = float(sum(f.importe_total or 0 for f in invoices if f.estado_verifactu in ['Pendiente', 'Enviada']))
+    overdue_revenue = float(sum(f.importe_total or 0 for f in invoices if f.estado_verifactu == 'Moroso'))
+    total_expenses = float(sum(g.importe_total or 0 for g in gastos))
 
     # Recent transactions from the filtered period
     recent = []
@@ -594,11 +595,17 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
     total_impuestos = total_base * (req.tipo_iva / 100.0)
     importe_total = total_base + total_impuestos
     
-    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%d-%m-%Y")
+    try:
+        fecha_exp = datetime.fromisoformat(req.fecha)
+    except:
+        fecha_exp = datetime.strptime(req.fecha, "%d-%m-%Y")
     
     fecha_ven_obj = None
     if req.due_date:
-        fecha_ven_obj = datetime.fromisoformat(req.due_date) if 'T' in req.due_date else datetime.strptime(req.due_date, "%d-%m-%Y")
+        try:
+            fecha_ven_obj = datetime.fromisoformat(req.due_date)
+        except:
+            fecha_ven_obj = datetime.strptime(req.due_date, "%d-%m-%Y")
 
     # Obtiene el hash del registro anterior
     prev_hash = last_invoice.hash_registro if last_invoice else None
@@ -742,10 +749,16 @@ async def save_quote(req: QuoteCreate, db: Session = Depends(get_db)):
     total_impuestos = total_base * (req.tipo_iva / 100.0)
     importe_total = total_base + total_impuestos
     
-    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%d-%m-%Y")
+    try:
+        fecha_exp = datetime.fromisoformat(req.fecha)
+    except:
+        fecha_exp = datetime.strptime(req.fecha, "%d-%m-%Y")
     fecha_ven_obj = None
     if req.fecha_validez:
-        fecha_ven_obj = datetime.fromisoformat(req.fecha_validez) if 'T' in req.fecha_validez else datetime.strptime(req.fecha_validez, "%d-%m-%Y")
+        try:
+            fecha_ven_obj = datetime.fromisoformat(req.fecha_validez)
+        except:
+            fecha_ven_obj = datetime.strptime(req.fecha_validez, "%d-%m-%Y")
 
     presupuesto = Presupuesto(
         usuario_id=req.user_id,
@@ -1695,7 +1708,13 @@ async def create_calendar_event(user_id: str, evento: EventoCreate, db: Session 
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-    fecha_dt = datetime.fromisoformat(evento.fecha).replace(tzinfo=timezone.utc)
+    try:
+        fecha_dt = datetime.fromisoformat(evento.fecha).replace(tzinfo=timezone.utc)
+    except:
+        try:
+            fecha_dt = datetime.strptime(evento.fecha, "%d-%m-%Y").replace(tzinfo=timezone.utc)
+        except:
+            fecha_dt = datetime.now(timezone.utc)
     new_event = CalendarioEvento(
         usuario_id=user.id,
         fecha=fecha_dt,

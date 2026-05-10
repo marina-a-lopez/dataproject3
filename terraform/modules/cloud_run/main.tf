@@ -5,10 +5,10 @@ resource "google_artifact_registry_repository" "repo" {
 }
 
 locals {
-  backend_hash   = sha1(join("", [for f in fileset("${path.root}/../backend", "**") : filesha1("${path.root}/../backend/${f}")]))
+  backend_hash   = sha1(join("", [for f in fileset("${path.root}/../backend", "*.py") : filesha1("${path.root}/../backend/${f}")]))
   frontend_hash  = sha1(join("", [for f in fileset("${path.root}/../static", "**") : filesha1("${path.root}/../static/${f}")]))
   dashboard_hash = sha1(join("", [for f in fileset("${path.root}/../dashboard-buss", "**") : filesha1("${path.root}/../dashboard-buss/${f}")]))
-}
+  }
 
 resource "docker_image" "backend_image" {
   name = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.repo.name}/backend:${local.backend_hash}"
