@@ -1,3 +1,8 @@
 node_modules
 dist
-.env
+src
+*.json
+*.js
+*.config.*
+*.md
+.gitignore
