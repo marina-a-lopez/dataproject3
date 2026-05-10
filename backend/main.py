@@ -1513,46 +1513,69 @@ async def get_rag_recommendations(user_id: str, db: Session = Depends(get_db)):
 
 @app.get("/api/subsidies/matching/{user_id}")
 async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
-    """Busca subvenciones en la BD que coincidan exactamente con el CNAE del usuario."""
+    """Busca subvenciones en la BD que coincidan con el CNAE del usuario, y las universales (cnae_target=NULL)."""
     user = get_user_by_id(db, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    user_cnae = user.cnae
-    if not user_cnae:
-        return {"success": True, "subsidies": [], "message": "Usuario sin CNAE definido"}
-    
-    # Buscamos coincidencias en cnae_target. 
-    # El scraper guarda strings tipo '6201, 6202' o similares.
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
-    subsidies = db.query(Subvencion).filter(
-        Subvencion.cnae_target.ilike(f"%{user_cnae}%"),
+
+    def is_open(s):
+        if not s.fecha_cierre:
+            return True
+        aware = s.fecha_cierre.replace(tzinfo=timezone.utc) if s.fecha_cierre.tzinfo is None else s.fecha_cierre
+        return aware > now
+
+    # Subvenciones específicas por CNAE
+    results = []
+    if user.cnae:
+        cnae_subsidies = db.query(Subvencion).filter(
+            Subvencion.cnae_target.ilike(f"%{user.cnae}%"),
+            Subvencion.apto_autonomos == True
+        ).all()
+        for s in cnae_subsidies:
+            if not is_open(s):
+                continue
+            ai_info = rag_subsidies_agent_instance.explain_subsidy(s.texto_completo)
+            results.append({
+                "id": str(s.id),
+                "id_bdns": s.id_bdns,
+                "titulo": s.titulo,
+                "cnae_target": s.cnae_target,
+                "fecha_publicacion": s.fecha_publicacion.strftime("%d/%m/%Y") if s.fecha_publicacion else None,
+                "fecha_cierre": s.fecha_cierre.strftime("%d/%m/%Y") if s.fecha_cierre else None,
+                "importe_maximo": ai_info.get("importe_maximo"),
+                "explicacion": ai_info.get("explicacion"),
+                "link_boe": ai_info.get("link_boe"),
+                "link_bdns": ai_info.get("link_bdns"),
+            })
+
+    # Subvenciones universales (cnae_target NULL, apto_autonomos=True) — para todos los CNAEs
+    import re as _re
+    universal_subsidies = db.query(Subvencion).filter(
+        Subvencion.cnae_target == None,
         Subvencion.apto_autonomos == True
     ).all()
-    
-    # Formateamos para el front, filtrando por fecha de cierre
-    results = []
-    for s in subsidies:
-        if s.fecha_cierre:
-            fecha_cierre_aware = s.fecha_cierre.replace(tzinfo=timezone.utc) if s.fecha_cierre.tzinfo is None else s.fecha_cierre
-            if fecha_cierre_aware <= now:
-                continue
-        ai_info = rag_subsidies_agent_instance.explain_subsidy(s.texto_completo)
-        results.append({
+    universal_results = []
+    for s in universal_subsidies:
+        if not is_open(s):
+            continue
+        # Extraer links con regex, sin llamar a la IA
+        boe_match = _re.search(r'https?://[^\s]*boe\.es[^\s]*', s.texto_completo or '')
+        bdns_match = _re.search(r'https?://[^\s]*(infosubvenciones|bdnstrans)[^\s]*', s.texto_completo or '')
+        bdns_code = _re.search(r'\b(\d{6,})\b', s.texto_completo or '')
+        link_bdns = (bdns_match.group(0) if bdns_match else
+                     (f"https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria?codigoBDNS={bdns_code.group(1)}" if bdns_code else None))
+        universal_results.append({
             "id": str(s.id),
             "id_bdns": s.id_bdns,
             "titulo": s.titulo,
-            "cnae_target": s.cnae_target,
-            "fecha_publicacion": s.fecha_publicacion.strftime("%d/%m/%Y") if s.fecha_publicacion else None,
-            "fecha_cierre": s.fecha_cierre.strftime("%d/%m/%Y") if s.fecha_cierre else None,
-            "importe_maximo": ai_info.get("importe_maximo"),
-            "explicacion": ai_info.get("explicacion"),
-            "link_boe": ai_info.get("link_boe"),
-            "link_bdns": ai_info.get("link_bdns"),
+            "link_boe": boe_match.group(0) if boe_match else None,
+            "link_bdns": link_bdns,
         })
-    
-    return {"success": True, "subsidies": results}
+
+    return {"success": True, "subsidies": results, "universal_subsidies": universal_results}
 
 
 

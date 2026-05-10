@@ -68,8 +68,11 @@ resource "google_bigquery_table" "bq_calendario_eventos" {
   {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
 ]
 EOF
-}
 
+  lifecycle {
+    ignore_changes = [schema]
+  }
+}
 resource "google_bigquery_table" "bq_clientes" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
   table_id            = "public_clientes"
