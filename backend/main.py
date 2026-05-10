@@ -1659,7 +1659,8 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     subsidies = db.query(Subvencion).filter(
-        Subvencion.cnae_target.ilike(f"%{user_cnae}%")
+        Subvencion.cnae_target.ilike(f"%{user_cnae}%"),
+        Subvencion.apto_autonomos == True
     ).all()
     
     # Formateamos para el front, filtrando por fecha de cierre

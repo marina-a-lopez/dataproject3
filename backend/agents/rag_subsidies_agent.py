@@ -89,6 +89,10 @@ class RagSubsidiesAgent:
                 if c["id_bdns"] != "N/A":
                     sub = db.query(Subvencion).filter(Subvencion.id_bdns == c["id_bdns"]).first()
 
+                # Filtrar por apto_autonomos
+                if sub and sub.apto_autonomos is False:
+                    continue
+
                 # Filtrar por fecha de cierre
                 if sub and sub.fecha_cierre:
                     fecha_cierre_aware = sub.fecha_cierre.replace(tzinfo=timezone.utc) if sub.fecha_cierre.tzinfo is None else sub.fecha_cierre
