@@ -110,6 +110,7 @@ class RagSubsidiesAgent:
                     "importe_maximo": ai_info.get("importe_maximo"),
                     "explicacion": ai_info.get("explicacion"),
                     "link_boe": ai_info.get("link_boe"),
+                    "link_bdns": ai_info.get("link_bdns"),
                     "score": c["score"],
                 })
 
@@ -142,12 +143,13 @@ class RagSubsidiesAgent:
             {{
                 "explicacion": "Resumen en máximo 60 palabras. Indica beneficiarios y propósito. Sin introducciones. AVISO: verifica siempre la convocatoria oficial.",
                 "importe_maximo": "Importe máximo de la ayuda si aparece en el texto (ej: '10.000 €'). Si no aparece, null.",
-                "link_boe": "URL exacta del BOE/BDNS. Si no hay, usar: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatorias"
+                "link_boe": "URL exacta de las bases reguladoras en el BOE (boe.es). Si no hay, null.",
+                "link_bdns": "URL exacta de la convocatoria en infosubvenciones.es o bdnstrans. Si no hay URL pero hay un código BDNS numérico, construye: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria?codigoBDNS=CODIGO. Si no hay nada, null."
             }}
 
             [REGLAS]
             - Ve al grano. Sin introducciones.
-            - No inventes datos.
+            - No inventes datos ni URLs.
             """
             
             logger.info(f"Generando explicación para texto de longitud: {len(subsidy_text)}")

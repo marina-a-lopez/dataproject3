@@ -1933,7 +1933,13 @@ const appLogic = {
 
         const boeHtml = sub.link_boe
             ? `<a href="${sub.link_boe}" target="_blank" rel="noopener" class="btn btn-text btn-sm" style="font-size:0.75rem;">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i> Ver convocatoria
+                <i class="fa-solid fa-book"></i> Bases reguladoras
+               </a>`
+            : '';
+
+        const bdnsHtml = sub.link_bdns
+            ? `<a href="${sub.link_bdns}" target="_blank" rel="noopener" class="btn btn-text btn-sm" style="font-size:0.75rem;">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Convocatoria BDNS
                </a>`
             : '';
 
@@ -1947,8 +1953,9 @@ const appLogic = {
             <p style="font-size:0.82rem; color:var(--clr-text-main); line-height:1.5; margin-bottom:12px;">
                 ${sub.explicacion || sub.snippet || 'Sin descripción disponible.'}
             </p>
-            <div style="border-top:1px solid #eee; padding-top:10px; display:flex; justify-content:flex-end;">
+            <div style="border-top:1px solid #eee; padding-top:10px; display:flex; justify-content:flex-end; gap:8px;">
                 ${boeHtml}
+                ${bdnsHtml}
             </div>
         `;
         return card;

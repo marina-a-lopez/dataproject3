@@ -1680,6 +1680,7 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
             "importe_maximo": ai_info.get("importe_maximo"),
             "explicacion": ai_info.get("explicacion"),
             "link_boe": ai_info.get("link_boe"),
+            "link_bdns": ai_info.get("link_bdns"),
         })
     
     return {"success": True, "subsidies": results}
