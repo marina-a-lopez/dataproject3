@@ -12,6 +12,8 @@ const AppState = {
     mediaRecorder: null,
     audioChunks: [],
     isRecording: false,
+    recordingTimer: null,
+    recordingAutoStop: null,
     period: 'anual',
     periodOffset: 0,
     // Calendar state
@@ -922,8 +924,23 @@ const appLogic = {
             document.getElementById('btn-start-record').classList.add('hidden');
             document.getElementById('btn-stop-record').classList.remove('hidden');
             const statusBox = document.getElementById('recording-status');
-            statusBox.textContent = 'Grabación activa...';
+            statusBox.textContent = 'Grabación activa... (1:40 restante)';
             statusBox.classList.add('text-red', 'font-bold', 'blink');
+
+            // Timer: detener automáticamente a los 100 segundos
+            let secondsLeft = 100;
+            AppState.recordingTimer = setInterval(() => {
+                secondsLeft--;
+                const mins = Math.floor(secondsLeft / 60);
+                const secs = String(secondsLeft % 60).padStart(2, '0');
+                statusBox.textContent = `Grabación activa... (${mins}:${secs} restante)`;
+                if (secondsLeft <= 0) {
+                    clearInterval(AppState.recordingTimer);
+                    appLogic.stopRecording();
+                }
+            }, 1000);
+
+            AppState.recordingAutoStop = setTimeout(() => appLogic.stopRecording(), 100000);
 
         } catch (err) {
             Utils.showToast('Acceso al micrófono denegado o no disponible.', 'error');
@@ -934,6 +951,8 @@ const appLogic = {
         if (AppState.mediaRecorder && AppState.isRecording) {
             AppState.mediaRecorder.stop();
             AppState.isRecording = false;
+            clearInterval(AppState.recordingTimer);
+            clearTimeout(AppState.recordingAutoStop);
         }
     },
 
@@ -1637,8 +1656,22 @@ const appLogic = {
             document.getElementById('btn-start-record-quote').classList.add('hidden');
             document.getElementById('btn-stop-record-quote').classList.remove('hidden');
             const statusBox = document.getElementById('recording-status-quote');
-            statusBox.textContent = 'Grabación activa...';
+            statusBox.textContent = 'Grabación activa... (1:40 restante)';
             statusBox.classList.add('text-red', 'font-bold', 'blink');
+
+            let secondsLeft = 100;
+            AppState.recordingTimer = setInterval(() => {
+                secondsLeft--;
+                const mins = Math.floor(secondsLeft / 60);
+                const secs = String(secondsLeft % 60).padStart(2, '0');
+                statusBox.textContent = `Grabación activa... (${mins}:${secs} restante)`;
+                if (secondsLeft <= 0) {
+                    clearInterval(AppState.recordingTimer);
+                    appLogic.stopQuoteRecording();
+                }
+            }, 1000);
+
+            AppState.recordingAutoStop = setTimeout(() => appLogic.stopQuoteRecording(), 100000);
         } catch (err) {
             Utils.showToast('Acceso al micrófono denegado o no disponible.', 'error');
         }
@@ -1647,6 +1680,8 @@ const appLogic = {
         if (AppState.mediaRecorder && AppState.isRecording) {
             AppState.mediaRecorder.stop();
             AppState.isRecording = false;
+            clearInterval(AppState.recordingTimer);
+            clearTimeout(AppState.recordingAutoStop);
         }
     },
     processQuoteDocument: async () => {
