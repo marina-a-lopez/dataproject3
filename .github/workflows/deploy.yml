@@ -13,10 +13,6 @@ env:
   REGISTRY: europe-southwest1-docker.pkg.dev/proyectodataia3/repo-aitonomo
 
 jobs:
-  # -------------------------------------------------------
-  # CI: se ejecuta en cualquier push/PR
-  # Verifica que las 3 imágenes Docker compilan correctamente
-  # -------------------------------------------------------
   ci:
     name: Build check
     runs-on: ubuntu-latest
@@ -32,10 +28,6 @@ jobs:
       - name: Build dashboard
         run: docker build ./dashboard-buss -f dashboard-buss/Dockerfile
 
-  # -------------------------------------------------------
-  # CD: solo se ejecuta al hacer merge a main
-  # Build + Push a Artifact Registry + Deploy a Cloud Run
-  # -------------------------------------------------------
   cd:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
