@@ -53,19 +53,22 @@ resource "google_cloudfunctions2_function" "bdns_processor" {
     pubsub_topic   = "projects/${var.project_id}/topics/topic-procesar-bdns"
     retry_policy   = "RETRY_POLICY_DO_NOT_RETRY"
   }
-}
 
-resource "null_resource" "bdns_vpc_config" {
-  depends_on = [google_cloudfunctions2_function.bdns_processor]
-
-  triggers = {
-    function_id = google_cloudfunctions2_function.bdns_processor.id
-  }
-
-  provisioner "local-exec" {
-    command = "gcloud run services update bdns-processor --region=${var.region} --project=${var.project_id} --network=vpc-aitonomo --subnet=subnet-aitonomo --vpc-egress=private-ranges-only --quiet"
+  lifecycle {
+    ignore_changes = [service_config]
   }
 }
+
+# Descomentar para configurar Direct VPC Egress tras el primer deploy
+# resource "null_resource" "bdns_vpc_config" {
+#   depends_on = [google_cloudfunctions2_function.bdns_processor]
+#   triggers = {
+#     function_id = google_cloudfunctions2_function.bdns_processor.id
+#   }
+#   provisioner "local-exec" {
+#     command = "gcloud run services update bdns-processor --region=${var.region} --project=${var.project_id} --network=vpc-aitonomo --subnet=subnet-aitonomo --vpc-egress=private-ranges-only --quiet"
+#   }
+# }
 
 resource "google_cloud_scheduler_job" "bdns_daily" {
   name      = "bdns-daily-trigger"
