@@ -12,6 +12,10 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "~> 3.0"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -26,8 +30,6 @@ provider "google-beta" {
   region                = var.region
   user_project_override = true
 }
-
-# Configuración para que el provider de Docker pueda subir imágenes a Google Artifact Registry
 data "google_client_config" "default" {}
 
 provider "docker" {

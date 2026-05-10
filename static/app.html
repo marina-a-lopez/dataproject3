@@ -1,0 +1,1537 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Altonomo | Corporate Dashboard</title>
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/styles.css?v=11">
+</head>
+
+<body>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <div id="app">
+        <!-- =========================
+        <!-- AUTH VIEW                 -->
+        <!-- ========================= -->
+        <main id="auth-view" class="view">
+            <button class="btn-icon hover-animate"
+                style="position: absolute; top: 30px; left: 30px; color: var(--white); font-size: 0.9rem; z-index: 20; display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); padding: 10px 20px; border-radius: 100px; border: 1px solid rgba(255,255,255,0.2);"
+                onclick="window.location.href='/'"><i class="fa-solid fa-arrow-left"></i> Volver</button>
+            <div class="auth-container">
+                <div class="auth-branding">
+                    <h1 class="brand-title" style="display: flex; align-items: center; justify-content: center; font-family: var(--font-heading); font-weight: 700;">
+                        <span style="color: var(--green);">AI</span><span style="color: var(--white);">tonomo</span>
+                    </h1>
+                    <p class="brand-subtitle" style="color: var(--green-mid); font-family: var(--font-body); letter-spacing: 0.1em;">GESTIONA. SIN PARAR DE TRABAJAR.</p>
+                </div>
+
+                <div class="auth-box box-shadow">
+                    <div class="auth-tabs">
+                        <button class="tab-btn active" data-target="login-form">Iniciar Sesión</button>
+                        <button class="tab-btn" data-target="register-form">Registrarse</button>
+                    </div>
+
+                    <div class="auth-forms">
+                        <!-- Login Form -->
+                        <form id="login-form" class="auth-form active">
+                            <div class="input-group">
+                                <label for="login-dni">DNI / NIF</label>
+                                <input type="text" id="login-dni" required placeholder="Ej: 12345678A">
+                            </div>
+                            <div class="input-group">
+                                <label for="login-pwd">Contraseña</label>
+                                <input type="password" id="login-pwd" required placeholder="••••••••">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 mt-3 hover-animate">Acceder al
+                                Sistema</button>
+                        </form>
+
+                        <!-- Register Form -->
+                        <form id="register-form" class="auth-form hidden">
+                            <div class="input-group">
+                                <label for="reg-nombre">Nombre <span class="text-red">*</span></label>
+                                <input type="text" id="reg-nombre" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="reg-apellidos">Apellidos <span class="text-red">*</span></label>
+                                <input type="text" id="reg-apellidos" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="reg-dni">NIF / CIF <span class="text-red">*</span></label>
+                                <input type="text" id="reg-dni" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="reg-email">Email <span class="text-red">*</span></label>
+                                <input type="email" id="reg-email" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="reg-tel">Teléfono <span class="text-red">*</span></label>
+                                <input type="text" id="reg-tel" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="reg-dir">Domicilio Fiscal <span class="text-red">*</span></label>
+                                <input type="text" id="reg-dir" required>
+                            </div>
+
+                            <div class="grid-2-col gap-2">
+                                <div class="input-group">
+                                    <label for="reg-poblacion">Población</label>
+                                    <input type="text" id="reg-poblacion">
+                                </div>
+                                <div class="input-group">
+                                    <label for="reg-provincia">Provincia</label>
+                                    <input type="text" id="reg-provincia">
+                                </div>
+                            </div>
+                            <div class="grid-2-col gap-2 mt-2">
+                                <div class="input-group">
+                                    <label for="reg-cp">Código Postal</label>
+                                    <input type="text" id="reg-cp">
+                                </div>
+                                <div class="input-group">
+                                    <label for="reg-cnae">CNAE (Sector)</label>
+                                    <input type="text" id="reg-cnae" placeholder="Ej: 6201">
+                                </div>
+                            </div>
+                            <div class="input-group mt-2">
+                                <label for="reg-iae">IAE (Epígrafe)</label>
+                                <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" id="reg-iae" placeholder="Ej: 849 o 721.2">
+                            </div>
+                            <div class="input-group">
+                                <label for="reg-pwd">Nueva Contraseña <span class="text-red">*</span></label>
+                                <input type="password" id="reg-pwd" required placeholder="Mín 6 caracteres">
+                            </div>
+                            <button type="submit" class="btn btn-secondary w-100 mt-3 hover-animate">Crear
+                                Cuenta</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            <!-- Dynamic Background -->
+            <div class="auth-bg"></div>
+        </main>
+
+        <!-- ========================= -->
+        <!-- MAIN LAYOUT               -->
+        <!-- ========================= -->
+        <div id="main-layout" class="hidden">
+            <!-- Sidebar -->
+            <nav id="sidebar">
+                <div class="sidebar-header" style="border-bottom: 1px solid var(--border);">
+                    <div class="logo">
+                        <h2 class="brand-heading" style="display: flex; align-items: center; font-family: var(--font-heading); font-weight: 700; font-size: 1.5rem;">
+                            <span style="color: var(--green);">AI</span><span style="color: var(--navy);">tonomo</span>
+                        </h2>
+                    </div>
+                </div>
+
+                <div class="sidebar-user" id="sidebar-user-btn" style="cursor: pointer;" title="Editar Perfil"
+                    onclick="if(window.appLogic) appLogic.loadProfile();">
+                    <div class="user-avatar" id="sidebar-avatar"><i class="fa-solid fa-user-tie"></i></div>
+                    <div class="user-info">
+                        <span class="user-role" id="sidebar-user-name">Administrador</span>
+                        <span class="user-id" id="sidebar-user-id">ID: -----</span>
+                    </div>
+                </div>
+
+                <ul class="nav-links">
+                    <li><a href="#" class="nav-item active" data-view="dashboard-view"><i
+                                class="fa-solid fa-chart-pie"></i> Panel de Control</a></li>
+                    <li><a href="#" class="nav-item" data-view="taxes-view"><i class="fa-solid fa-landmark"></i>
+                            Impuestos y
+                            Modelos</a></li>
+                    <li><a href="#" class="nav-item" data-view="crm-view"><i class="fa-solid fa-users"></i> CRM y
+                            Clientes</a></li>
+                    <li><a href="#" class="nav-item" data-view="catalog-view"><i class="fa-solid fa-box-open"></i>
+                            Productos y Servicios</a></li>
+                    <li><a href="#" class="nav-item" data-view="quotes-view"><i class="fa-solid fa-file-contract"></i>
+                            Presupuestos</a></li>
+                    <li><a href="#" class="nav-item" data-view="invoicing-view"><i
+                                class="fa-solid fa-file-invoice-dollar"></i> Facturación Inteligente</a></li>
+                    <li><a href="#" class="nav-item" data-view="expenses-view"><i class="fa-solid fa-receipt"></i>
+                            Gastos</a></li>
+                    <li><a href="#" class="nav-item" data-view="consultant-view"><i class="fa-solid fa-microphone"></i>
+                            Consultor IA</a></li>
+                    <li><a href="#" class="nav-item" data-view="subsidies-view"><i class="fa-solid fa-hand-holding-dollar"></i>
+                            Subvenciones</a></li>
+                    <li><a href="#" class="nav-item" data-view="calendar-view"><i class="fa-solid fa-calendar-days"></i>
+                            Calendario</a></li>
+                </ul>
+
+                <div class="sidebar-footer">
+
+                    <button id="btn-logout" class="btn btn-outline w-100 mt-3"><i
+                            class="fa-solid fa-arrow-right-from-bracket"></i> Cerrar Sesión</button>
+                    <div class="version-tag">v2.0 PRO • Enterprise</div>
+                </div>
+            </nav>
+
+            <!-- Sidebar backdrop (mobile) -->
+            <div id="sidebar-backdrop" class="sidebar-backdrop" onclick="toggleMobileMenu()"></div>
+
+            <!-- Content Area -->
+            <div id="content-wrapper">
+
+                <header id="topbar" style="background: var(--white); border-bottom: 1px solid var(--border);">
+                    <div class="topbar-left">
+                        <button id="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menú">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                        <h2 id="page-title" class="page-title font-heading" style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">Resumen Financiero</h2>
+                    </div>
+                    <div class="topbar-right">
+                        <div class="status-indicator">
+                            <span class="status-dot online" id="ai-status-dot" style="background-color: var(--green); box-shadow: 0 0 12px var(--green);"></span>
+                            <span class="status-text" id="ai-status-text" style="color: var(--green); font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.1em;">Gemini 2.5 Active</span>
+                        </div>
+                        <div class="date-display" id="current-date" style="font-family: var(--font-body); font-size: 0.8rem; color: var(--charcoal-lt);">--</div>
+                    </div>
+                </header>
+                
+
+
+                <div class="main-content-scroll">
+                    <!-- Dashboard View -->
+                    <main id="dashboard-view" class="view hidden fade-in">
+                        <!-- Period Selector -->
+                        <div class="period-selector" id="period-selector-dash">
+                            <div class="period-tabs">
+                                <button class="period-tab" data-period="mensual"
+                                    onclick="setPeriodType('mensual')">Mensual</button>
+                                <button class="period-tab" data-period="trimestral"
+                                    onclick="setPeriodType('trimestral')">Trimestral</button>
+                                <button class="period-tab active" data-period="anual"
+                                    onclick="setPeriodType('anual')">Anual</button>
+                            </div>
+                            <div class="period-nav">
+                                <div class="period-tabs integrated-date-nav">
+                                    <button class="period-nav-arrow" onclick="shiftPeriod(-1)" title="Período anterior">
+                                        <i class="fa-solid fa-chevron-left"></i>
+                                    </button>
+                                    <span class="period-label-display">2026</span>
+                                    <button class="period-nav-arrow btn-period-next" id="btn-period-next-dash"
+                                        onclick="shiftPeriod(1)" title="Período siguiente" disabled>
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid-2-col gap-3">
+                            <div class="hero-balance box-shadow">
+                                <p class="hero-label">Ingresos Totales (Facturas)</p>
+                                <h1 class="hero-amount font-heading" id="dash-total-revenue">€0.00</h1>
+                                <div class="hero-delta positive" id="dash-delta-revenue">+0.0%</div>
+                            </div>
+                            <div class="hero-balance box-shadow"
+                                style="background: linear-gradient(135deg, var(--navy-mid), var(--navy)); border: 1px solid var(--green);">
+                                <p class="hero-label text-accent">Beneficio Neto (Base sin IVA)</p>
+                                <h1 class="hero-amount font-heading text-white" id="dash-net-balance">€0.00</h1>
+                                <div class="hero-delta positive text-accent"><i class="fa-solid fa-scale-balanced"></i>
+                                    Cálculo en Vivo</div>
+                            </div>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon" style="background: var(--green-lt); color: var(--green);"><i class="fa-solid fa-clock"></i></div>
+                                <div class="stat-details">
+                                    <p class="stat-label">Pendiente</p>
+                                    <h3 class="stat-value" id="dash-pending" style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">€0.00</h3>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon" style="background: #FEE2E2; color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                                <div class="stat-details">
+                                    <p class="stat-label">Vencido</p>
+                                    <h3 class="stat-value" id="dash-overdue" style="font-family: var(--font-heading); font-weight: 700; color: var(--danger);">€0.00</h3>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon" style="background: var(--off-white); color: var(--charcoal);"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                                <div class="stat-details">
+                                    <p class="stat-label">Gastos Totales</p>
+                                    <h3 class="stat-value" id="dash-expenses" style="font-family: var(--font-heading); font-weight: 700; color: var(--charcoal);">€0.00</h3>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon" style="background: var(--green-lt); color: var(--green);"><i class="fa-solid fa-building-user"></i></div>
+                                <div class="stat-details">
+                                    <p class="stat-label">Clientes</p>
+                                    <h3 class="stat-value" id="dash-clients" style="font-family: var(--font-heading); font-weight: 700; color: var(--navy);">0</h3>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section-block box-shadow mt-4">
+                            <div class="section-header">
+                                <h3>Transacciones Recientes</h3>
+                                <button class="btn btn-text" onclick="appState.navigate('invoicing-view')">Ver
+                                    Todas</button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="corporate-table" id="recent-transactions-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Cliente</th>
+                                            <th>Importe</th>
+                                            <th>Estado</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Invoicing View -->
+                    <main id="invoicing-view" class="view hidden fade-in">
+                        <div class="grid-2-col">
+                            <!-- Upload / Process Panel -->
+                            <div class="section-block box-shadow flex-col">
+                                <div class="section-header">
+                                    <h3>Procesamiento Inteligente de Documentos</h3>
+                                    <p class="text-muted text-sm" style="margin-top: 5px;">Impulsado por IA Gemini</p>
+                                </div>
+
+                                <div class="upload-zone-wrapper mb-3"
+                                    style="background: rgba(125, 176, 75, 0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(125, 176, 75, 0.3);">
+                                    <label class="text-accent"
+                                        style="font-weight: 600; display:block; margin-bottom: 8px;">
+                                        <i class="fa-solid fa-file-export"></i> Opcional: Generar desde Presupuesto
+                                    </label>
+                                    <div style="display: flex; gap: 10px;">
+                                        <select id="import-quote-select" class="w-100"
+                                            style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                            <option value="">Selecciona un presupuesto aprobado...</option>
+                                        </select>
+                                        <button type="button" class="btn btn-primary" id="btn-import-quote">Cargar</button>
+                                    </div>
+                                </div>
+
+                                <div class="upload-zone" id="drop-zone">
+                                    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                                    <h4>Acciones</h4>
+
+                                    <div class="audio-controls mt-2 mb-2"
+                                        style="display: flex; gap: 10px; justify-content: center;">
+                                        <button id="btn-start-record" class="btn btn-outline hover-animate"
+                                            style="color:red; border-color:red;">
+                                            <i class="fa-solid fa-microphone"></i> Grabar Voz
+                                        </button>
+                                        <button id="btn-stop-record"
+                                            class="btn btn-danger-icon hover-animate hidden text-white"
+                                            style="background:red;">
+                                            <i class="fa-solid fa-square"></i> Detener Grabación
+                                        </button>
+                                    </div>
+                                    <p class="text-muted text-sm" id="recording-status">O sube un archivo directamente
+                                    </p>
+                                    <div class="divider"
+                                        style="margin: 10px 0; width:100%; border-bottom: 1px solid #eee;"></div>
+
+                                    <input type="file" id="file-upload" class="hidden"
+                                        accept="image/*,application/pdf,audio/*,video/mp4">
+                                    <label for="file-upload" class="btn btn-primary hover-animate">Explorar
+                                        Archivos</label>
+                                    <p class="upload-formats">PDF, JPG, PNG, MP3, WAV, WebM</p>
+                                </div>
+
+                                <div class="file-preview-area hidden" id="file-preview-area">
+                                    <div class="file-info">
+                                        <i class="fa-solid fa-file-lines text-primary"></i>
+                                        <span id="preview-filename">document.pdf</span>
+                                        <button class="btn-icon" id="btn-remove-file"><i
+                                                class="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                    <button class="btn btn-primary w-100 hover-animate mt-3" id="btn-process-ai">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Procesar con IA
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Extracted Data Panel -->
+                            <div class="section-block box-shadow flex-col">
+                                <div class="section-header">
+                                    <h3>Datos Extraídos</h3>
+                                </div>
+                                <div id="extracted-data-placeholder" class="empty-state">
+                                    <i class="fa-solid fa-clipboard-list text-muted"></i>
+                                    <p>Procesa un documento para ver los datos</p>
+                                </div>
+                                <div class="extracted-form hidden" id="extracted-form">
+                                    <div class="input-group">
+                                        <label>Cliente</label>
+                                        <select id="ext-client" class="w-100"
+                                            style="padding: 0.625rem 0.875rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm); font-family: var(--font-body);"></select>
+                                    </div>
+                                    <div class="input-group mt-2 mb-3"
+                                        style="background: rgba(125, 176, 75, 0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(125, 176, 75, 0.3);">
+                                        <label class="text-accent" style="font-weight: 600;"><i
+                                                class="fa-solid fa-box-open"></i> Añadir Rápido desde Catálogo</label>
+                                        <div style="display: flex; gap: 10px; margin-top: 5px;">
+                                            <select id="ext-catalog-select" class="w-100"
+                                                style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                                <option value="">Selecciona un producto/servicio...</option>
+                                            </select>
+                                            <button type="button" class="btn btn-secondary"
+                                                id="btn-add-catalog-item">Añadir</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Table for detecting invoice lines -->
+                                    <div class="extracted-items-section mt-3 mb-3">
+                                        <label class="text-accent"
+                                            style="font-weight: 600; margin-bottom: 5px; display: block;"><i
+                                                class="fa-solid fa-list-check"></i> Líneas Detectadas</label>
+                                        <div class="table-responsive"
+                                            style="max-height: 250px; overflow-y: auto; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                            <table class="corporate-table" id="ext-items-table"
+                                                style="margin: 0; font-size: 0.9rem;">
+                                                <thead
+                                                    style="position: sticky; top: 0; background: var(--clr-surface);">
+                                                    <tr>
+                                                        <th style="padding: 8px;">Concepto</th>
+                                                        <th style="padding: 8px; text-align: center;">Cant.</th>
+                                                        <th style="padding: 8px; text-align: right;">Precio Unit.</th>
+                                                        <th style="padding: 8px; text-align: right;">Total</th>
+                                                        <th style="padding: 8px; width: 40px;"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Filled via JS -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid-2-col gap-2">
+                                        <div class="input-group">
+                                            <label>Nº de Factura</label>
+                                            <input type="text" id="ext-invoice-num" readonly>
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Fecha</label>
+                                            <input type="text" id="ext-date" readonly>
+                                        </div>
+                                    </div>
+                                    <div class="grid-2-col gap-2 mt-3">
+                                        <div class="input-group">
+                                            <label>Importe Total (€)</label>
+                                            <input type="text" id="ext-amount" readonly class="font-bold text-accent">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Fecha Venc. (Opcional)</label>
+                                            <input type="date" id="ext-due-date" class="w-100"
+                                                style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                        </div>
+                                    </div>
+
+                                    <div class="action-buttons mt-4 grid-2-col gap-2">
+                                        <button class="btn btn-primary hover-animate" id="btn-save-db"><i
+                                                class="fa-solid fa-database"></i> Guardar</button>
+                                        <button class="btn btn-primary hover-animate" id="btn-gen-pdf"><i
+                                                class="fa-solid fa-file-pdf"></i> Generar PDF Premium</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section-block box-shadow mt-4">
+                            <div class="section-header">
+                                <h3>Registro de Facturas</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="corporate-table" id="all-invoices-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Fecha</th>
+                                            <th>Cliente</th>
+                                            <th>Importe</th>
+                                            <th>Estado</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Quotes View -->
+                    <main id="quotes-view" class="view hidden fade-in">
+                        <div class="grid-2-col">
+                            <!-- Upload / Process Panel -->
+                            <div class="section-block box-shadow flex-col">
+                                <div class="section-header">
+                                    <h3>Generador Inteligente de Presupuestos</h3>
+                                    <p class="text-muted text-sm" style="margin-top: 5px;">Impulsado por IA Gemini</p>
+                                </div>
+
+                                <div class="upload-zone" id="drop-zone-quote">
+                                    <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                                    <h4>Acciones</h4>
+
+                                    <div class="audio-controls mt-2 mb-2"
+                                        style="display: flex; gap: 10px; justify-content: center;">
+                                        <button id="btn-start-record-quote" class="btn btn-outline hover-animate"
+                                            style="color:red; border-color:red;">
+                                            <i class="fa-solid fa-microphone"></i> Grabar Voz
+                                        </button>
+                                        <button id="btn-stop-record-quote"
+                                            class="btn btn-danger-icon hover-animate hidden text-white"
+                                            style="background:red;">
+                                            <i class="fa-solid fa-square"></i> Detener Grabación
+                                        </button>
+                                    </div>
+                                    <p class="text-muted text-sm" id="recording-status-quote">O sube un archivo
+                                        directamente
+                                    </p>
+                                    <div class="divider"
+                                        style="margin: 10px 0; width:100%; border-bottom: 1px solid #eee;"></div>
+
+                                    <input type="file" id="file-upload-quote" class="hidden"
+                                        accept="image/*,application/pdf,audio/*,video/mp4">
+                                    <label for="file-upload-quote" class="btn btn-primary hover-animate">Explorar
+                                        Archivos</label>
+                                    <p class="upload-formats">PDF, JPG, PNG, MP3, WAV, WebM</p>
+                                </div>
+
+                                <div class="file-preview-area hidden" id="file-preview-area-quote">
+                                    <div class="file-info">
+                                        <i class="fa-solid fa-file-lines text-primary"></i>
+                                        <span id="preview-filename-quote">document.pdf</span>
+                                        <button class="btn-icon" id="btn-remove-file-quote"><i
+                                                class="fa-solid fa-xmark"></i></button>
+                                    </div>
+                                    <button class="btn btn-primary w-100 hover-animate mt-3" id="btn-process-ai-quote">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> Procesar con IA
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Extracted Data Panel -->
+                            <div class="section-block box-shadow flex-col">
+                                <div class="section-header">
+                                    <h3>Datos Extraídos</h3>
+                                </div>
+                                <div id="extracted-data-placeholder-quote" class="empty-state">
+                                    <i class="fa-solid fa-clipboard-list text-muted"></i>
+                                    <p>Procesa un documento para ver los datos</p>
+                                </div>
+                                <div class="extracted-form hidden" id="extracted-form-quote">
+                                    <div class="input-group">
+                                        <label>Cliente</label>
+                                        <select id="ext-client-quote" class="w-100"
+                                            style="padding: 0.625rem 0.875rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm); font-family: var(--font-body);"></select>
+                                    </div>
+                                    <div class="input-group mt-2 mb-3"
+                                        style="background: rgba(125, 176, 75, 0.05); padding: 15px; border-radius: 8px; border: 1px solid rgba(125, 176, 75, 0.3);">
+                                        <label class="text-accent" style="font-weight: 600;"><i
+                                                class="fa-solid fa-box-open"></i> Añadir Rápido desde Catálogo</label>
+                                        <div style="display: flex; gap: 10px; margin-top: 5px;">
+                                            <select id="ext-catalog-select-quote" class="w-100"
+                                                style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                                <option value="">Selecciona un producto/servicio...</option>
+                                            </select>
+                                            <button type="button" class="btn btn-secondary"
+                                                id="btn-add-catalog-item-quote">Añadir</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Table for detecting invoice lines -->
+                                    <div class="extracted-items-section mt-3 mb-3">
+                                        <label class="text-accent"
+                                            style="font-weight: 600; margin-bottom: 5px; display: block;"><i
+                                                class="fa-solid fa-list-check"></i> Líneas Detectadas</label>
+                                        <div class="table-responsive"
+                                            style="max-height: 250px; overflow-y: auto; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                            <table class="corporate-table" id="ext-items-table-quote"
+                                                style="margin: 0; font-size: 0.9rem;">
+                                                <thead
+                                                    style="position: sticky; top: 0; background: var(--clr-surface);">
+                                                    <tr>
+                                                        <th style="padding: 8px;">Concepto</th>
+                                                        <th style="padding: 8px; text-align: center;">Cant.</th>
+                                                        <th style="padding: 8px; text-align: right;">Precio Unit.</th>
+                                                        <th style="padding: 8px; text-align: right;">Total</th>
+                                                        <th style="padding: 8px; width: 40px;"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Filled via JS -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div class="grid-2-col gap-2">
+                                        <div class="input-group">
+                                            <label>Nº de Presupuesto</label>
+                                            <input type="text" id="ext-quote-num" readonly>
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Fecha</label>
+                                            <input type="text" id="ext-date-quote" readonly>
+                                        </div>
+                                    </div>
+                                    <div class="grid-2-col gap-2 mt-3">
+                                        <div class="input-group">
+                                            <label>Importe Total (€)</label>
+                                            <input type="text" id="ext-amount-quote" readonly
+                                                class="font-bold text-accent">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Fecha Venc. (Opcional)</label>
+                                            <input type="date" id="ext-due-date-quote" class="w-100"
+                                                style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);">
+                                        </div>
+                                    </div>
+
+                                    <div class="action-buttons mt-4 grid-2-col gap-2">
+                                        <button class="btn btn-primary hover-animate" id="btn-save-db-quote"><i
+                                                class="fa-solid fa-database"></i> Guardar</button>
+                                        <button class="btn btn-primary hover-animate" id="btn-gen-pdf-quote"><i
+                                                class="fa-solid fa-file-pdf"></i> Generar Presupuesto Premium</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section-block box-shadow mt-4">
+                            <div class="section-header">
+                                <h3>Registro de Presupuestos</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="corporate-table" id="all-quotes-table">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Fecha</th>
+                                            <th>Cliente</th>
+                                            <th>Importe</th>
+                                            <th>Estado</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Taxes View -->
+                    <main id="taxes-view" class="view hidden fade-in">
+                        <!-- Period Selector -->
+                        <div class="period-selector" id="period-selector-taxes">
+                            <div class="period-tabs">
+                                <button class="period-tab" data-period="mensual"
+                                    onclick="setPeriodType('mensual')">Mensual</button>
+                                <button class="period-tab" data-period="trimestral"
+                                    onclick="setPeriodType('trimestral')">Trimestral</button>
+                                <button class="period-tab active" data-period="anual"
+                                    onclick="setPeriodType('anual')">Anual</button>
+                            </div>
+                            <div class="period-nav">
+                                <div class="period-tabs integrated-date-nav">
+                                    <button class="period-nav-arrow" onclick="shiftPeriod(-1)" title="Período anterior">
+                                        <i class="fa-solid fa-chevron-left"></i>
+                                    </button>
+                                    <span class="period-label-display">2026</span>
+                                    <button class="period-nav-arrow btn-period-next" id="btn-period-next-taxes"
+                                        onclick="shiftPeriod(1)" title="Período siguiente" disabled>
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="grid-2-col gap-3">
+                            <!-- IVA calculation -->
+                            <div class="section-block box-shadow">
+                                <div class="section-header" style="display: flex; align-items: center;">
+                                    <h3 style="margin-bottom: 0;"><i class="fa-solid fa-scale-balanced"
+                                            style="color: var(--green);"></i> Liquidación de IVA (Mod. 303)</h3>
+                                    <span class="tax-tooltip" style="margin-left: 10px; font-size: 1rem;"><i
+                                            class="fa-solid fa-circle-info"></i><span class="tooltip-text"
+                                            style="font-weight: normal; font-size: 0.85rem;">
+                                            <strong style="color: var(--green);">IVA Repercutido
+                                                (Cobrado):</strong><br>Es el 21% de IVA que has añadido a tus facturas y
+                                            que ya has cobrado a tus clientes. Este dinero no es tuyo, pertenece a
+                                            Hacienda.<br><br>
+                                            <strong style="color: var(--green);">IVA Soportado
+                                                (Pagado):</strong><br>Es el IVA que tú has soportado al pagar gastos
+                                            profesionales. Ese importe te lo puedes deducir.<br><br>
+                                            <strong style="color: var(--green);">Resultado de la
+                                                Liquidación:</strong><br>Es la diferencia exacta (Cobrado menos Pagado).
+                                            Es la cantidad real y final que tendrás que ingresar a la Agencia Tributaria
+                                            en este trimestre.
+                                        </span></span>
+                                </div>
+                                <div class="mt-3">
+                                    <div
+                                        style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--clr-border); align-items: center;">
+                                        <span class="text-muted font-bold">IVA Repercutido (Cobrado)</span>
+                                        <span class="font-bold text-accent" id="tax-iva-rep">€0.00</span>
+                                    </div>
+                                    <div
+                                        style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--clr-border); align-items: center;">
+                                        <span class="text-muted font-bold">IVA Soportado (Pagado)</span>
+                                        <span class="font-bold text-red" id="tax-iva-sop">€0.00</span>
+                                    </div>
+                                    <div
+                                        style="display: flex; justify-content: space-between; padding: 15px 0; margin-top: 10px; background: rgba(212, 175, 55, 0.1); border-radius: var(--radius-sm); padding-left: 10px; padding-right: 10px; align-items: center;">
+                                        <span class="font-bold text-accent">Resultado de la Liquidación</span>
+                                        <span class="font-heading" style="font-size: 1.2rem; color: var(--green);"
+                                            id="tax-iva-total">€0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- IRPF calculation -->
+                            <div class="section-block box-shadow">
+                                <div class="section-header" style="display: flex; align-items: center;">
+                                    <h3 style="margin-bottom: 0;"><i class="fa-solid fa-file-invoice-dollar"
+                                            style="color: var(--clr-primary-900);"></i> Estimación de IRPF (Mod. 130)
+                                        <button class="btn-icon"
+                                            style="margin-left: 10px; font-size: 1rem; color: var(--clr-text-muted);"
+                                            onclick="openIRPFModal()" title="Ajustar Retención IRPF"><i
+                                                class="fa-solid fa-gear hover-accent"></i></button>
+                                    </h3>
+                                    <span class="tax-tooltip"
+                                        style="margin-left: 10px; font-size: 1rem; color: var(--clr-primary-900);"><i
+                                            class="fa-solid fa-circle-info"></i><span class="tooltip-text"
+                                            style="font-weight: normal; font-size: 0.85rem;">
+                                            <strong style="color: var(--green);">Ingresos Brutos (Base
+                                                Imponible):</strong><br>El total de todo lo que has facturado, sin
+                                            contar el IVA. Son tus ventas reales.<br><br>
+                                            <strong style="color: var(--green);">Gastos Deducibles (Base
+                                                Imponible):</strong><br>El importe (sin IVA) de todos los gastos que
+                                            reducen tu carga fiscal.<br><br>
+                                            <strong style="color: var(--green);">Rendimiento
+                                                Neto:</strong><br>Tus ingresos brutos menos tus gastos. Mide cuál es el
+                                            beneficio real de tu actividad.<br><br>
+                                            <strong style="color: var(--green);">Previsión IRPF a abonar
+                                                (20%):</strong><br>Hacienda te exige adelantar un 20% de tu rendimiento
+                                            neto cada trimestre como pago a cuenta de la Renta anual.
+                                        </span></span>
+                                </div>
+                                <div class="mt-3">
+                                    <div
+                                        style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--clr-border); align-items: center;">
+                                        <span class="text-muted font-bold">Ingresos Brutos (Base Imponible)</span>
+                                        <span class="font-bold" id="tax-base-ingresos">€0.00</span>
+                                    </div>
+                                    <div
+                                        style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--clr-border); align-items: center;">
+                                        <span class="text-muted font-bold">Gastos Deducibles (Base Imponible)</span>
+                                        <span class="font-bold text-red" id="tax-base-gastos">€0.00</span>
+                                    </div>
+                                    <div
+                                        style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--clr-border); align-items: center;">
+                                        <span class="text-muted font-bold text-accent">Rendimiento Neto</span>
+                                        <span class="font-bold text-accent" id="tax-net-before">€0.00</span>
+                                    </div>
+                                    <div
+                                        style="display: flex; justify-content: space-between; padding: 15px 0; margin-top: 10px; background: rgba(10, 25, 47, 0.05); border-radius: var(--radius-sm); padding-left: 10px; padding-right: 10px; align-items: center;">
+                                        <span class="font-bold">Previsión IRPF a abonar (<span
+                                                id="display-irpf-rate-title">20</span>%)</span>
+                                        <span class="font-heading text-red" style="font-size: 1.2rem;"
+                                            id="tax-irpf-total">€0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cuota de Autonomo SS Card -->
+                        <div class="section-block box-shadow" style="margin-top: 0; margin-bottom: 20px;">
+                            <div class="section-header" style="display: flex; align-items: center;">
+                                <h3 style="margin-bottom: 0;"><i class="fa-solid fa-shield-halved"
+                                        style="color: var(--clr-primary-900);"></i> Cuota de Autónomo SS
+                                </h3>
+                                <span class="tax-tooltip"
+                                    style="margin-left: 10px; font-size: 1rem; color: var(--clr-primary-900);">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                    <span class="tooltip-text" style="font-weight: normal; font-size: 0.85rem;">
+                                        <strong style="color: var(--green);">Sistema de Ingresos Reales
+                                            (2025):</strong><br>
+                                        Desde 2023, la cuota ya no es fija. Se calcula en base a tu beneficio real
+                                        mensual.<br><br>
+                                        <strong style="color: var(--green);">Fórmula oficial:</strong><br>
+                                        (Ingresos - Gastos) × 0,93 ÷ 12 = Rendimiento Neto Mensual<br><br>
+                                        <strong style="color: var(--green);">Los 15 Tramos:</strong><br>
+                                        Cuota mínima desde 230 €/mes (≤670€) hasta 679 €/mes (>6.000€ de beneficio
+                                        mensual).
+                                    </span>
+                                </span>
+                            </div>
+                            <div class="card-content mt-3">
+                                <div
+                                    style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--clr-border); align-items: center;">
+                                    <span class="text-muted font-bold">Rendimiento Neto Mensual</span>
+                                    <span class="font-bold text-accent" id="tax-ss-rendimiento">€0.00</span>
+                                </div>
+                                <div
+                                    style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--clr-border); align-items: center;">
+                                    <span class="text-muted font-bold">Tramo SS Aplicable</span>
+                                    <span class="font-bold" id="tax-ss-tramo"
+                                        style="color: var(--clr-primary-900); font-size: 0.85rem;">–</span>
+                                </div>
+                                <div
+                                    style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--clr-border); align-items: center;">
+                                    <span class="text-muted font-bold">Base de Cotización Mín.</span>
+                                    <span class="font-bold text-muted" id="tax-ss-base">€0.00</span>
+                                </div>
+                                <div
+                                    style="display: flex; justify-content: space-between; padding: 15px 0; margin-top: 10px; background: rgba(212, 175, 55, 0.1); border-radius: var(--radius-sm); padding-left: 10px; padding-right: 10px; align-items: center;">
+                                    <span class="font-bold text-accent">Cuota Mensual Estimada</span>
+                                    <span class="font-heading" style="font-size: 1.2rem; color: var(--green);"
+                                        id="tax-ss-cuota">€0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="section-block box-shadow mt-4 mb-4">
+                            <h3 class="section-title"><i class="fa-solid fa-bullhorn text-accent"></i> Agenda Fiscal
+                                Altonomo</h3>
+                            <p class="text-muted mt-2">Nuestra IA monitorea tus transacciones para prepararte de cara a
+                                las obligaciones con la Agencia Tributaria.</p>
+
+                            <div class="timeline mt-4"
+                                style="border-left: 2px solid var(--green); padding-left: 20px; margin-left: 10px;">
+                                <div style="position: relative; margin-bottom: 20px;">
+                                    <div
+                                        style="position: absolute; left: -26px; top: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--green); border: 2px solid white;">
+                                    </div>
+                                    <h4 class="font-bold">Proyección de Próximo Trimestre</h4>
+                                    <p class="text-muted text-sm mt-1">Con el volumen actual (y asumiendo 20% de las
+                                        facturas en retenciones IRPF), se recomienda guardar provisiones por valor del
+                                        IVA a pagar.</p>
+                                </div>
+                                <div style="position: relative;">
+                                    <div
+                                        style="position: absolute; left: -26px; top: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--clr-border); border: 2px solid white;">
+                                    </div>
+                                    <h4 class="font-bold text-muted">Cierre de Año Fiscal</h4>
+                                    <p class="text-muted text-sm mt-1">Todas las facturas pendientes de cobro seguirán
+                                        devengando IVA, recuerda gestionarlas en el CRM.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Calendar View -->
+                    <main id="calendar-view" class="view hidden fade-in">
+                        <div class="calendar-header">
+                            <div class="calendar-nav">
+                                <div class="period-tabs integrated-date-nav">
+                                    <button class="period-nav-arrow" id="cal-prev-btn" onclick="calShiftMonth(-1)">
+                                        <i class="fa-solid fa-chevron-left"></i>
+                                    </button>
+                                    <h2 class="calendar-month-title" id="cal-month-title" style="margin: 0; min-width: 180px; color: var(--off-white) !important;">–</h2>
+                                    <button class="period-nav-arrow" id="cal-next-btn" onclick="calShiftMonth(1)">
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="calendar-controls">
+                                <label class="cal-toggle-label">
+                                    <input type="checkbox" id="cal-invoice-toggle" checked
+                                        onchange="calToggleInvoices(this.checked)">
+                                    <span>Ver vencimientos de facturas</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="calendar-grid-wrapper">
+                            <div class="calendar-weekdays">
+                                <span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span>
+                            </div>
+                            <div class="calendar-grid" id="cal-grid"></div>
+                        </div>
+                    </main>
+
+                    <!-- CRM View -->
+
+                    <main id="crm-view" class="view hidden fade-in">
+                        <div class="grid-2-col">
+                            <div class="section-block box-shadow">
+                                <div class="section-header"
+                                    style="justify-content: space-between; align-items: center;">
+                                    <h3>Añadir Nuevo Cliente</h3>
+                                    <div class="crm-voice-controls" style="display: flex; gap: 8px;">
+                                        <button id="btn-crm-start-record" class="btn btn-outline hover-animate"
+                                            style="color:red; border-color:red; padding: 5px 10px; font-size: 0.85rem;">
+                                            <i class="fa-solid fa-microphone"></i> Dictar
+                                        </button>
+                                        <button id="btn-crm-stop-record"
+                                            class="btn btn-danger-icon hover-animate hidden text-white"
+                                            style="background:red; padding: 5px 10px; font-size: 0.85rem;">
+                                            <i class="fa-solid fa-square"></i> Detener
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="crm-voice-status" class="text-muted text-sm" style="margin-bottom: 10px;">
+                                </div>
+                                <form id="add-client-form">
+                                    <div class="input-group">
+                                        <label for="new-client-name">Empresa / Nombre del Cliente <span
+                                                class="text-red">*</span></label>
+                                        <input type="text" id="new-client-name" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="new-client-nif">NIF / CIF <span class="text-red">*</span></label>
+                                        <input type="text" id="new-client-nif" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="new-client-dir">Dirección Fiscal <span
+                                                class="text-red">*</span></label>
+                                        <input type="text" id="new-client-dir" required>
+                                    </div>
+
+                                    <div class="grid-2-col gap-2">
+                                        <div class="input-group">
+                                            <label for="new-client-poblacion">Población</label>
+                                            <input type="text" id="new-client-poblacion">
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="new-client-provincia">Provincia</label>
+                                            <input type="text" id="new-client-provincia">
+                                        </div>
+                                    </div>
+                                    <div class="input-group mt-2">
+                                        <label for="new-client-cp">Código Postal</label>
+                                        <input type="text" id="new-client-cp">
+                                    </div>
+                                    <div class="grid-2-col">
+                                        <div class="input-group">
+                                            <label for="new-client-email">Correo Electrónico</label>
+                                            <input type="email" id="new-client-email">
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="new-client-phone">Número de Teléfono</label>
+                                            <input type="tel" id="new-client-phone">
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100 hover-animate mt-2"><i
+                                            class="fa-solid fa-user-plus"></i> Registrar Cliente</button>
+                                </form>
+                            </div>
+
+                            <div class="section-block box-shadow">
+                                <div class="section-header">
+                                    <h3>Directorio de Clientes</h3>
+                                </div>
+                                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="corporate-table" id="crm-clients-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Nombre</th>
+                                                <th>Email</th>
+                                                <th>Teléfono</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Populated via JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Catalog View -->
+                    <main id="catalog-view" class="view hidden fade-in">
+                        <div class="grid-2-col">
+                            <div class="section-block box-shadow">
+                                <div class="section-header">
+                                    <h3>Añadir al Catálogo</h3>
+                                </div>
+                                <form id="add-catalog-form">
+                                    <input type="hidden" id="edit-prod-id">
+                                    <div class="input-group">
+                                        <label for="new-prod-name">Nombre <span class="text-red">*</span></label>
+                                        <input type="text" id="new-prod-name" required
+                                            placeholder="Ej: Mantenimiento Web">
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="new-prod-desc">Descripción</label>
+                                        <textarea id="new-prod-desc" rows="3"
+                                            placeholder="Detalles opcionales..."></textarea>
+                                    </div>
+                                    <div class="grid-2-col gap-2">
+                                        <div class="input-group">
+                                            <label for="new-prod-price">Precio Unitario (€) <span
+                                                    class="text-red">*</span></label>
+                                            <input type="number" step="0.01" id="new-prod-price" required>
+                                        </div>
+                                        <div class="input-group">
+                                            <label for="new-prod-type">Categoría</label>
+                                            <select id="new-prod-type"
+                                                style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm); width: 100%;">
+                                                <option value="Servicio">Servicio</option>
+                                                <option value="Producto">Producto</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <button type="submit" id="btn-submit-prod"
+                                        class="btn btn-primary w-100 hover-animate mt-3"><i
+                                            class="fa-solid fa-plus"></i>
+                                        Guardar en Catálogo</button>
+                                    <button type="button" id="btn-cancel-edit-prod"
+                                        class="btn btn-secondary w-100 mt-2 hidden"
+                                        onclick="appLogic.cancelEditProduct()">Cancelar Edición</button>
+                                </form>
+                            </div>
+
+                            <div class="section-block box-shadow">
+                                <div class="section-header">
+                                    <h3>Portafolio de Productos y Servicios</h3>
+                                </div>
+                                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="corporate-table" id="catalog-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Nombre</th>
+                                                <th>Tipo</th>
+                                                <th>Precio</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Populated via JS -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Expenses View -->
+                    <main id="expenses-view" class="view hidden fade-in">
+                        <div class="grid-2-col">
+                            <!-- Expense Scanner Panel -->
+                            <div class="section-block box-shadow flex-col">
+                                <div class="section-header">
+                                    <h3>Escáner de Recibos y Tickets</h3>
+                                    <p class="text-muted text-sm" style="margin-top: 5px;">Impulsado por IA Gemini</p>
+                                </div>
+
+                                <div class="upload-zone" id="drop-zone-expense">
+                                    <i class="fa-solid fa-receipt upload-icon"></i>
+                                    <h4>Arrastra PDF o Imagen del Ticket</h4>
+                                    <p class="text-muted mt-2">o haz clic para explorar.</p>
+                                    <input type="file" id="file-input-expense" hidden accept="image/*,.pdf">
+                                    <div id="expense-upload-status" class="mt-2 text-sm text-accent hidden">Procesando
+                                        con IA...</div>
+                                </div>
+                                <div class="input-group mt-3">
+                                    <label>Estado de Confianza de IA</label>
+                                    <div class="status-indicator">
+                                        <span class="status-dot online"></span>
+                                        <span class="status-text text-accent font-bold">Listo</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Extracted Expense Form Panel -->
+                            <div class="section-block box-shadow">
+                                <div class="section-header">
+                                    <h3>Datos de Gasto Extraídos</h3>
+                                </div>
+
+                                <form id="expense-form">
+                                    <div class="input-group">
+                                        <label>Proveedor / Nombre del Comercio</label>
+                                        <input type="text" id="exp-provider" placeholder="ej. Amazon, Gasolinera..."
+                                            required>
+                                    </div>
+                                    <div class="grid-2-col gap-2 mt-2">
+                                        <div class="input-group">
+                                            <label>Fecha</label>
+                                            <input type="date" id="exp-date" class="w-100"
+                                                style="padding: 0.625rem; border: 1px solid var(--clr-border); border-radius: var(--radius-sm);"
+                                                required>
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Importe Total (€)</label>
+                                            <input type="number" step="0.01" id="exp-amount"
+                                                class="font-bold text-accent" placeholder="0.00" required>
+                                        </div>
+                                    </div>
+                                    <div class="input-group mt-2">
+                                        <label>Concepto / Descripción</label>
+                                        <input type="text" id="exp-concept" placeholder="Breve descripción del gasto"
+                                            required>
+                                    </div>
+                                    <div class="action-buttons mt-4">
+                                        <button type="submit" class="btn btn-primary w-100 hover-animate"
+                                            id="btn-save-expense"><i class="fa-solid fa-database"></i> Registrar Gasto
+                                            en Base de Datos</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Pending Confirmation Table -->
+                        <div class="section-block box-shadow mt-4" id="expense-pending-section">
+                            <div class="section-header">
+                                <h3>Pendientes de Confirmar <span id="expense-pending-count" class="text-accent text-sm font-normal"></span></h3>
+                                <p class="text-muted text-sm" style="margin-top:5px;">Haz clic en "Revisar" para cargar los datos en el formulario, corrígelos si es necesario y guárdalos</p>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="corporate-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Archivo</th>
+                                            <th>Proveedor</th>
+                                            <th>Fecha</th>
+                                            <th>Concepto</th>
+                                            <th>Importe</th>
+                                            <th>Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="expense-pending-list"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Expenses Table -->
+                        <div class="section-block box-shadow mt-4">
+                            <div class="section-header">
+                                <h3>Registro de Gastos</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="corporate-table" id="recent-expenses-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Proveedor</th>
+                                            <th>Concepto</th>
+                                            <th style="text-align: center;">Deducible</th>
+                                            <th style="text-align: center;">% IVA</th>
+                                            <th style="text-align: center;">% IRPF</th>
+                                            <th>Importe</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Consultant View -->
+                    <main id="consultant-view" class="view hidden fade-in">
+                        <div class="section-block box-shadow flex-col"
+                            style="height: calc(100vh - 150px); display: flex; flex-direction: column;">
+                            <div class="section-header">
+                                <h3><i class="fa-solid fa-robot text-accent"></i> Consultor Financiero IA</h3>
+                                <p class="text-muted text-sm" style="margin-top: 5px;">Tu asistente inteligente. Conozco
+                                    tus ingresos, gastos y clientes.</p>
+                            </div>
+
+                            <div id="chat-messages" class="chat-container"
+                                style="flex-grow: 1; overflow-y: auto; padding: 15px 0; display: flex; flex-direction: column; gap: 15px;">
+                                <!-- Messages will render here -->
+                                <div class="chat-message ai-message"
+                                    style="align-self: flex-start; max-width: 80%; background: var(--green-lt); border: 1px solid rgba(125, 176, 75, 0.2); border-radius: 4px 11px 11px 11px; padding: 12px 16px;">
+                                    <div class="message-content">
+                                        ¡Hola! Soy tu <strong>Consultor Financiero IA</strong>. ¿En qué te puedo ayudar
+                                        hoy?
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="chat-input-area"
+                                style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--clr-border);">
+                                <form id="chat-form" style="display: flex; gap: 10px;">
+                                    <input type="text" id="chat-input" placeholder="Pregúntame sobre tus finanzas..."
+                                        required
+                                        style="flex-grow: 1; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--clr-border); background: var(--clr-surface); color: var(--clr-text-main);">
+                                    <button type="submit" class="btn btn-primary" id="btn-send-chat"
+                                        style="padding: 12px 20px;"><i class="fa-solid fa-paper-plane"></i></button>
+                                </form>
+                            </div>
+                        </div>
+                    </main>
+
+                    <!-- Subsidies View -->
+                    <main id="subsidies-view" class="view hidden fade-in">
+                        <div class="section-block box-shadow">
+                            <div class="section-header">
+                                <h3><i class="fa-solid fa-hand-holding-dollar text-accent"></i> SUBVENCIONES</h3>
+                                <button class="btn btn-primary btn-sm" id="btn-refresh-subsidies">
+                                    <i class="fa-solid fa-sync"></i> Buscar Ayudas
+                                </button>
+                            </div>
+                            <p class="text-muted mt-2">Subvenciones disponibles según tu código CNAE y provincia registrados en tu perfil.</p>
+                            
+                            <div id="subsidies-loading" class="empty-state hidden mt-4">
+                                <i class="fa-solid fa-spinner fa-spin text-accent" style="font-size: 2rem;"></i>
+                                <p class="mt-2">Buscando subvenciones disponibles...</p>
+                            </div>
+
+                            <div id="subsidies-all-container" class="mt-4 grid-2-col gap-3">
+                                <!-- Todas las subvenciones renderizadas por JS -->
+                            </div>
+
+                            <div id="subsidies-empty" class="empty-state mt-4">
+                                <i class="fa-solid fa-magnifying-glass text-muted" style="font-size: 2rem;"></i>
+                                <p class="mt-2">No se han encontrado subvenciones disponibles en este momento.</p>
+                            </div>
+                        </div>
+                    </main>
+
+                </div> <!-- Close .main-content-scroll -->
+            </div> <!-- Close #content-wrapper -->
+        </div> <!-- Close #main-layout -->
+
+        <!-- User Profile Modal -->
+        <div id="profile-modal" class="modal hidden fade-in">
+            <div class="modal-content corporate-modal box-shadow" style="max-width: 600px; padding: 30px;">
+                <div class="modal-header flex-between mb-3"
+                    style="border-bottom: 2px solid var(--clr-border); padding-bottom: 10px;">
+                    <h2 class="text-accent" style="margin: 0;">Mi Perfil</h2>
+                    <button type="button" class="btn-icon"
+                        onclick="document.getElementById('profile-modal').classList.add('hidden'); document.getElementById('profile-modal').classList.remove('show');"
+                        style="font-size: 1.5rem;">&times;</button>
+                </div>
+                <form id="profile-form">
+                    <div style="display: flex; gap: 20px; margin-bottom: 20px; align-items: center;">
+                        <div
+                            style="width: 80px; height: 80px; border-radius: 50%; background: #f3f4f6; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative;">
+                            <img id="profile-avatar-preview" src=""
+                                style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                            <i id="profile-avatar-icon" class="fa-solid fa-user-tie text-muted"
+                                style="font-size: 2rem;"></i>
+                        </div>
+                        <div>
+                            <label for="prof-avatar" class="btn btn-secondary text-sm" style="cursor: pointer;"><i
+                                    class="fa-solid fa-camera"></i> Subir Foto</label>
+                            <input type="file" id="prof-avatar" accept="image/*" style="display: none;"
+                                onchange="if(this.files[0]) { document.getElementById('profile-avatar-preview').src = URL.createObjectURL(this.files[0]); document.getElementById('profile-avatar-preview').style.display='block'; document.getElementById('profile-avatar-icon').style.display='none'; }">
+                        </div>
+                    </div>
+
+                    <div class="grid-2-col gap-2">
+                        <div class="input-group">
+                            <label>Nombre</label>
+                            <input type="text" id="prof-nombre" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Apellidos</label>
+                            <input type="text" id="prof-apellidos" required>
+                        </div>
+                    </div>
+
+                    <div class="grid-2-col gap-2 mt-2">
+                        <div class="input-group">
+                            <label>Email</label>
+                            <input type="email" id="prof-email" required>
+                        </div>
+                        <div class="input-group">
+                            <label>Teléfono</label>
+                            <input type="text" id="prof-telefono" required>
+                        </div>
+                    </div>
+
+                    <div class="grid-2-col gap-2 mt-2">
+                        <div class="input-group">
+                            <label>NIF / CIF</label>
+                            <input type="text" id="prof-nif" required>
+                        </div>
+                        <div class="input-group">
+                            <label>CNAE</label>
+                            <input type="text" id="prof-cnae">
+                        </div>
+                    </div>
+
+                    <div class="input-group mt-2">
+                        <label>IAE (Epígrafe)</label>
+                        <input type="text" inputmode="decimal" pattern="[0-9]*[.,]?[0-9]*" id="prof-iae" placeholder="Ej: 721.2">
+                    </div>
+
+                    <div class="input-group mt-2">
+                        <label>IBAN (Cuenta Bancaria)</label>
+                        <input type="text" id="prof-iban" placeholder="ESXX XXXX XXXX XXXX XXXX XXXX">
+                    </div>
+
+                    <div class="input-group mt-2">
+                        <label>Token de App (Gmail) <i class="fa-solid fa-circle-info text-muted"
+                                title="Requerido para el envío automático"></i></label>
+                        <input type="password" id="prof-gmail-token" placeholder="xxxx xxxx xxxx xxxx">
+                    </div>
+
+                    <div class="input-group mt-2">
+                        <label>Dirección Fiscal</label>
+                        <input type="text" id="prof-domicilio" required>
+                    </div>
+
+                    <div class="grid-3-col gap-2 mt-2"
+                        style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                        <div class="input-group">
+                            <label>Población</label>
+                            <input type="text" id="prof-poblacion">
+                        </div>
+                        <div class="input-group">
+                            <label>Provincia</label>
+                            <input type="text" id="prof-provincia">
+                        </div>
+                        <div class="input-group">
+                            <label>C. Postal</label>
+                            <input type="text" id="prof-cp">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 mt-4" id="btn-save-profile">Guardar
+                        Cambios</button>
+                </form>
+            </div>
+        </div>
+
+
+        <!-- IRPF Settings Modal -->
+        <div id="irpf-settings-modal" class="modal hidden fade-in">
+            <div class="modal-content corporate-modal box-shadow" style="max-width: 450px; padding: 30px;">
+                <div class="modal-header flex-between mb-3"
+                    style="border-bottom: 2px solid var(--clr-border); padding-bottom: 10px;">
+                    <h2 class="text-accent" style="margin: 0;"><i class="fa-solid fa-gear"></i> Ajustes de Retención
+                        IRPF
+                    </h2>
+                    <button type="button" class="btn-icon"
+                        onclick="document.getElementById('irpf-settings-modal').classList.add('hidden');"
+                        style="font-size: 1.5rem;">&times;</button>
+                </div>
+                <div class="input-group mt-3">
+                    <label>Tipo de Retención Aplicable (%)</label>
+                    <p class="text-muted text-sm mb-3">Introduce tu tipo de retención actual de IRPF. Por defecto es el
+                        <strong>20% (Mod. 130 estándar)</strong>, pero un porcentaje de facturas de nuevos autónomos
+                        pueden
+                        aplicar el 7% o 15% según la actividad y retenciones directas.
+                    </p>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="irpf-rate-input" min="0" max="50" step="1" value="20"
+                            style="font-size: 1.2rem; text-align: right; width: 100px; padding: 8px;">
+                        <span style="font-size: 1.2rem; font-weight: bold; color: var(--clr-primary-900);">%</span>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary w-100 mt-4" id="btn-save-irpf"
+                    onclick="saveIRPFRate()">Guardar
+                    Porcentaje</button>
+            </div>
+        </div>
+
+        <!-- Client Profile Modal -->
+        <div id="client-profile-modal" class="modal hidden fade-in">
+            <div class="modal-content corporate-modal box-shadow" style="max-width: 800px; padding: 30px;">
+                <div class="modal-header flex-between mb-3"
+                    style="border-bottom: 2px solid var(--clr-border); padding-bottom: 10px;">
+                    <h2 id="modal-client-name" class="text-accent" style="margin: 0;">Nombre del Cliente</h2>
+                    <button type="button" class="btn-icon"
+                        onclick="document.getElementById('client-profile-modal').classList.add('hidden'); document.getElementById('client-profile-modal').classList.remove('show');"
+                        style="font-size: 1.5rem;">&times;</button>
+                </div>
+
+                <div class="grid-2-col gap-3">
+                    <!-- Client Details Card -->
+                    <div class="client-details-card"
+                        style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 8px;">
+                        <h4 style="margin-top: 0; color: var(--green);"><i class="fa-solid fa-address-card"></i>
+                            Datos
+                            del Perfil</h4>
+
+                        <input type="hidden" id="modal-client-id">
+
+                        <div class="input-group" style="margin-bottom: 10px;">
+                            <label style="font-size: 0.8rem;">Nombre / Empresa</label>
+                            <input type="text" id="modal-client-name-input" style="padding: 6px; font-size: 0.9rem;">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 10px;">
+                            <label style="font-size: 0.8rem;">NIF/CIF</label>
+                            <input type="text" id="modal-client-nif" style="padding: 6px; font-size: 0.9rem;">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 10px;">
+                            <label style="font-size: 0.8rem;">Email</label>
+                            <input type="email" id="modal-client-email" style="padding: 6px; font-size: 0.9rem;">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 10px;">
+                            <label style="font-size: 0.8rem;">Teléfono</label>
+                            <input type="text" id="modal-client-phone" style="padding: 6px; font-size: 0.9rem;">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 10px;">
+                            <label style="font-size: 0.8rem;">Dirección Fiscal</label>
+                            <input type="text" id="modal-client-dir" style="padding: 6px; font-size: 0.9rem;">
+                        </div>
+                        <div class="input-group" style="margin-bottom: 15px;">
+                            <label style="font-size: 0.8rem;">Población</label>
+                            <input type="text" id="modal-client-loc" style="padding: 6px; font-size: 0.9rem;">
+                        </div>
+
+                        <button type="button" class="btn btn-primary" id="btn-save-client-modal"
+                            onclick="appLogic.saveClientChanges(this)" style="width: 100%;">
+                            Guardar Cambios
+                        </button>
+                    </div>
+
+                    <!-- Client Invoices -->
+                    <div>
+                        <h4 style="margin-top: 0; color: var(--green);"><i
+                                class="fa-solid fa-file-invoice-dollar"></i>
+                            Historial de Facturas</h4>
+                        <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                            <table class="corporate-table" id="modal-client-invoices">
+                                <thead>
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th>Fecha</th>
+                                        <th>Importe</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; text-align: right;">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="document.getElementById('client-profile-modal').classList.add('hidden'); document.getElementById('client-profile-modal').classList.remove('show');">Cerrar
+                        Perfil</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Event Modal (body-level popup) -->
+        <div class="modal-overlay hidden" id="add-event-modal" onclick="_calModalBgClick(event)">
+            <div class="modal-container modal-popup">
+                <div class="modal-header">
+                    <h2 class="modal-title"><i class="fa-solid fa-calendar-plus"></i> Añadir Evento</h2>
+                    <button class="btn-icon"
+                        onclick="document.getElementById('add-event-modal').classList.add('hidden')"><i
+                            class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="event-date-input">
+                    <div class="form-group">
+                        <label class="form-label">Fecha</label>
+                        <input class="form-input" id="event-date-display" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Título del evento</label>
+                        <div style="display:flex; gap:10px; width: 100%;">
+                            <input class="form-input" id="event-title-input" placeholder="Ej: Reunión con asesor...">
+                            <button class="btn-icon-alt" id="voice-btn" onclick="startVoiceInput()" title="Dictar por voz">
+                                <i class="fa-solid fa-microphone"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Descripción (opcional)</label>
+                        <textarea class="form-input" id="event-desc-input" rows="3"
+                            placeholder="Detalles adicionales..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary"
+                        onclick="document.getElementById('add-event-modal').classList.add('hidden')">Cancelar</button>
+                    <button class="btn btn-primary" id="btn-save-event" onclick="saveCalendarEvent()"><i
+                            class="fa-solid fa-floppy-disk"></i> Guardar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar Day Details Modal -->
+        <div class="cal-detail-backdrop hidden" id="cal-detail-backdrop" onclick="closeCalDetail()"></div>
+        <div class="cal-detail-panel hidden" id="cal-detail-panel">
+            <div class="cal-detail-header">
+                <h3 id="cal-detail-date">–</h3>
+                <button class="btn-icon" onclick="closeCalDetail()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="cal-detail-body" style="max-height: 50vh; overflow-y: auto;">
+                <ul class="cal-event-list" id="cal-event-list"></ul>
+            </div>
+            <div class="cal-detail-footer" style="margin-top: 16px;">
+                <button class="btn btn-primary" style="width:100%;" onclick="openAddEventModal()"><i
+                        class="fa-solid fa-plus"></i> Añadir Evento</button>
+            </div>
+        </div>
+
+        <!-- Subsidy Detail Modal -->
+        <div id="subsidy-detail-modal" class="modal hidden fade-in">
+            <div class="modal-content corporate-modal box-shadow" style="max-width: 900px; padding: 0; overflow: hidden; border-radius: 12px;">
+                <div class="modal-header" style="background: linear-gradient(135deg, var(--clr-primary-900) 0%, #000 100%); padding: 30px; border-bottom: 3px solid var(--clr-gold); display: flex; justify-content: space-between; align-items: flex-start; position: relative;">
+                    <div style="flex: 1; padding-right: 40px;">
+                        <span style="color: var(--clr-gold); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 2px; font-weight: 700; display: block; margin-bottom: 8px; opacity: 0.8;">Expediente de Subvención</span>
+                        <h2 id="sub-detail-title" style="margin: 0; font-size: 1.6rem; color: #fff; line-height: 1.3; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Cargando título...</h2>
+                    </div>
+                    <button type="button" class="btn-icon" onclick="const m=document.getElementById('subsidy-detail-modal'); m.classList.add('hidden'); m.classList.remove('show');" style="color: var(--clr-gold); font-size: 2rem; position: absolute; top: 20px; right: 20px; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">&times;</button>
+                </div>
+                
+                <div class="modal-body" style="padding: 30px; max-height: 75vh; overflow-y: auto;">
+                    <div id="sub-detail-loading" class="text-center py-5">
+                        <i class="fa-solid fa-circle-notch fa-spin text-gold" style="font-size: 3rem;"></i>
+                        <p class="mt-3 text-muted">Consultando IA y recuperando expediente completo...</p>
+                    </div>
+                    
+                    <div id="sub-detail-content" class="hidden">
+                        <!-- AI Explanation Section -->
+                        <div style="background: rgba(212, 175, 55, 0.05); border: 1px solid rgba(212, 175, 55, 0.2); border-radius: 10px; padding: 20px; margin-bottom: 25px;">
+                            <h3 style="color: var(--clr-gold); margin-top: 0; display: flex; align-items: center; gap: 10px;">
+                                <i class="fa-solid fa-robot"></i> Análisis de AItonomo
+                            </h3>
+                            <div id="sub-detail-explanation" style="line-height: 1.6; color: var(--clr-text-main);">
+                                <!-- Explicación generada por IA -->
+                            </div>
+                            <div class="mt-4">
+                                <a id="sub-detail-boe-link" href="#" target="_blank" class="btn btn-gold btn-sm">
+                                    <i class="fa-solid fa-file-pdf"></i> Ver Fuente Oficial (BOE/BDNS)
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Technical Details Section -->
+                        <div class="grid-2-col gap-3 mb-4">
+                            <div class="info-card" style="background: var(--clr-surface); border: 1px solid var(--clr-border); padding: 15px; border-radius: 8px;">
+                                <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--clr-text-muted); display: block; margin-bottom: 5px;">Organismo Emisor</label>
+                                <div id="sub-detail-organismo" class="font-bold">--</div>
+                            </div>
+                            <div class="info-card" style="background: var(--clr-surface); border: 1px solid var(--clr-border); padding: 15px; border-radius: 8px;">
+                                <label style="font-size: 0.75rem; text-transform: uppercase; color: var(--clr-text-muted); display: block; margin-bottom: 5px;">Fecha de Cierre</label>
+                                <div id="sub-detail-fecha" class="font-bold text-accent">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer" style="padding: 20px 30px; border-top: 1px solid var(--clr-border); text-align: right; background: #fafafa;">
+                    <button type="button" class="btn btn-secondary" onclick="const m=document.getElementById('subsidy-detail-modal'); m.classList.add('hidden'); m.classList.remove('show');">Cerrar Detalles</button>
+                </div>
+            </div>
+        </div>
+
+        <script src="/app.js?v=20"></script>
+</body>
+
+</html>

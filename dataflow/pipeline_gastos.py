@@ -1,8 +1,5 @@
 """
-Pipeline: Dataflow Streaming — Extracción de gastos con Gemini
-
-topic-tickets → Gemini extrae datos → UPDATE draft en PostgreSQL (status='draft' con datos)
-Datastream replica automáticamente los cambios a BigQuery.
+Pipeline: Dataflow Streaming — Extracción de gastos 
 """
 import argparse
 import json
@@ -61,7 +58,7 @@ class ExtraerConGemini(beam.DoFn):
             image_bytes = blob.download_as_bytes()
 
             prompt = (
-                "Extrae del siguiente recibo: proveedor, fecha (formato YYYY-MM-DD), concepto e importe_total. "
+                "Extrae del siguiente recibo: proveedor, fecha (formato DD-MM-YYYY), concepto e importe_total. "
                 "Responde ÚNICAMENTE con un JSON con las claves: proveedor, fecha, concepto, importe_total."
             )
             response = reintentos(lambda: self.model.generate_content([

@@ -14,22 +14,21 @@ variable "postgres_password" {
   sensitive   = true
 }
 
-variable "admin_ip" {
-  description = "Dirección IP autorizada para acceder a la base de datos (CIDR, ej. 95.120.242.61/32)"
-  type        = string
-  default     = "0.0.0.0/0"
-}
-
-variable "gemini_api_key" {
-  description = "Clave API para Google Gemini (legacy — el backend usa Vertex AI con ADC)"
-  type        = string
-  sensitive   = true
-  default     = "unused-vertex-uses-adc"
-}
-
 variable "database_url" {
   description = "URL de conexión (legacy — se construye automáticamente en main.tf desde postgres_password)"
   type        = string
   sensitive   = true
   default     = ""
+}
+
+variable "gemini_api_key" {
+  description = "API Key de Google Gemini"
+  type        = string
+  sensitive   = true
+}
+
+variable "rag_corpus_id" {
+  description = "ID del corpus RAG de Vertex AI para subvenciones (crear con setup_rag_corpus.py)"
+  type        = string
+  default     = "pending"
 }

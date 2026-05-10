@@ -1,12 +1,148 @@
 <!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AItonomo - Pitch Dashboard</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AItonomo Metrics</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f9fafb; padding: 2rem; }
+    .header { display: flex; align-items: center; margin-bottom: 2rem; }
+    .header h1 { font-size: 1.875rem; font-weight: 700; color: #111827; }
+    .header h1 span:first-child { color: #16a34a; }
+    .header h1 span:last-child  { color: #2563eb; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+    .card { background: white; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid #f3f4f6; box-shadow: 0 1px 3px rgba(0,0,0,.05); display: flex; align-items: center; gap: 1rem; }
+    .icon { padding: 1rem; border-radius: 9999px; font-size: 1.5rem; }
+    .icon.blue   { background: #eff6ff; color: #2563eb; }
+    .icon.green  { background: #f0fdf4; color: #16a34a; }
+    .icon.purple { background: #faf5ff; color: #9333ea; }
+    .icon.orange { background: #fff7ed; color: #ea580c; }
+    .card-label { font-size: 0.875rem; color: #6b7280; font-weight: 500; }
+    .card-value { font-size: 1.875rem; font-weight: 700; color: #1f2937; }
+    .card-sub   { font-size: 0.75rem; color: #9ca3af; margin-top: 0.25rem; }
+    .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem; }
+    .chart-box { background: white; border-radius: 0.75rem; padding: 1.5rem; border: 1px solid #f3f4f6; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+    .chart-box h2 { font-size: 1.125rem; font-weight: 700; color: #1f2937; margin-bottom: 1.5rem; }
+    .chart-box canvas { max-height: 320px; }
+    #loading { text-align: center; padding: 5rem; color: #6b7280; font-size: 1rem; }
+    #content { display: none; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1><span>AI</span>tonomo <span>Metrics</span></h1>
+  </div>
+
+  <div id="loading">Cargando métricas de rendimiento...</div>
+
+  <div id="content">
+    <div class="cards">
+      <div class="card">
+        <div class="icon blue">👥</div>
+        <div>
+          <div class="card-label">Total Usuarios</div>
+          <div class="card-value" id="total-usuarios">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="icon green">€</div>
+        <div>
+          <div class="card-label">Volumen Procesado (GMV)</div>
+          <div class="card-value" id="total-gmv">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="icon purple">📈</div>
+        <div>
+          <div class="card-label">Facturas Generadas</div>
+          <div class="card-value" id="total-facturas">—</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="icon orange">⚡</div>
+        <div>
+          <div class="card-label">Coste de Infra (Burn)</div>
+          <div class="card-value" id="coste-infra">—</div>
+          <div class="card-sub" id="coste-infra-sub"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="charts">
+      <div class="chart-box">
+        <h2>Crecimiento de Volumen Gestionado</h2>
+        <canvas id="chart-gmv"></canvas>
+      </div>
+      <div class="chart-box">
+        <h2>Crecimiento de Tracción (Usuarios)</h2>
+        <canvas id="chart-usuarios"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BACKEND_URL = 'BACKEND_URL_PLACEHOLDER';
+
+    async function fetchData() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/investor-metrics`);
+        const json = await res.json();
+        if (!json.success) throw new Error('API error');
+        render(json);
+      } catch (e) {
+        document.getElementById('loading').textContent = 'Error conectando con el backend.';
+        console.error(e);
+      }
+    }
+
+    function render({ kpis, billing }) {
+      // Tarjetas
+      const totalUsuarios = kpis.reduce((a, b) => a + b.nuevos_usuarios, 0);
+      const totalGmv = kpis.reduce((a, b) => a + b.gmv_gestionado_eur, 0);
+      const totalFacturas = kpis.reduce((a, b) => a + b.facturas_generadas, 0);
+
+      document.getElementById('total-usuarios').textContent = totalUsuarios;
+      document.getElementById('total-gmv').textContent = totalGmv.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+      document.getElementById('total-facturas').textContent = totalFacturas;
+
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      const lastBilling = billing?.at(-1);
+      if (lastBilling?.mes === currentMonth) {
+        document.getElementById('coste-infra').textContent = lastBilling.coste_gcp.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €';
+        document.getElementById('coste-infra-sub').textContent = `${lastBilling.mes} · mensual`;
+      } else {
+        document.getElementById('coste-infra').textContent = '—';
+        document.getElementById('coste-infra-sub').textContent = 'Sin datos este mes aún';
+      }
+
+      const labels = kpis.map(k => k.mes);
+      const chartDefaults = { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#f3f4f6' }, border: { display: false } } } };
+
+      new Chart(document.getElementById('chart-gmv'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{ label: 'GMV (€)', data: kpis.map(k => k.gmv_gestionado_eur), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.1)', borderWidth: 3, pointRadius: 4, tension: 0.3, fill: true }]
+        },
+        options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, tooltip: { callbacks: { label: ctx => ctx.parsed.y.toLocaleString('es-ES', { minimumFractionDigits: 2 }) + ' €' } } } }
+      });
+
+      new Chart(document.getElementById('chart-usuarios'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'Nuevos Usuarios', data: kpis.map(k => k.nuevos_usuarios), backgroundColor: '#16a34a', borderRadius: 4 }]
+        },
+        options: chartDefaults
+      });
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+    }
+
+    fetchData();
+  </script>
+</body>
 </html>

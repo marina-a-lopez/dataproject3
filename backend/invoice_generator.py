@@ -152,7 +152,7 @@ class PremiumInvoicePDF(FPDF):
         self.cell(50, 5, f"#{inv_num}", ln=False)
         
         self.set_x(80)
-        fecha = self.data.get('date', datetime.now().strftime('%Y-%m-%d'))
+        fecha = self.data.get('date', datetime.now().strftime('%d-%m-%Y'))
         self.cell(50, 5, f"{fecha}", ln=False)
         
         self.set_x(140)

@@ -1,5 +1,5 @@
 /**
- * AItonomo - Core Application Javascript
+ * Altonomo - Core Application Javascript
  */
 
 const AppState = {
@@ -45,12 +45,17 @@ const Utils = {
         if (s === 'moroso') cls = 'badge-overdue';
         if (s === 'active') cls = 'badge-active';
         return `<span class="badge ${cls}">${status}</span>`;
+    },
+    getTodayFormatted: () => {
+        const d = new Date();
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${year}-${month}-${day}`;
     }
 };
 
-// IMPORTANTE: Cuando despliegues el backend, pega su 
-//  aquí
-const API_BASE_URL = "https://api-backend-4nrtuy3yca-no.a.run.app";
+const API_BASE_URL = "BACKEND_URL_PLACEHOLDER";
 
 const API = {
     request: async (endpoint, options = {}) => {
@@ -213,6 +218,9 @@ const UI = {
         const profileForm = document.getElementById('profile-form');
         if (profileForm) profileForm.addEventListener('submit', appLogic.saveProfile);
 
+        // Subsidies
+        document.getElementById('btn-refresh-subsidies')?.addEventListener('click', appLogic.loadSubsidies);
+
         // Check session
         const storedUser = sessionStorage.getItem('aura_uid');
         if (storedUser) {
@@ -220,7 +228,12 @@ const UI = {
             AppState.dni = sessionStorage.getItem('aura_dni');
             appLogic.enterApp();
         } else {
-            document.getElementById('landing-view')?.classList.remove('hidden');
+            // Show auth view directly; pick the right tab from URL hash
+            const hash = window.location.hash;
+            if (hash === '#register') {
+                document.querySelector('.tab-btn[data-target="register-form"]')?.click();
+            }
+            // auth-view is already visible by default in app.html
         }
     },
 
@@ -239,9 +252,10 @@ const UI = {
                 'expenses-view': 'Gastos',
                 'consultant-view': 'Consultor Financiero IA',
                 'taxes-view': 'Impuestos y Modelos',
+                'subsidies-view': 'Subvenciones',
                 'calendar-view': 'Calendario Fiscal'
             };
-            document.getElementById('page-title').textContent = titles[viewId] || 'AItonomo';
+            document.getElementById('page-title').textContent = titles[viewId] || 'Altonomo';
         }
 
         // Hide all views, show target
@@ -251,20 +265,18 @@ const UI = {
         document.getElementById(viewId).classList.remove('hidden');
 
         if (viewId === 'expenses-view') appLogic.loadExpenseDrafts();
+        if (viewId === 'subsidies-view') appLogic.loadSubsidies();
     }
 };
 
 const appLogic = {
     showAuth: (targetFormId) => {
-        document.getElementById('landing-view').classList.add('hidden');
-        document.getElementById('auth-view').classList.remove('hidden');
         if (targetFormId) {
             document.querySelector(`.tab-btn[data-target="${targetFormId}"]`)?.click();
         }
     },
     hideAuth: () => {
-        document.getElementById('auth-view').classList.add('hidden');
-        document.getElementById('landing-view').classList.remove('hidden');
+        window.location.href = '/';
     },
     handleLogin: async (e) => {
         e.preventDefault();
@@ -309,6 +321,7 @@ const appLogic = {
             provincia: document.getElementById('reg-provincia').value || "",
             codigo_postal: document.getElementById('reg-cp').value || "",
             cnae: document.getElementById('reg-cnae').value || "",
+            iae: (document.getElementById('reg-iae').value || "").replace(',', '.'),
             password: document.getElementById('reg-pwd').value
         };
 
@@ -978,31 +991,43 @@ const appLogic = {
             formData.append('file', file);
             formData.append('user_id', AppState.userId);
 
-            const res = await API.request('/api/process_expense', { method: 'POST', body: formData });
-            if (!res.success) throw new Error('Error al subir el ticket');
+            Utils.showToast('Analizando ticket con Agente RAG...', 'success');
 
-            // Añadir fila como "procesando" inmediatamente
-            appLogic.addDraftRow(res.expense_id, previewHtml, {}, true);
-            Utils.showToast('Ticket enviado. Procesando con IA...', 'success');
+            const res = await API.request('/api/v1/expenses/extract', { method: 'POST', body: formData });
+            if (!res.success) throw new Error('Error al procesar el ticket');
 
-            // Polling hasta que Dataflow actualice el draft en PostgreSQL
-            let intentos = 0;
-            const poll = setInterval(async () => {
-                intentos++;
-                try {
-                    const estado = await API.request(`/api/expense_status/${res.expense_id}`);
-                    if (estado.status === 'draft' && estado.data && estado.data.proveedor) {
-                        clearInterval(poll);
-                        appLogic.addDraftRow(res.expense_id, previewHtml, estado.data, false);
-                        Utils.showToast(`Ticket listo: ${estado.data.proveedor}`, 'success');
-                    } else if (intentos >= 30) {
-                        clearInterval(poll);
-                        appLogic.markDraftError(res.expense_id);
-                    }
-                } catch (_) {}
-            }, 3000);
+            const extData = res.extracted_data;
+            const hitl = res.hitl_required;
+            const reason = extData.clarification_reason || '';
 
-        } catch(e) {
+            // Si requiere revisión (HITL), lo marcamos con un aviso
+            const conceptWithReason = hitl ? `${extData.concepto} ⚠️ (Revisión requerida: ${reason})` : extData.concepto;
+
+            // Guardamos el gasto extraído síncronamente enviando la razón y el estado correcto
+            const saveRes = await API.request('/api/expenses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: AppState.userId,
+                    fecha: extData.fecha || Utils.getTodayFormatted(),
+                    proveedor: extData.proveedor || 'Desconocido',
+                    concepto: extData.concepto || 'Gasto general',
+                    importe_total: extData.importe_total || 0,
+                    url_ticket: '',
+                    status: 'draft', // Todo lo que viene de IA va a revisión manual
+                    is_deducible: extData.is_deducible !== false,
+                    porcentaje_iva: extData.porcentaje_iva ?? 100,
+                    porcentaje_irpf: extData.porcentaje_irpf ?? 100,
+                    clarification_reason: reason
+                })
+            });
+
+            if (saveRes.success) {
+                Utils.showToast(`Gasto analizado. Por favor, revísalo en la lista de pendientes.`, 'success');
+                appLogic.loadExpenseDrafts();
+            }
+
+        } catch (e) {
             Utils.showToast(e.message || 'Error al procesar el ticket', 'error');
         } finally {
             btnStatus.classList.add('hidden');
@@ -1037,7 +1062,7 @@ const appLogic = {
             <td>—</td><td>—</td>` : `
             <td>${previewHtml || '<i class="fa-solid fa-receipt text-gold"></i>'}</td>
             <td class="font-bold">${p}</td>
-            <td>${f}</td>
+            <td data-raw-date="${f}">${f}</td>
             <td class="text-muted text-sm">${c}</td>
             <td class="text-accent font-bold">${i}€</td>
             <td style="display:flex;gap:6px;">
@@ -1071,7 +1096,7 @@ const appLogic = {
         if (!tr) return;
         const cells = tr.querySelectorAll('td');
         document.getElementById('exp-provider').value = cells[1].textContent.trim();
-        document.getElementById('exp-date').value = cells[2].textContent.trim();
+        document.getElementById('exp-date').value = cells[2].dataset.rawDate || cells[2].textContent.trim();
         document.getElementById('exp-concept').value = cells[3].textContent.trim();
         document.getElementById('exp-amount').value = parseFloat(cells[4].textContent).toFixed(2);
         document.getElementById('expense-form').dataset.expenseId = expenseId;
@@ -1088,7 +1113,7 @@ const appLogic = {
                 appLogic.addDraftRow(d.id, null, d, processing);
                 if (processing) appLogic.resumePolling(d.id);
             });
-        } catch(_) {}
+        } catch (_) { }
     },
 
     resumePolling: (expenseId) => {
@@ -1105,7 +1130,7 @@ const appLogic = {
                     clearInterval(poll);
                     appLogic.markDraftError(expenseId);
                 }
-            } catch (_) {}
+            } catch (_) { }
         }, 3000);
     },
 
@@ -1200,16 +1225,34 @@ const appLogic = {
         tbody.innerHTML = '';
 
         if (!res || res.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No se encontraron gastos.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No se encontraron gastos.</td></tr>';
             return;
         }
 
         res.forEach(exp => {
+            // Retrocompatibilidad: Si en BD está como deducible pero el motivo aclara que no lo es
+            const isDeducible = exp.is_deducible && (!exp.clarification_reason || !exp.clarification_reason.toLowerCase().includes('no es deducible'));
+            
+            const pIva = isDeducible ? (exp.porcentaje_iva ?? 100) : 0;
+            const pIrpf = isDeducible ? (exp.porcentaje_irpf ?? 100) : 0;
+            
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${exp.fecha.split('T')[0]}</td>
                 <td class="font-bold">${exp.proveedor}</td>
-                <td class="text-muted text-sm">${exp.concepto}</td>
+                <td>
+                    <div class="font-medium">${exp.concepto}</div>
+                    ${exp.clarification_reason ? `<div class="text-xs text-muted mt-1" style="max-width: 350px; font-style: italic;">
+                        ${exp.clarification_reason.substring(0, 150)}...
+                    </div>` : ''}
+                </td>
+                <td style="text-align: center;">
+                    ${isDeducible ?
+                    `<i class="fa-solid fa-circle-check text-green" title="${exp.clarification_reason || 'Gasto validado'}"></i>` :
+                    `<i class="fa-solid fa-circle-xmark text-red" title="${exp.clarification_reason || 'Gasto no deducible'}"></i>`}
+                </td>
+                <td style="text-align: center; font-weight: 600; color: ${pIva === 100 ? 'var(--green)' : pIva === 0 ? '#e74c3c' : '#f39c12'};">${pIva}%</td>
+                <td style="text-align: center; font-weight: 600; color: ${pIrpf === 100 ? 'var(--green)' : pIrpf === 0 ? '#e74c3c' : '#f39c12'};">${pIrpf}%</td>
                 <td class="text-accent font-bold">${Utils.formatCurrency(exp.importe_total)}</td>
                 <td>
                     <button class="btn-icon text-red hover-animate" onclick="appLogic.deleteExpense('${exp.id}')" title="Eliminar Gasto">
@@ -1314,7 +1357,7 @@ const appLogic = {
             });
 
             document.getElementById('ext-invoice-num').value = data.invoice_number || 'BORRADOR / Auto Gen';
-            document.getElementById('ext-date').value = data.date || new Date().toISOString().split('T')[0];
+            document.getElementById('ext-date').value = data.date || Utils.getTodayFormatted();
 
             // Render table lines
             appLogic.renderExtractedItems();
@@ -1345,7 +1388,7 @@ const appLogic = {
         const payload = {
             user_id: AppState.userId,
             client_id: data.client_id,
-            fecha: data.date || new Date().toISOString().split('T')[0],
+            fecha: data.date || Utils.getTodayFormatted(),
             due_date: document.getElementById('ext-due-date').value || "",
             items: data.items || []
         };
@@ -1471,6 +1514,7 @@ const appLogic = {
                 document.getElementById('prof-telefono').value = p.telefono || '';
                 document.getElementById('prof-nif').value = p.nif_cif || '';
                 document.getElementById('prof-cnae').value = p.cnae || '';
+                document.getElementById('prof-iae').value = p.iae || '';
                 document.getElementById('prof-iban').value = p.iban || '';
                 document.getElementById('prof-gmail-token').value = p.gmail_token || '';
                 document.getElementById('prof-domicilio').value = p.domicilio || '';
@@ -1509,6 +1553,7 @@ const appLogic = {
             formData.append("telefono", document.getElementById('prof-telefono').value);
             formData.append("nif_cif", document.getElementById('prof-nif').value);
             formData.append("cnae", document.getElementById('prof-cnae').value);
+            formData.append("iae", (document.getElementById('prof-iae').value || "").replace(',', '.'));
             formData.append("iban", document.getElementById('prof-iban').value);
             formData.append("gmail_token", document.getElementById('prof-gmail-token').value);
             formData.append("domicilio", document.getElementById('prof-domicilio').value);
@@ -1649,7 +1694,7 @@ const appLogic = {
             });
 
             document.getElementById('ext-quote-num').value = 'BORRADOR / Auto Gen';
-            document.getElementById('ext-date-quote').value = data.date || new Date().toISOString().split('T')[0];
+            document.getElementById('ext-date-quote').value = data.date || Utils.getTodayFormatted();
 
             appLogic.renderExtractedQuoteItems();
 
@@ -1676,7 +1721,7 @@ const appLogic = {
         const payload = {
             user_id: AppState.userId,
             client_id: data.client_id,
-            fecha: data.date || new Date().toISOString().split('T')[0],
+            fecha: data.date || Utils.getTodayFormatted(),
             fecha_validez: document.getElementById('ext-due-date-quote').value || "",
             items: data.items || []
         };
@@ -1855,7 +1900,7 @@ const appLogic = {
             client_id: quote.client_id,
             client_name: quote.client_name,
             client_nif: quote.client_nif,
-            date: new Date().toISOString().split('T')[0],
+            date: Utils.getTodayFormatted(),
             items: quote.items || [],
             total_amount: quote.amount
         };
@@ -1875,6 +1920,165 @@ const appLogic = {
 
         appLogic.renderExtractedItems();
         Utils.showToast("Presupuesto importado para facturar", "success");
+    },
+
+    _createSubCard: (sub, borderColor) => {
+        const card = document.createElement('div');
+        card.className = 'section-block box-shadow hover-animate';
+        card.style.borderLeft = `4px solid ${borderColor}`;
+        card.style.cursor = 'default';
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <h4 style="color: var(--clr-accent); font-weight: 700; margin-bottom: 10px;">${sub.titulo}</h4>
+                <span class="badge badge-active" style="font-size: 0.7rem;">CNAE: ${sub.cnae_target}</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--clr-text-main); margin-bottom: 15px; line-height: 1.4;">
+                ${sub.texto_completo ? sub.texto_completo.substring(0, 180) + '...' : 'Sin descripción disponible.'}
+            </p>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; pt-2; margin-top: 10px; padding-top: 10px;">
+                <div style="font-size: 0.75rem; color: var(--clr-text-muted);">
+                    <i class="fa-solid fa-calendar-day"></i> Cierra: <strong>${sub.fecha_cierre || 'N/A'}</strong>
+                </div>
+                <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id || sub.id_bdns}')">
+                    Ver Detalles <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        `;
+        return card;
+    },
+
+    loadSubsidies: async () => {
+        const container = document.getElementById('subsidies-all-container');
+        const loading = document.getElementById('subsidies-loading');
+        const empty = document.getElementById('subsidies-empty');
+        if (!container) return;
+
+        container.innerHTML = '';
+        loading.classList.remove('hidden');
+        empty.classList.add('hidden');
+
+        let allSubsidies = [];
+
+        try {
+            // Fetch RAG recommendations
+            try {
+                const ragRes = await API.request(`/api/subsidies/recommendations/${AppState.userId}`);
+                if (ragRes.success && ragRes.recommendations && ragRes.recommendations.length > 0) {
+                    allSubsidies = allSubsidies.concat(ragRes.recommendations);
+                }
+            } catch (e) {
+                console.warn('RAG subsidies unavailable:', e);
+            }
+
+            // Fetch CNAE matching subsidies
+            try {
+                const matchRes = await API.request(`/api/subsidies/matching/${AppState.userId}`);
+                if (matchRes.success && matchRes.subsidies && matchRes.subsidies.length > 0) {
+                    // Avoid duplicates by ID
+                    const existingIds = new Set(allSubsidies.map(s => s.id || s.id_bdns));
+                    matchRes.subsidies.forEach(sub => {
+                        const subId = sub.id || sub.id_bdns;
+                        if (!existingIds.has(subId)) {
+                            allSubsidies.push(sub);
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('Matching subsidies unavailable:', e);
+            }
+
+            loading.classList.add('hidden');
+
+            if (allSubsidies.length > 0) {
+                allSubsidies.forEach(sub => {
+                    const card = appLogic._createSubCard(sub, 'var(--clr-accent)');
+                    container.appendChild(card);
+                });
+                empty.classList.add('hidden');
+            } else {
+                empty.classList.remove('hidden');
+            }
+
+        } catch (e) {
+            console.error('Error loading subsidies:', e);
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+        }
+    },
+
+    // Caché local para no regenerar explicaciones IA ya obtenidas
+    _subsidyDetailCache: {},
+
+    viewSubsidiesDetail: async (id_bdns) => {
+        console.log("DEBUG: Intentando abrir detalles para ID:", id_bdns);
+        const modal = document.getElementById('subsidy-detail-modal');
+        const loading = document.getElementById('sub-detail-loading');
+        const content = document.getElementById('sub-detail-content');
+
+        if (!modal) {
+            console.error("ERROR: No se encontró el elemento 'subsidy-detail-modal' en el DOM.");
+            return;
+        }
+
+        if (!id_bdns || id_bdns === 'undefined' || id_bdns === 'N/A') {
+            console.warn("WARNING: ID de subvención inválido:", id_bdns);
+            Utils.showToast("Esta recomendación no tiene un ID válido.", "warning");
+            return;
+        }
+
+        // Mostrar modal
+        modal.classList.remove('hidden');
+        modal.classList.add('show');
+
+        // Si ya tenemos los datos cacheados, los mostramos directamente
+        if (appLogic._subsidyDetailCache[id_bdns]) {
+            const res = appLogic._subsidyDetailCache[id_bdns];
+            appLogic._populateSubsidyModal(res);
+            loading.classList.add('hidden');
+            content.classList.remove('hidden');
+            return;
+        }
+
+        // Si no, mostramos loading y llamamos a la API
+        loading.classList.remove('hidden');
+        content.classList.add('hidden');
+
+        try {
+            const res = await API.request(`/api/subsidies/${id_bdns}/details`);
+
+            if (res.success) {
+                // Guardar en caché para futuras aperturas
+                appLogic._subsidyDetailCache[id_bdns] = res;
+                appLogic._populateSubsidyModal(res);
+
+                loading.classList.add('hidden');
+                content.classList.remove('hidden');
+            } else {
+                throw new Error("No se pudo recuperar la información");
+            }
+        } catch (e) {
+            console.error("Error loading subsidy details:", e);
+            Utils.showToast(`Error: ${e.message || "No se pudieron cargar los detalles"}`, "error");
+            modal.classList.add('hidden');
+            modal.classList.remove('show');
+        }
+    },
+
+    _populateSubsidyModal: (res) => {
+        document.getElementById('sub-detail-title').textContent = res.titulo;
+        document.getElementById('sub-detail-explanation').innerHTML = res.explicacion_ia.replace(/\n/g, '<br>');
+        document.getElementById('sub-detail-organismo').textContent = res.organismo || 'No especificado';
+        document.getElementById('sub-detail-fecha').textContent = res.fecha_cierre || 'No disponible';
+        // document.getElementById('sub-detail-fulltext').textContent = res.texto_completo; // Hidden as per user request
+
+        const boeBtn = document.getElementById('sub-detail-boe-link');
+        if (res.link_boe && res.link_boe.startsWith('http')) {
+            boeBtn.href = res.link_boe;
+            boeBtn.classList.remove('hidden');
+        } else {
+            boeBtn.classList.add('hidden');
+        }
     }
 };
 
@@ -1890,6 +2094,7 @@ const appState = {
         if (viewId === 'invoicing-view') { appLogic.loadInvoices(); appLogic.loadCatalog(); appLogic.loadQuotesForImport(); }
         if (viewId === 'quotes-view') { appLogic.loadQuotes(); appLogic.loadCatalog(); }
         if (viewId === 'catalog-view') appLogic.loadCatalog();
+        if (viewId === 'subsidies-view') appLogic.loadSubsidies();
         if (viewId === 'calendar-view') appLogic.loadCalendar();
     }
 };
@@ -2015,7 +2220,7 @@ function _renderCalendarGrid(year, month, events) {
 
     // Current month days
     for (let d = 1; d <= daysInMonth; d++) {
-        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dateStr = `${String(d).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`;
         const dayEvents = events.filter(e => e.fecha === dateStr);
 
         const cell = document.createElement('div');
@@ -2069,7 +2274,7 @@ function _openDayPanel(dateStr, events) {
     if (!panel) return;
 
     // Format date nicely
-    const [y, m, d] = dateStr.split('-');
+    const [d, m, y] = dateStr.split('-');
     dateTitle.textContent = `${parseInt(d)} de ${MONTH_NAMES_ES[parseInt(m)]} de ${y}`;
 
     eventList.innerHTML = '';
@@ -2116,8 +2321,8 @@ window.calToggleInvoices = function (checked) {
 };
 
 window.openAddEventModal = function () {
-    const dateStr = AppState.calSelectedDate || new Date().toISOString().split('T')[0];
-    const [y, m, d] = dateStr.split('-');
+    const dateStr = AppState.calSelectedDate || Utils.getTodayFormatted();
+    const [d, m, y] = dateStr.split('-');
     document.getElementById('event-date-input').value = dateStr;
     document.getElementById('event-date-display').value = `${parseInt(d)} de ${MONTH_NAMES_ES[parseInt(m)]} de ${y}`;
     document.getElementById('event-title-input').value = '';

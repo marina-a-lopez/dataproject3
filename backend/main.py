@@ -1,9 +1,15 @@
 # Importaciones de FastAPI
+import logging
 from fastapi import FastAPI, File, UploadFile, Form, Depends, HTTPException, status
+
+# Configuración de Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("AItonomoAPI")
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import text
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 import uvicorn
@@ -14,13 +20,26 @@ import uuid
 import json
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+import vertexai
 
-# Importaciones locales
-from database import get_db, init_db, Usuario, Cliente, Factura, Presupuesto, Producto, Gasto, CalendarioEvento
+# Cargar variables de entorno antes de inicializar Vertex AI
+load_dotenv()
+
+# Inicialización de Vertex AI (debe ocurrir antes de importar los agentes que usan GenerativeModel)
+vertexai.init(
+    project=os.getenv('GCP_PROJECT_ID'),
+    location=os.getenv('GCP_LOCATION', 'europe-southwest1')
+)
+
+# Importaciones locales (instancian agentes que requieren Vertex AI ya inicializado)
+from database import get_db, init_db, Usuario, Cliente, Factura, Presupuesto, Producto, Gasto, CalendarioEvento, Subvencion
 from voice import process_voice_to_text, extract_line_data, extract_client_data
 from invoice_generator import PremiumInvoicePDF
 from pdf_helpers import build_doc_data, generate_pdf_bytes
 import processor as proc
+from agents.extraction_agent import extraction_agent_instance
+from agents.subsidies_agent import subsidies_agent_instance
+from agents.rag_subsidies_agent import rag_subsidies_agent_instance
 from werkzeug.security import generate_password_hash, check_password_hash
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -31,9 +50,6 @@ from google.cloud import pubsub_v1
 from StorageManager import StorageManager
 
 sm = StorageManager()
-
-# Cargar variables de entorno desde el archivo .env local
-load_dotenv()
 
 app = FastAPI(title="AItonomo Pro API")
 
@@ -49,14 +65,17 @@ app.add_middleware(
 )
 
 # Crear directorio static y base de datos
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
-os.makedirs(STATIC_DIR, exist_ok=True)
+# En Cloud Run, el sistema de archivos es de solo lectura excepto /tmp.
+# Intentamos crear el directorio en /tmp si falla en el directorio local, 
+# o simplemente usamos el directorio local si estamos en un entorno persistente.
+try:
+    os.makedirs(STATIC_DIR, exist_ok=True)
+except Exception:
+    STATIC_DIR = Path("/tmp/static")
+    os.makedirs(STATIC_DIR, exist_ok=True)
 init_db()
-
-# Inicialización de Vertex AI (usa ADC automáticamente en Cloud Run)
-import vertexai as _vertexai
-_vertexai.init(project=os.getenv('GCP_PROJECT_ID'))
 
 # Modelos Pydantic para peticiones JSON
 class LoginRequest(BaseModel):
@@ -72,6 +91,7 @@ class RegisterRequest(BaseModel):
     provincia: str = ""
     codigo_postal: str = ""
     cnae: Optional[str] = None
+    iae: Optional[str] = None
     email: EmailStr
     telefono: str = Field(pattern=r"^\+?[0-9]{9,15}$")
     password: str
@@ -103,6 +123,11 @@ class ExpenseCreate(BaseModel):
     importe_total: float
     tipo_iva: float = 21.0
     url_ticket: str = ""
+    status: str = "confirmed"
+    is_deducible: bool = True
+    porcentaje_iva: int = 100
+    porcentaje_irpf: int = 100
+    clarification_reason: Optional[str] = None
 
 class InvoiceStatusUpdate(BaseModel):
     status: str
@@ -191,6 +216,14 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
     except Exception:
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
+@app.get("/api/health")
+async def health_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        return {"status": "error", "database": str(e)}
+
 @app.post("/api/register")
 async def register(req: RegisterRequest, db: Session = Depends(get_db)):
     existing_user_nif = get_user_by_dni(db, req.nif_cif)
@@ -202,6 +235,7 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Este Email ya está registrado y tiene una cuenta activa.")
         
     hashed_pwd = generate_password_hash(req.password, method='pbkdf2:sha256')
+
     new_user = Usuario(
         nombre=req.nombre,
         apellidos=req.apellidos,
@@ -211,6 +245,7 @@ async def register(req: RegisterRequest, db: Session = Depends(get_db)):
         provincia=req.provincia,
         codigo_postal=req.codigo_postal,
         cnae=req.cnae,
+        iae=req.iae,
         email=req.email,
         telefono=req.telefono,
         password_hash=hashed_pwd
@@ -322,9 +357,22 @@ async def get_dashboard(
     total_base_ingresos = sum(f.total_base for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
     total_iva_repercutido = sum(f.total_impuestos for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
 
-    total_base_gastos = sum(float(g.importe_total) / (1 + (float(g.tipo_iva or 21) / 100)) for g in gastos)
-    total_iva_soportado = sum(float(g.importe_total) - (float(g.importe_total) / (1 + (float(g.tipo_iva or 21) / 100))) for g in gastos)
-
+    total_base_gastos = 0
+    total_iva_soportado = 0
+    
+    for g in gastos:
+        is_deducible_real = g.is_deducible and not (g.clarification_reason and 'no es deducible' in g.clarification_reason.lower())
+        
+        if is_deducible_real:
+            p_iva = g.porcentaje_iva if g.porcentaje_iva is not None else 100
+            p_irpf = g.porcentaje_irpf if g.porcentaje_irpf is not None else 100
+            
+            tasa_iva = float(g.tipo_iva or 21) / 100.0
+            base_total = float(g.importe_total) / (1 + tasa_iva)
+            iva_total = float(g.importe_total) - base_total
+            
+            total_base_gastos += base_total * (p_irpf / 100.0)
+            total_iva_soportado += iva_total * (p_iva / 100.0)
     net_balance = total_base_ingresos - total_base_gastos
     iva_a_pagar = total_iva_repercutido - total_iva_soportado
 
@@ -546,11 +594,11 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
     total_impuestos = total_base * (req.tipo_iva / 100.0)
     importe_total = total_base + total_impuestos
     
-    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%Y-%m-%d")
+    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%d-%m-%Y")
     
     fecha_ven_obj = None
     if req.due_date:
-        fecha_ven_obj = datetime.fromisoformat(req.due_date) if 'T' in req.due_date else datetime.strptime(req.due_date, "%Y-%m-%d")
+        fecha_ven_obj = datetime.fromisoformat(req.due_date) if 'T' in req.due_date else datetime.strptime(req.due_date, "%d-%m-%Y")
 
     # Obtiene el hash del registro anterior
     prev_hash = last_invoice.hash_registro if last_invoice else None
@@ -694,10 +742,10 @@ async def save_quote(req: QuoteCreate, db: Session = Depends(get_db)):
     total_impuestos = total_base * (req.tipo_iva / 100.0)
     importe_total = total_base + total_impuestos
     
-    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%Y-%m-%d")
+    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%d-%m-%Y")
     fecha_ven_obj = None
     if req.fecha_validez:
-        fecha_ven_obj = datetime.fromisoformat(req.fecha_validez) if 'T' in req.fecha_validez else datetime.strptime(req.fecha_validez, "%Y-%m-%d")
+        fecha_ven_obj = datetime.fromisoformat(req.fecha_validez) if 'T' in req.fecha_validez else datetime.strptime(req.fecha_validez, "%d-%m-%Y")
 
     presupuesto = Presupuesto(
         usuario_id=req.user_id,
@@ -793,7 +841,11 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
         "fecha": g.fecha.strftime("%Y-%m-%d"),
         "proveedor": g.proveedor or "Varios",
         "concepto": g.concepto or "Gasto genérico",
-        "importe_total": float(g.importe_total)
+        "importe_total": float(g.importe_total),
+        "is_deducible": g.is_deducible,
+        "porcentaje_iva": g.porcentaje_iva if g.porcentaje_iva is not None else 100,
+        "porcentaje_irpf": g.porcentaje_irpf if g.porcentaje_irpf is not None else 100,
+        "clarification_reason": g.clarification_reason
     } for g in gastos]
 
 @app.get("/api/expense_drafts/{user_id}")
@@ -840,8 +892,12 @@ async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
             concepto=req.concepto,
             importe_total=req.importe_total,
             tipo_iva=req.tipo_iva,
-            url_ticket=req.url_ticket
-        )
+            url_ticket=req.url_ticket,
+            status=req.status,
+            is_deducible=req.is_deducible,
+            porcentaje_iva=req.porcentaje_iva,
+            porcentaje_irpf=req.porcentaje_irpf,
+            clarification_reason=req.clarification_reason        )
         db.add(nuevo_gasto)
         db.commit()
         return {"success": True, "expense_id": str(nuevo_gasto.id)}
@@ -891,7 +947,7 @@ async def process_document(
                 "client_nif": client_data.get('nif_cif', ''),
                 "client_address": client_data.get('direccion_fiscal', ''),
                 "items": line_data.get('lineas', []),
-                "date": datetime.now().strftime("%Y-%m-%d")
+                "date": datetime.now().strftime("%d-%m-%Y")
             }
             
         # 2. PDF/Imagen via Processor.py
@@ -911,7 +967,7 @@ async def process_document(
         return {
             "client_name": data.get("client_name", ""),
             "items": normalized_items,
-            "date": data.get("date", datetime.now().strftime("%Y-%m-%d")),
+            "date": data.get("date", datetime.now().strftime("%d-%m-%Y")),
             "total_amount": data.get("total_amount")
         }
     except Exception as e:
@@ -976,6 +1032,46 @@ async def expense_status(expense_id: str, db: Session = Depends(get_db)):
             "url_ticket": gasto.url_ticket or ""
         } if gasto.status == 'draft' and gasto.proveedor else {}
     }
+
+@app.post("/api/v1/expenses/extract")
+async def extract_expense_v1(file: UploadFile = File(...), user_id: str = Form(...), db: Session = Depends(get_db)):
+    """
+    Endpoint de la Fase 1 (Group 1: Data Extraction & Profiling).
+    Recibe un ticket, consulta el perfil del usuario, valida contextualmente
+    con Gemini 2.5 y retorna los datos y si necesita HITL (Human In The Loop).
+    """
+    try:
+        # 1. Validar que el usuario existe en DB principal
+        user = db.query(Usuario).filter(Usuario.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+        # 2. Leer contenido y mimetype
+        contents = await file.read()
+        mime_type = file.content_type
+
+        # 3. Procesar mediante el Data Extraction Agent
+        result = extraction_agent_instance.process_receipt_with_context(
+            file_bytes=contents, 
+            mime_type=mime_type, 
+            user=user,
+            db=db
+        )
+        
+        if result.get("status") == "error":
+            raise HTTPException(status_code=500, detail=result.get("error"))
+
+        return {
+            "success": True,
+            "extracted_data": result.get("extracted_data"),
+            "user_context_applied": result.get("user_context_applied"),
+            "hitl_required": result.get("hitl_required")
+        }
+    except ValueError:
+        raise HTTPException(status_code=400, detail="user_id debe ser un entero válido para el mock")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/process_client_voice")
 async def process_client_voice(file: UploadFile = File(...)):
@@ -1200,11 +1296,13 @@ async def get_profile(user_id: str, db: Session = Depends(get_db)):
             "provincia": user.provincia,
             "codigo_postal": user.codigo_postal,
             "cnae": user.cnae,
+            "iae": user.iae,
             "iban": user.iban,
             "gmail_token": user.gmail_token,
             "email": user.email,
             "telefono": user.telefono,
-            "profile_picture": user.profile_picture
+            "profile_picture": user.profile_picture,
+            "desc_producto": user.desc_producto
         }
     }
 
@@ -1229,6 +1327,60 @@ async def get_avatar_new(user_id: str, filename: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/api/subsidies/{sub_id}/details")
+async def get_subsidy_details(sub_id: str, db: Session = Depends(get_db)):
+    """Obtiene el detalle completo de una subvención y una explicación generada por IA."""
+    logger.info(f"Petición de detalles para ID: {sub_id}")
+    sub = db.query(Subvencion).filter(Subvencion.id == sub_id).first()
+    if not sub:
+        sub = db.query(Subvencion).filter(Subvencion.id_bdns == sub_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subvención no encontrada")
+    try:
+        ai_info = rag_subsidies_agent_instance.explain_subsidy(sub.texto_completo)
+        return {
+            "success": True,
+            "id_bdns": sub.id_bdns,
+            "titulo": sub.titulo,
+            "organismo": "Ver descripción en detalles",
+            "fecha_cierre": sub.fecha_cierre.isoformat() if sub.fecha_cierre else "N/A",
+            "texto_completo": sub.texto_completo,
+            "explicacion_ia": ai_info.get("explicacion"),
+            "link_boe": ai_info.get("link_boe")
+        }
+    except Exception as e:
+        logger.error(f"Error obteniendo detalles de subvención: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando detalles de la subvención")
+
+
+@app.get("/api/subsidies/{user_id}")
+async def get_subsidies(user_id: str, db: Session = Depends(get_db)):
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+    response = subsidies_agent_instance.get_subsidies_for_user(user, db)
+    if response.get("status") == "error":
+        raise HTTPException(status_code=500, detail=response.get("error"))
+        
+    return response
+
+class ScrapedTextRequest(BaseModel):
+    texto_sucio: str
+
+# @app.post("/api/extract-subsidies")
+# async def extract_subsidies(req: ScrapedTextRequest):
+#     """
+#     Recibe texto en bruto extraído mediante web scraping y usa Gemini
+#     para devolver las subvenciones en un formato estructurado de texto plano.
+#     """
+#     if not req.texto_sucio or not req.texto_sucio.strip():
+#         raise HTTPException(status_code=400, detail="El texto a procesar no puede estar vacío.")
+#         
+#     resultado = subsidies_extractor_instance.process_scraped_text(req.texto_sucio)
+#     return {"resultado": resultado}
+
+
 
 @app.get("/api/avatars/{filename}")
 async def get_avatar(filename: str):
@@ -1289,6 +1441,7 @@ async def update_profile(
     provincia: str = Form(""),
     codigo_postal: str = Form(""),
     cnae: str = Form(""),
+    iae: str = Form(""),
     iban: str = Form(""),
     gmail_token: str = Form(""),
     avatar: Optional[UploadFile] = File(None),
@@ -1308,8 +1461,11 @@ async def update_profile(
     user.provincia = provincia
     user.codigo_postal = codigo_postal
     user.cnae = cnae if cnae else None
-    user.iban = iban if iban else None
-    user.gmail_token = gmail_token if gmail_token else None
+    user.iae = iae if iae else None
+    if iban:
+        user.iban = iban
+    if gmail_token:
+        user.gmail_token = gmail_token
     
     if avatar and avatar.filename:
         # Save file
@@ -1325,6 +1481,80 @@ async def update_profile(
         
     db.commit()
     return {"success": True, "message": "Perfil actualizado", "profile_picture": user.profile_picture, "nombre": user.nombre}
+
+
+@app.get("/api/subsidies/recommendations/{user_id}")
+async def get_rag_recommendations(user_id: str, db: Session = Depends(get_db)):
+    """Obtiene recomendaciones de subvenciones usando Vertex AI RAG Engine."""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    try:
+        recs = rag_subsidies_agent_instance.get_recommendations(user, db)
+        return {"success": True, "recommendations": recs}
+    except Exception as e:
+        logger.error(f"Error en RAG recommendations: {e}")
+        raise HTTPException(status_code=500, detail="Error procesando recomendaciones RAG")
+
+
+@app.get("/api/subsidies/matching/{user_id}")
+async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
+    """Busca subvenciones en la BD que coincidan exactamente con el CNAE del usuario."""
+    user = get_user_by_id(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    user_cnae = user.cnae
+    if not user_cnae:
+        return {"success": True, "subsidies": [], "message": "Usuario sin CNAE definido"}
+    
+    # Buscamos coincidencias en cnae_target. 
+    # El scraper guarda strings tipo '6201, 6202' o similares.
+    subsidies = db.query(Subvencion).filter(
+        Subvencion.cnae_target.ilike(f"%{user_cnae}%")
+    ).all()
+    
+    # Formateamos para el front
+    results = []
+    for s in subsidies:
+        results.append({
+            "id": str(s.id),
+            "id_bdns": s.id_bdns,
+            "titulo": s.titulo,
+            "cnae_target": s.cnae_target,
+            "fecha_cierre": s.fecha_cierre.isoformat() if s.fecha_cierre else None,
+            "texto_completo": s.texto_completo[:300] + "..." if s.texto_completo else ""
+        })
+    
+    return {"success": True, "subsidies": results}
+
+
+
+@app.post("/api/subsidies/ingest-callback")
+async def subsidy_ingest_callback(data: dict, db: Session = Depends(get_db)):
+    """Endpoint llamado por la Cloud Function tras una ingesta exitosa."""
+    new_sub_id = data.get("id_bdns")
+    if not new_sub_id:
+        return {"success": False, "message": "Falta id_bdns"}
+    
+    # Buscar la subvención recién insertada
+    sub = db.query(Subvencion).filter(Subvencion.id_bdns == new_sub_id).first()
+    if not sub:
+        return {"success": False, "message": "Subvención no encontrada en BD"}
+    
+    # Notificar a usuarios con CNAE coincidente
+    notified_count = 0
+    if sub.cnae_target:
+        cnaes = [c.strip() for c in sub.cnae_target.split(",")]
+        for cnae in cnaes:
+            matching_users = db.query(Usuario).filter(Usuario.cnae == cnae).all()
+            for user in matching_users:
+                # Aquí iría la lógica de envío de email o push notification
+                logger.info(f"NOTIFICACIÓN: El usuario {user.email} coincide con la subvención {sub.titulo}")
+                notified_count += 1
+                
+    return {"success": True, "notified_users": notified_count}
 
 
 # ─── Calendar API ─────────────────────────────────────────────────────────────
@@ -1346,7 +1576,7 @@ def _get_fiscal_dates(year: int) -> list[dict]:
             "titulo": title,
             "descripcion": "Presentación trimestral de IVA (Mod. 303) e IRPF (Mod. 130) a la Agencia Tributaria.",
             "tipo": "fiscal",
-            "color": "#d4af37"
+            "color": "#7DB04B"
         })
     # Cuota SS — 20th of every month
     for month in range(1, 13):
@@ -1356,7 +1586,7 @@ def _get_fiscal_dates(year: int) -> list[dict]:
             "titulo": "Cuota Autónomo — Seguridad Social",
             "descripcion": "Fecha límite de ingreso de la cuota mensual de autónomos a la Seguridad Social.",
             "tipo": "fiscal",
-            "color": "#d4af37"
+            "color": "#7DB04B"
         })
     # Annual income tax (Renta) — June 30
     events.append({
@@ -1365,13 +1595,13 @@ def _get_fiscal_dates(year: int) -> list[dict]:
         "titulo": "Límite Declaración de la Renta",
         "descripcion": "Fecha límite para presentar la Declaración Anual del IRPF (ejercicio anterior).",
         "tipo": "fiscal",
-        "color": "#d4af37"
+        "color": "#7DB04B"
     })
     return events
 
 
 class EventoCreate(BaseModel):
-    fecha: str           # ISO format YYYY-MM-DD
+    fecha: str           # Spanish format DD-MM-YYYY
     titulo: str
     descripcion: Optional[str] = None
     color: str = "#4a90e2"
@@ -1417,7 +1647,7 @@ async def get_calendar(
     for ev in user_events:
         events.append({
             "id": str(ev.id),
-            "fecha": ev.fecha.strftime("%Y-%m-%d"),
+            "fecha": ev.fecha.strftime("%d-%m-%Y"),
             "titulo": ev.titulo,
             "descripcion": ev.descripcion,
             "tipo": ev.tipo,
@@ -1437,7 +1667,7 @@ async def get_calendar(
                 name = f.cliente.nombre_empresa if f.cliente else "Cliente"
                 events.append({
                     "id": f"invoice-{str(f.id)}",
-                    "fecha": f.fecha_vencimiento.strftime("%Y-%m-%d"),
+                    "fecha": f.fecha_vencimiento.strftime("%d-%m-%Y"),
                     "titulo": f"Vencimiento: {f.codigo_factura}",
                     "descripcion": f"Factura de {name} — {f.importe_total:.2f} €",
                     "tipo": "factura",
@@ -1516,8 +1746,10 @@ async def get_investor_metrics():
             query_billing = f"""
                 SELECT 
                     FORMAT_TIMESTAMP('%Y-%m', usage_start_time) as mes,
-                    SUM(cost) as coste_gcp
+                    ROUND(SUM(cost), 2) as coste_gcp
                 FROM `{project_id}.gcp_billing_export.gcp_billing_export_v1_*`
+                WHERE cost_type = 'regular'
+                  AND currency = 'EUR'
                 GROUP BY 1
                 ORDER BY 1 ASC
             """
@@ -1542,3 +1774,4 @@ app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+# Reload trigger
