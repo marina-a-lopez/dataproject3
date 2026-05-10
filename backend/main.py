@@ -1407,6 +1407,12 @@ async def chat_with_consultant(req: ChatRequest, db: Session = Depends(get_db)):
     gastos = db.query(Gasto).filter(Gasto.usuario_id == user.id).all()
     clientes = db.query(Cliente).filter(Cliente.usuario_id == user.id).all()
     
+    ahora = datetime.now()
+    subvenciones_bd = db.query(Subvencion).filter(
+        (Subvencion.fecha_cierre == None) | (Subvencion.fecha_cierre >= ahora),
+        Subvencion.apto_autonomos == True
+    ).all()
+    
     user_context = {
         "usuario": f"{user.nombre} {user.apellidos}",
         "cnae": user.cnae,
@@ -1434,9 +1440,22 @@ async def chat_with_consultant(req: ChatRequest, db: Session = Depends(get_db)):
                 "fecha": g.fecha.isoformat() if hasattr(g.fecha, 'isoformat') else str(g.fecha), 
                 "proveedor": g.proveedor, 
                 "concepto": g.concepto,
-                "importe": float(g.importe_total)
+                "importe": float(g.importe_total),
+                "is_deducible": g.is_deducible,
+                "porcentaje_iva": g.porcentaje_iva if g.porcentaje_iva is not None else (100 if g.is_deducible else 0),
+                "porcentaje_irpf": g.porcentaje_irpf if g.porcentaje_irpf is not None else (100 if g.is_deducible else 0),
+                "justificacion": g.clarification_reason
             }
             for g in sorted(gastos, key=lambda x: str(x.fecha), reverse=True)
+        ],
+        "subvenciones_activas": [
+            {
+                "titulo": s.titulo,
+                "cnae_target": s.cnae_target,
+                "fecha_cierre": s.fecha_cierre.isoformat() if s.fecha_cierre else "Sin límite",
+                "descripcion": s.texto_completo[:500] + "..." if s.texto_completo and len(s.texto_completo) > 500 else s.texto_completo
+            }
+            for s in subvenciones_bd
         ]
     }
     
