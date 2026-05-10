@@ -10,7 +10,7 @@ Además, AItonomo incluye un dashboard financiero en tiempo real con métricas d
 
 ## Arquitectura
 
-![Diagrama de Arquitectura](docs/arq-2.png)
+![Diagrama de Arquitectura](docs/arquitectura.png)
 
 ## Funcionalidades
 

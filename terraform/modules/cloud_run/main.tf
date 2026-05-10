@@ -4,26 +4,6 @@ resource "google_artifact_registry_repository" "repo" {
   format        = "DOCKER"
 }
 
-locals {
-  backend_hash   = sha1(join("", [for f in fileset("${path.root}/../backend", "*.py") : filesha1("${path.root}/../backend/${f}")]))
-  frontend_hash  = sha1(join("", [for f in fileset("${path.root}/../static", "**") : filesha1("${path.root}/../static/${f}")]))
-  dashboard_hash = sha1(join("", [for f in fileset("${path.root}/../dashboard-buss", "**") : filesha1("${path.root}/../dashboard-buss/${f}")]))
-  }
-
-resource "docker_image" "backend_image" {
-  name = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.repo.name}/backend:${local.backend_hash}"
-  build {
-    context    = "${path.root}/../backend/"
-    dockerfile = "Dockerfile"
-    platform   = "linux/amd64"
-  }
-}
-
-resource "docker_registry_image" "backend_push" {
-  name          = docker_image.backend_image.name
-  keep_remotely = true
-}
-
 resource "google_cloud_run_v2_service" "backend" {
   name                = "api-backend"
   location            = var.region
@@ -48,7 +28,7 @@ resource "google_cloud_run_v2_service" "backend" {
     }
 
     containers {
-      image = docker_registry_image.backend_push.name
+      image = var.backend_image
       ports {
         container_port = 8080
       }
@@ -97,21 +77,6 @@ resource "google_cloud_run_v2_service" "backend" {
       }
     }
   }
-  depends_on = [docker_registry_image.backend_push]
-}
-
-resource "docker_image" "frontend_image" {
-  name = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.repo.name}/frontend:${local.frontend_hash}"
-  build {
-    context    = "${path.root}/../static/"
-    dockerfile = "Dockerfile"
-    platform   = "linux/amd64"
-  }
-}
-
-resource "docker_registry_image" "frontend_push" {
-  name          = docker_image.frontend_image.name
-  keep_remotely = true
 }
 
 resource "google_cloud_run_v2_service" "frontend" {
@@ -122,7 +87,7 @@ resource "google_cloud_run_v2_service" "frontend" {
   template {
     service_account = var.frontend_sa_email
     containers {
-      image = docker_registry_image.frontend_push.name
+      image = var.frontend_image
       ports {
         container_port = 80
       }
@@ -132,21 +97,6 @@ resource "google_cloud_run_v2_service" "frontend" {
       }
     }
   }
-  depends_on = [docker_registry_image.frontend_push]
-}
-
-resource "docker_image" "dashboard_image" {
-  name = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.repo.name}/dashboard:${local.dashboard_hash}"
-  build {
-    context    = "${path.root}/../dashboard-buss/"
-    dockerfile = "Dockerfile"
-    platform   = "linux/amd64"
-  }
-}
-
-resource "docker_registry_image" "dashboard_push" {
-  name          = docker_image.dashboard_image.name
-  keep_remotely = true
 }
 
 resource "google_cloud_run_v2_service" "dashboard" {
@@ -157,7 +107,7 @@ resource "google_cloud_run_v2_service" "dashboard" {
   template {
     service_account = var.frontend_sa_email
     containers {
-      image = docker_registry_image.dashboard_push.name
+      image = var.dashboard_image
       ports {
         container_port = 80
       }
@@ -167,5 +117,4 @@ resource "google_cloud_run_v2_service" "dashboard" {
       }
     }
   }
-  depends_on = [docker_registry_image.dashboard_push]
 }
