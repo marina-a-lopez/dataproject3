@@ -1,6 +1,6 @@
 terraform {
   backend "gcs" {
-    bucket  = "tfstate-aitonomo"
+    bucket = "tfstate-aitonomo"
     prefix  = "terraform/state"
   }
 }
