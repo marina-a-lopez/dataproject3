@@ -52,28 +52,22 @@ class RagSubsidiesAgent:
             )
             
             candidates = []
-            user_provincia = (user.provincia or "").strip().lower()
-
             for context in response.contexts:
-                content = context.text.lower()
-                if not (user_provincia in content or "nacional" in content or "estatal" in content):
-                    continue
-
-                id_bdns = "N/A"
-                if hasattr(context, 'metadata') and 'id_bdns' in context.metadata:
-                    id_bdns = context.metadata['id_bdns']
-                else:
-                    match = re.search(r'bdns[:\s]+(\d+)', content)
-                    if match:
-                        id_bdns = match.group(1)
-
                 candidates.append({
-                    "id_bdns": id_bdns,
+                    "id_bdns": (context.metadata.get('id_bdns') if hasattr(context, 'metadata') and context.metadata else None)
+                               or (re.search(r'bdns[:\s]+(\d+)', context.text.lower()) or [None, "N/A"])[1],
                     "score": getattr(context, 'score', 0.0),
                     "texto_completo": context.text,
                 })
 
             candidates = sorted(candidates, key=lambda x: x['score'], reverse=True)
+
+            user_provincia = (user.provincia or "").strip().lower()
+            # Normalizar tildes básicas para comparación
+            import unicodedata
+            def _norm(s):
+                return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode()
+            user_provincia_norm = _norm(user_provincia)
 
             recommendations = []
             seen_ids = set()
@@ -99,8 +93,18 @@ class RagSubsidiesAgent:
                     if fecha_cierre_aware <= now:
                         continue
 
-                # Generar explicación IA
+                # Generar explicación IA (incluye ambito_geografico)
                 ai_info = self.explain_subsidy(c["texto_completo"])
+
+                # Filtro territorial por ambito_geografico
+                ambito = ai_info.get("ambito_geografico") or ["nacional"]
+                if isinstance(ambito, str):
+                    ambito = [ambito]
+                ambito_norm = [_norm(a.lower()) for a in ambito]
+                if "nacional" not in ambito_norm and user_provincia_norm and not any(
+                    user_provincia_norm in a or a in user_provincia_norm for a in ambito_norm
+                ):
+                    continue
 
                 titulo = sub.titulo if sub else (c["texto_completo"].split('\n')[0][:100] or "Subvención Identificada")
                 fecha_pub = sub.fecha_publicacion.strftime("%d/%m/%Y") if sub and sub.fecha_publicacion else None
@@ -148,7 +152,8 @@ class RagSubsidiesAgent:
                 "explicacion": "Resumen en máximo 60 palabras. Indica beneficiarios y propósito. Sin introducciones. AVISO: verifica siempre la convocatoria oficial.",
                 "importe_maximo": "Importe máximo de la ayuda si aparece en el texto (ej: '10.000 €'). Si no aparece, null.",
                 "link_boe": "URL exacta de las bases reguladoras en el BOE (boe.es). Si no hay, null.",
-                "link_bdns": "URL exacta de la convocatoria en infosubvenciones.es o bdnstrans. Si no hay URL pero hay un código BDNS numérico, construye: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria?codigoBDNS=CODIGO. Si no hay nada, null."
+                "link_bdns": "URL exacta de la convocatoria en infosubvenciones.es o bdnstrans. Si no hay URL pero hay un código BDNS numérico, construye: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria?codigoBDNS=CODIGO. Si no hay nada, null.",
+                "ambito_geografico": "Lista de provincias o comunidades autónomas a las que se restringe esta subvención, en minúsculas y sin tildes (ej: ['madrid', 'castilla la mancha']). Si es nacional o no especifica restricción territorial, devuelve ['nacional']."
             }}
 
             [REGLAS]
