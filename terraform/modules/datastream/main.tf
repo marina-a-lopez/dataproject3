@@ -88,6 +88,10 @@ resource "google_datastream_connection_profile" "postgres_cp" {
     google_datastream_private_connection.datastream_pc,
     time_sleep.esperar_proxy
   ]
+
+  lifecycle {
+    ignore_changes = [create_without_validation]
+  }
 }
 
 resource "google_datastream_connection_profile" "bigquery_cp" {
@@ -129,4 +133,8 @@ resource "google_datastream_stream" "postgres_to_bq" {
 
   backfill_all {}
   create_without_validation = true
+
+  lifecycle {
+    ignore_changes = [create_without_validation, source_config, destination_config]
+  }
 }
