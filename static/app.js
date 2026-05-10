@@ -2020,6 +2020,7 @@ const appLogic = {
             }
 
             // Fetch CNAE matching subsidies
+            let universalSubsidies = [];
             try {
                 const matchRes = await API.request(`/api/subsidies/matching/${AppState.userId}`);
                 if (matchRes.success && matchRes.subsidies && matchRes.subsidies.length > 0) {
@@ -2031,6 +2032,9 @@ const appLogic = {
                             allSubsidies.push(sub);
                         }
                     });
+                }
+                if (matchRes.success && matchRes.universal_subsidies) {
+                    universalSubsidies = matchRes.universal_subsidies;
                 }
             } catch (e) {
                 console.warn('Matching subsidies unavailable:', e);
@@ -2046,6 +2050,24 @@ const appLogic = {
                 empty.classList.add('hidden');
             } else {
                 empty.classList.remove('hidden');
+            }
+
+            // Sección "Otras subvenciones que pueden interesarte" (universales, solo título + link)
+            if (universalSubsidies.length > 0) {
+                const section = document.createElement('div');
+                section.style.cssText = 'margin-top:32px;';
+                section.innerHTML = `<h3 style="font-size:1rem; font-weight:700; color:var(--clr-text-muted); margin-bottom:12px; border-top:1px solid #eee; padding-top:20px;">Otras subvenciones que pueden interesarte</h3>`;
+                universalSubsidies.forEach(sub => {
+                    const link = sub.link_boe || sub.link_bdns || '#';
+                    const item = document.createElement('div');
+                    item.style.cssText = 'padding:10px 0; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:10px;';
+                    item.innerHTML = `
+                        <i class="fa-solid fa-circle-info" style="color:var(--clr-accent); flex-shrink:0;"></i>
+                        <a href="${link}" target="_blank" rel="noopener" style="font-size:0.85rem; color:var(--clr-text-main); text-decoration:none; line-height:1.4;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${sub.titulo}</a>
+                    `;
+                    section.appendChild(item);
+                });
+                container.appendChild(section);
             }
 
         } catch (e) {
