@@ -1037,6 +1037,8 @@ CREATE TABLE IF NOT EXISTS gastos (
     status VARCHAR(20) NOT NULL DEFAULT 'confirmed',
     clarification_reason TEXT,
     is_deducible BOOLEAN DEFAULT TRUE,
+    porcentaje_iva INTEGER DEFAULT 100,
+    porcentaje_irpf INTEGER DEFAULT 100,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
