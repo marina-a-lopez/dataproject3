@@ -7,7 +7,7 @@ from typing import List, Optional
 from google.cloud import secretmanager
 from dotenv import load_dotenv
 from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text, Boolean
+    Column, Integer, String, Float, Numeric, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text, Boolean
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from sqlalchemy.pool import NullPool
@@ -38,14 +38,14 @@ class Usuario(Base):
     iban = Column(String(50), nullable=True)
     profile_picture = Column(String(255), nullable=True)
     gmail_token = Column(String(255), nullable=True)
-    irpf_rate = Column(Float, default=0.20)
+    irpf_rate = Column(Numeric(5, 4), default=0.20)
 
     
     # Configuración de precios
-    tarifa_hora = Column(Float, default=0.00)
-    precio_servicio = Column(Float, default=0.00)
+    tarifa_hora = Column(Numeric(12, 2), default=0.00)
+    precio_servicio = Column(Numeric(12, 2), default=0.00)
     desc_servicio = Column(String(100), default="Servicio Base")
-    precio_producto = Column(Float, default=0.00)
+    precio_producto = Column(Numeric(12, 2), default=0.00)
     desc_producto = Column(String(100), default="Producto")
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -107,7 +107,7 @@ class Producto(Base):
     
     nombre = Column(String(100), nullable=False)
     descripcion = Column(Text, nullable=True)
-    precio_unitario = Column(Float, nullable=False, default=0.0)
+    precio_unitario = Column(Numeric(12, 2), nullable=False, default=0.0)
     tipo = Column(String(50), nullable=False, default="Servicio") # 'Producto' o 'Servicio'
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -128,9 +128,10 @@ class Factura(Base):
     codigo_factura = Column(String(50), nullable=False) # Ej: F-2024-001
     fecha_expedicion = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     fecha_vencimiento = Column(DateTime, nullable=True) # Used for overdue 'Moroso' status calculation
-    total_base = Column(Float, nullable=False)
-    total_impuestos = Column(Float, nullable=False)
-    importe_total = Column(Float, nullable=False)
+    total_base = Column(Numeric(12, 2), nullable=False)
+    total_impuestos = Column(Numeric(12, 2), nullable=False)
+    importe_total = Column(Numeric(12, 2), nullable=False)
+    tipo_iva = Column(Numeric(5, 2), default=21.00)
     json_lineas = Column(JSONB, nullable=False)
     url_pdf = Column(String(500), nullable=True)
     
@@ -157,9 +158,10 @@ class Presupuesto(Base):
     codigo_presupuesto = Column(String(50), nullable=False) # Ej: P-2024-001
     fecha_expedicion = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     fecha_validez = Column(DateTime, nullable=True)
-    total_base = Column(Float, nullable=False)
-    total_impuestos = Column(Float, nullable=False)
-    importe_total = Column(Float, nullable=False)
+    total_base = Column(Numeric(12, 2), nullable=False)
+    total_impuestos = Column(Numeric(12, 2), nullable=False)
+    importe_total = Column(Numeric(12, 2), nullable=False)
+    tipo_iva = Column(Numeric(5, 2), default=21.00)
     json_lineas = Column(JSONB, nullable=False)
     url_pdf = Column(String(500), nullable=True)
     estado = Column(String(20), default='Pendiente') # Pendiente, Aceptado, Rechazado
@@ -177,7 +179,8 @@ class Gasto(Base):
     fecha = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     proveedor = Column(String(255), nullable=True)
     concepto = Column(Text, nullable=True)
-    importe_total = Column(Float, nullable=False, default=0.0)
+    importe_total = Column(Numeric(12, 2), nullable=False, default=0.0)
+    tipo_iva = Column(Numeric(5, 2), default=21.00)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     url_ticket = Column(String(500), nullable=True)

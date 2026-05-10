@@ -2,7 +2,7 @@ resource "google_sql_database_instance" "postgres_instance" {
   name             = "db-aitonomo"
   region           = var.region
   database_version = "POSTGRES_17"
-  deletion_protection = true
+  deletion_protection = false #solo para DEV
 
   settings {
     tier              = "db-f1-micro"
