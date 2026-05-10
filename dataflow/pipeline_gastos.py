@@ -180,14 +180,3 @@ if __name__ == "__main__":
     logging.getLogger("apache_beam.utils.subprocess_server").setLevel(logging.ERROR)
     logging.info("[Pipeline] Iniciando pipeline de extracción de gastos")
     run()
-
-# local:
-# python pipeline_gastos.py \
-#   --project_id proyectodataia3 \
-#   --db_host 34.175.105.251 \
-#   --db_name aitonomo_db \
-#   --db_user admin \
-#   --db_pass "Edem2526." \
-#   --region europe-southwest1 \
-#   --gemini_api_key "TU_API_KEY" \
-#   --runner DirectRunner

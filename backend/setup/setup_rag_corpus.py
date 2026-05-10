@@ -3,7 +3,7 @@ import json
 import urllib.request
 import time
 
-PROJECT_ID = "proyectodataia3"
+PROJECT_ID = os.getenv("GCP_PROJECT_ID", "<YOUR_PROJECT_ID>")
 LOCATION = "us-central1"
 
 token = subprocess.check_output(["gcloud", "auth", "print-access-token"], text=True).strip()
