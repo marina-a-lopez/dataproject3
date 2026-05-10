@@ -23,7 +23,7 @@ REGION = os.getenv("GCP_REGION", "europe-southwest1")
 DB_USER = os.getenv("DB_USER")
 DB_PASS = os.getenv("DB_PASS")
 DB_NAME = os.getenv("DB_NAME")
-INSTANCE_CONNECTION_NAME = os.getenv("INSTANCE_CONNECTION_NAME")
+DB_HOST = os.getenv("DB_HOST")
 
 # ==========================================================
 # INICIALIZACIÓN VERTEX AI
@@ -40,10 +40,9 @@ vertexai.init(
 
 def get_db_conn():
     import psycopg2
-    unix_socket = f"/cloudsql/{INSTANCE_CONNECTION_NAME}"
-    print(f"--- DB: conectando via socket {unix_socket} ---")
     return psycopg2.connect(
-        host=unix_socket,
+        host=os.getenv("DB_HOST"),
+        port=5432,
         user=DB_USER,
         password=DB_PASS,
         dbname=DB_NAME
