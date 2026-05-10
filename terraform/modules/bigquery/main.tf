@@ -44,6 +44,34 @@ resource "google_bigquery_table" "bq_usuarios" {
 EOF
 }
 
+resource "google_bigquery_table" "bq_calendario_eventos" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "public_calendario_eventos"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+  table_constraints {
+    primary_key { columns = ["id"] }
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "usuario_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "fecha", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "titulo", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "descripcion", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "tipo", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "color", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]
+EOF
+
+  lifecycle {
+    ignore_changes = [schema]
+  }
+}
 resource "google_bigquery_table" "bq_clientes" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
   table_id            = "public_clientes"
