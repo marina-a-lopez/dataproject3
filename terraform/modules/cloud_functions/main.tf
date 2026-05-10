@@ -53,6 +53,10 @@ resource "google_cloudfunctions2_function" "bdns_processor" {
     pubsub_topic   = "projects/${var.project_id}/topics/topic-procesar-bdns"
     retry_policy   = "RETRY_POLICY_DO_NOT_RETRY"
   }
+
+  lifecycle {
+    ignore_changes = [service_config]
+  }
 }
 
 resource "null_resource" "bdns_vpc_config" {
