@@ -70,6 +70,7 @@ resource "google_datastream_connection_profile" "postgres_cp" {
   display_name          = "Conexion origen Postgres"
   location              = var.region
   connection_profile_id = "postgres-source-cp"
+  create_without_validation = true
 
   postgresql_profile {
     hostname = google_compute_instance.proxy_datastream.network_interface[0].network_ip
