@@ -26,16 +26,27 @@ AItonomo integra varios agentes de IA construidos sobre Gemini 2.5 Flash y Verte
 
 - **Extracción automática de tickets**: sube una foto de un ticket y la IA extrae proveedor, fecha e importe automáticamente, sin necesidad de introducir los datos manualmente.
 - **Análisis de deducibilidad**: el agente evalúa si un gasto es deducible fiscalmente según el IAE del usuario, devolviendo un porcentaje de confianza y la referencia normativa aplicada (LIRPF, RIRPF).
-- **Asesor de subvenciones**: busca subvenciones disponibles para el perfil del usuario (CNAE, provincia) usando una base de conocimiento vectorial actualizada automáticamente desde el BDNS mediante una Cloud Function.
-- **Control por voz**: dicta facturas o gastos por voz y la IA los estructura y registra automáticamente.
+- **Asesor de subvenciones**: busca subvenciones disponibles para el perfil del usuario (CNAE, provincia) usando una base de conocimiento vectorial actualizada automáticamente desde el BDNS mediante una Cloud Function. Filtra por autonomía y provincia, elimina duplicados y muestra resultados con fecha, importe y enlace a la convocatoria oficial.
+- **Control por voz**: dicta facturas o gastos por voz y la IA los estructura y registra automáticamente. Incluye limitación de tamaño de audio y manejo de errores de formato.
 
 ### Analytics
 - **Dashboard financiero** con métricas de ingresos, gastos, IVA a pagar e IRPF estimado, calculado en tiempo real desde PostgreSQL.
 - **Dashboard de inversores** con KPIs de crecimiento mensual (nuevos usuarios, facturas generadas, volumen gestionado) alimentado desde BigQuery vía Datastream.
 
+## CI/CD
+
+El proyecto usa GitHub Actions para automatizar el despliegue. Cada push a `main` dispara el pipeline que construye las imágenes Docker, las sube a Artifact Registry y despliega los tres servicios en Cloud Run.
+
+| Evento | Qué ocurre |
+|---|---|
+| Push a cualquier rama / PR | Build check de las 3 imágenes Docker |
+| Merge a `main` | Build + Push a Artifact Registry + Deploy a Cloud Run |
+
+Las credenciales de GCP se gestionan mediante un secret `GCP_SA_KEY` en GitHub Actions. Terraform gestiona exclusivamente la infraestructura (Cloud SQL, BigQuery, IAM, etc.) y no interviene en el ciclo de despliegue de las imágenes.
+
 ## Infraestructura en GCP
 
-Todo el proyecto corre en Google Cloud Platform y se despliega automáticamente con Terraform. No hay configuración manual en la consola.
+Todo el proyecto corre en Google Cloud Platform. La infraestructura se gestiona con Terraform y el despliegue de aplicaciones con GitHub Actions.
 
 | Servicio | Para qué se usa |
 |---|---|
@@ -131,9 +142,13 @@ terraform init
 terraform apply
 ```
 
-Terraform construye y sube las imágenes Docker, crea todos los servicios en GCP y despliega el backend, frontend y dashboard automáticamente.
+Terraform crea toda la infraestructura en GCP (Cloud SQL, BigQuery, IAM, Secrets, Cloud Run, etc.). Las imágenes Docker las gestiona el pipeline de CI/CD.
 
-### 5. Arrancar la replicación de datos
+### 5. Configurar CI/CD
+
+En el repositorio de GitHub, añadir el secret `GCP_SA_KEY` con el JSON de la service account que tiene los roles `artifactregistry.admin` y `run.admin`. A partir de ese momento, cada merge a `main` desplegará automáticamente los tres servicios.
+
+### 6. Arrancar la replicación de datos
 
 ```bash
 gcloud datastream streams update postgres-to-bq-stream \
@@ -149,6 +164,7 @@ gcloud datastream streams update postgres-to-bq-stream \
 - **React + Recharts** — Dashboard de inversores
 - **Apache Beam** — Pipeline de procesamiento de gastos en streaming
 - **Terraform** — Infraestructura como código
+- **GitHub Actions** — CI/CD automatizado
 
 ## Integrantes
 
