@@ -9,3 +9,7 @@ resource "google_pubsub_subscription" "sub_tickets" {
   ack_deadline_seconds       = 60
   message_retention_duration = "604800s"
 }
+
+resource "google_pubsub_topic" "topic_bdns" {
+  name = "topic-procesar-bdns"
+}

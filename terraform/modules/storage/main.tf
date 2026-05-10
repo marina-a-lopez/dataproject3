@@ -1,5 +1,5 @@
 resource "google_storage_bucket" "document_bucket" {
-  name          = "bucket-aitonomo-docs"
+  name          ="${var.project_id}-aitonomo-docs"
   location      = var.region
   force_destroy = false
 }
