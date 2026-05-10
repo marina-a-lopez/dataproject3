@@ -1684,6 +1684,7 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
             })
 
     # Subvenciones universales (cnae_target NULL, apto_autonomos=True) — para todos los CNAEs
+    import re as _re
     universal_subsidies = db.query(Subvencion).filter(
         Subvencion.cnae_target == None,
         Subvencion.apto_autonomos == True
@@ -1692,13 +1693,18 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
     for s in universal_subsidies:
         if not is_open(s):
             continue
-        ai_info = rag_subsidies_agent_instance.explain_subsidy(s.texto_completo)
+        # Extraer links con regex, sin llamar a la IA
+        boe_match = _re.search(r'https?://[^\s]*boe\.es[^\s]*', s.texto_completo or '')
+        bdns_match = _re.search(r'https?://[^\s]*(infosubvenciones|bdnstrans)[^\s]*', s.texto_completo or '')
+        bdns_code = _re.search(r'\b(\d{6,})\b', s.texto_completo or '')
+        link_bdns = (bdns_match.group(0) if bdns_match else
+                     (f"https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria?codigoBDNS={bdns_code.group(1)}" if bdns_code else None))
         universal_results.append({
             "id": str(s.id),
             "id_bdns": s.id_bdns,
             "titulo": s.titulo,
-            "link_boe": ai_info.get("link_boe"),
-            "link_bdns": ai_info.get("link_bdns"),
+            "link_boe": boe_match.group(0) if boe_match else None,
+            "link_bdns": link_bdns,
         })
 
     return {"success": True, "subsidies": results, "universal_subsidies": universal_results}
