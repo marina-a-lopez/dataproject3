@@ -1,5 +1,4 @@
 functions-framework==3.*
-sqlalchemy
-pg8000
+psycopg2-binary
 vertexai
 requests
