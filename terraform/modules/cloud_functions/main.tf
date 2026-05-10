@@ -52,6 +52,13 @@ resource "google_cloudfunctions2_function" "bdns_processor" {
       version    = "latest"
     }
   }
+
+  event_trigger {
+    trigger_region = var.region
+    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
+    pubsub_topic   = "projects/${var.project_id}/topics/topic-procesar-bdns"
+    retry_policy   = "RETRY_POLICY_DO_NOT_RETRY"
+  }
 }
 
 resource "google_cloud_scheduler_job" "bdns_daily" {
