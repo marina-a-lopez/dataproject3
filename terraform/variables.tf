@@ -15,9 +15,10 @@ variable "postgres_password" {
 }
 
 variable "database_url" {
-  description = "URL de conexión a la base de datos PostgreSQL"
+  description = "URL de conexión (legacy — se construye automáticamente en main.tf desde postgres_password)"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "gemini_api_key" {
