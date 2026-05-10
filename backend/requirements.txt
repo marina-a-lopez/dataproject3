@@ -4,7 +4,6 @@ python-multipart
 Werkzeug
 sqlalchemy
 pydantic[email]
-psycopg2-binary
 cloud-sql-python-connector[pg8000]
 google-cloud-aiplatform>=1.60
 google-cloud-storage
