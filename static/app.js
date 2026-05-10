@@ -1928,21 +1928,28 @@ const appLogic = {
         card.style.borderLeft = `4px solid ${borderColor}`;
         card.style.cursor = 'default';
 
+        const importeHtml = sub.importe_maximo
+            ? `<span style="font-size:0.75rem; color:var(--clr-success); font-weight:700;"><i class="fa-solid fa-euro-sign"></i> Hasta ${sub.importe_maximo}</span>`
+            : '';
+
+        const boeHtml = sub.link_boe
+            ? `<a href="${sub.link_boe}" target="_blank" rel="noopener" class="btn btn-text btn-sm" style="font-size:0.75rem;">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Ver convocatoria
+               </a>`
+            : '';
+
         card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <h4 style="color: var(--clr-accent); font-weight: 700; margin-bottom: 10px;">${sub.titulo}</h4>
-                <span class="badge badge-active" style="font-size: 0.7rem;">CNAE: ${sub.cnae_target}</span>
+            <h4 style="color:var(--clr-accent); font-weight:700; margin-bottom:8px; line-height:1.3;">${sub.titulo || 'Subvención'}</h4>
+            <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:10px; font-size:0.75rem; color:var(--clr-text-muted);">
+                ${sub.fecha_publicacion ? `<span><i class="fa-solid fa-calendar-plus"></i> Publicación: <strong>${sub.fecha_publicacion}</strong></span>` : ''}
+                ${sub.fecha_cierre ? `<span><i class="fa-solid fa-calendar-xmark"></i> Cierre: <strong>${sub.fecha_cierre}</strong></span>` : ''}
+                ${importeHtml}
             </div>
-            <p style="font-size: 0.85rem; color: var(--clr-text-main); margin-bottom: 15px; line-height: 1.4;">
-                ${sub.texto_completo ? sub.texto_completo.substring(0, 180) + '...' : 'Sin descripción disponible.'}
+            <p style="font-size:0.82rem; color:var(--clr-text-main); line-height:1.5; margin-bottom:12px;">
+                ${sub.explicacion || sub.snippet || 'Sin descripción disponible.'}
             </p>
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; pt-2; margin-top: 10px; padding-top: 10px;">
-                <div style="font-size: 0.75rem; color: var(--clr-text-muted);">
-                    <i class="fa-solid fa-calendar-day"></i> Cierra: <strong>${sub.fecha_cierre || 'N/A'}</strong>
-                </div>
-                <button class="btn btn-text btn-sm" onclick="appLogic.viewSubsidiesDetail('${sub.id || sub.id_bdns}')">
-                    Ver Detalles <i class="fa-solid fa-arrow-right"></i>
-                </button>
+            <div style="border-top:1px solid #eee; padding-top:10px; display:flex; justify-content:flex-end;">
+                ${boeHtml}
             </div>
         `;
         return card;

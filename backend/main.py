@@ -1656,20 +1656,30 @@ async def get_matching_subsidies(user_id: str, db: Session = Depends(get_db)):
     
     # Buscamos coincidencias en cnae_target. 
     # El scraper guarda strings tipo '6201, 6202' o similares.
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     subsidies = db.query(Subvencion).filter(
         Subvencion.cnae_target.ilike(f"%{user_cnae}%")
     ).all()
     
-    # Formateamos para el front
+    # Formateamos para el front, filtrando por fecha de cierre
     results = []
     for s in subsidies:
+        if s.fecha_cierre:
+            fecha_cierre_aware = s.fecha_cierre.replace(tzinfo=timezone.utc) if s.fecha_cierre.tzinfo is None else s.fecha_cierre
+            if fecha_cierre_aware <= now:
+                continue
+        ai_info = rag_subsidies_agent_instance.explain_subsidy(s.texto_completo)
         results.append({
             "id": str(s.id),
             "id_bdns": s.id_bdns,
             "titulo": s.titulo,
             "cnae_target": s.cnae_target,
-            "fecha_cierre": s.fecha_cierre.isoformat() if s.fecha_cierre else None,
-            "texto_completo": s.texto_completo[:300] + "..." if s.texto_completo else ""
+            "fecha_publicacion": s.fecha_publicacion.strftime("%d/%m/%Y") if s.fecha_publicacion else None,
+            "fecha_cierre": s.fecha_cierre.strftime("%d/%m/%Y") if s.fecha_cierre else None,
+            "importe_maximo": ai_info.get("importe_maximo"),
+            "explicacion": ai_info.get("explicacion"),
+            "link_boe": ai_info.get("link_boe"),
         })
     
     return {"success": True, "subsidies": results}
