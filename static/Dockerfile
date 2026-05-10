@@ -2,6 +2,9 @@ FROM mirror.gcr.io/library/nginx:alpine
 
 COPY . /usr/share/nginx/html
 
+# Copia la configuración personalizada de Nginx
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 EXPOSE 80
 
 # Reemplaza el placeholder con la URL real del backend al arrancar

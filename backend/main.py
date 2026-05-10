@@ -154,6 +154,8 @@ class ExpenseCreate(BaseModel):
     url_ticket: str = ""
     status: str = "confirmed"
     is_deducible: bool = True
+    porcentaje_iva: int = 100
+    porcentaje_irpf: int = 100
     clarification_reason: Optional[str] = None
 
 class InvoiceStatusUpdate(BaseModel):
@@ -392,10 +394,22 @@ async def get_dashboard(
     total_base_ingresos = sum(f.total_base for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
     total_iva_repercutido = sum(f.total_impuestos for f in invoices if f.estado_verifactu in ['Pagada', 'Enviada'])
 
-    gastos_deducibles = [g for g in gastos if g.is_deducible]
-
-    total_base_gastos = sum(g.importe_total / 1.21 for g in gastos_deducibles)
-    total_iva_soportado = sum(g.importe_total - (g.importe_total / 1.21) for g in gastos_deducibles)
+    total_base_gastos = 0
+    total_iva_soportado = 0
+    
+    for g in gastos:
+        # Retrocompatibilidad: Si en BD está como deducible pero el motivo aclara que no lo es, se descarta.
+        is_deducible_real = g.is_deducible and not (g.clarification_reason and 'no es deducible' in g.clarification_reason.lower())
+        
+        if is_deducible_real:
+            p_iva = g.porcentaje_iva if g.porcentaje_iva is not None else 100
+            p_irpf = g.porcentaje_irpf if g.porcentaje_irpf is not None else 100
+            
+            base_total = float(g.importe_total) / 1.21
+            iva_total = float(g.importe_total) - base_total
+            
+            total_base_gastos += base_total * (p_irpf / 100.0)
+            total_iva_soportado += iva_total * (p_iva / 100.0)
 
     net_balance = total_base_ingresos - total_base_gastos
     iva_a_pagar = total_iva_repercutido - total_iva_soportado
@@ -969,6 +983,8 @@ async def get_expenses(user_id: str, db: Session = Depends(get_db)):
         "concepto": g.concepto or "Gasto genérico",
         "importe_total": float(g.importe_total),
         "is_deducible": g.is_deducible,
+        "porcentaje_iva": g.porcentaje_iva if g.porcentaje_iva is not None else 100,
+        "porcentaje_irpf": g.porcentaje_irpf if g.porcentaje_irpf is not None else 100,
         "clarification_reason": g.clarification_reason
     } for g in gastos]
 
@@ -1014,6 +1030,8 @@ async def save_expense(req: ExpenseCreate, db: Session = Depends(get_db)):
             url_ticket=req.url_ticket,
             status=req.status,
             is_deducible=req.is_deducible,
+            porcentaje_iva=req.porcentaje_iva,
+            porcentaje_irpf=req.porcentaje_irpf,
             clarification_reason=req.clarification_reason
         )
         db.add(nuevo_gasto)
