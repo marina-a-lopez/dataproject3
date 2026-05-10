@@ -41,3 +41,21 @@ variable "gemini_api_key_secret_id" {
 variable "rag_corpus_id_secret_id" {
   type = string
 }
+
+variable "backend_image" {
+  description = "Imagen Docker del backend (gestionada por CI/CD)"
+  type        = string
+  default     = "europe-southwest1-docker.pkg.dev/proyectodataia3/repo-aitonomo/backend:latest"
+}
+
+variable "frontend_image" {
+  description = "Imagen Docker del frontend web (gestionada por CI/CD)"
+  type        = string
+  default     = "europe-southwest1-docker.pkg.dev/proyectodataia3/repo-aitonomo/frontend:latest"
+}
+
+variable "dashboard_image" {
+  description = "Imagen Docker del dashboard de inversores (gestionada por CI/CD)"
+  type        = string
+  default     = "europe-southwest1-docker.pkg.dev/proyectodataia3/repo-aitonomo/dashboard:latest"
+}
