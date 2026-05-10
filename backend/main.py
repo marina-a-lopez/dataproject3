@@ -594,7 +594,7 @@ async def save_invoice(req: InvoiceCreate, db: Session = Depends(get_db)):
     total_impuestos = total_base * (req.tipo_iva / 100.0)
     importe_total = total_base + total_impuestos
     
-    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%d-%m-%Y")
+    fecha_exp = datetime.fromisoformat(req.fecha) if "T" in req.fecha else (datetime.strptime(req.fecha, "%Y-%m-%d") if len(req.fecha.split("-")[0]) == 4 else datetime.strptime(req.fecha, "%d-%m-%Y"))
     
     fecha_ven_obj = None
     if req.due_date:
@@ -742,7 +742,7 @@ async def save_quote(req: QuoteCreate, db: Session = Depends(get_db)):
     total_impuestos = total_base * (req.tipo_iva / 100.0)
     importe_total = total_base + total_impuestos
     
-    fecha_exp = datetime.fromisoformat(req.fecha) if 'T' in req.fecha else datetime.strptime(req.fecha, "%d-%m-%Y")
+    fecha_exp = datetime.fromisoformat(req.fecha) if "T" in req.fecha else (datetime.strptime(req.fecha, "%Y-%m-%d") if len(req.fecha.split("-")[0]) == 4 else datetime.strptime(req.fecha, "%d-%m-%Y"))
     fecha_ven_obj = None
     if req.fecha_validez:
         fecha_ven_obj = datetime.fromisoformat(req.fecha_validez) if 'T' in req.fecha_validez else datetime.strptime(req.fecha_validez, "%d-%m-%Y")
