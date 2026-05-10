@@ -74,12 +74,12 @@ jobs:
         run: |
           gcloud run deploy api-backend \
             --image $REGISTRY/backend:$GITHUB_SHA \
-            --region $REGION --quiet
+            --region $REGION --project $PROJECT_ID --quiet
 
           gcloud run deploy web-frontend \
             --image $REGISTRY/frontend:$GITHUB_SHA \
-            --region $REGION --quiet
+            --region $REGION --project $PROJECT_ID --quiet
 
           gcloud run deploy investor-dashboard \
             --image $REGISTRY/dashboard:$GITHUB_SHA \
-            --region $REGION --quiet
+            --region $REGION --project $PROJECT_ID --quiet
