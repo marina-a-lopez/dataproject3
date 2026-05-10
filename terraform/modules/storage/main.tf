@@ -1,7 +1,7 @@
 resource "google_storage_bucket" "document_bucket" {
-  name          = "bucket-aitonomo-docs"
+  name = "bucket-aitonomo-docs"
   location      = var.region
-  force_destroy = false
+  force_destroy = true
 }
 
 resource "google_storage_bucket" "dataflow_staging" {
