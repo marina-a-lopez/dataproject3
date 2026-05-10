@@ -33,3 +33,11 @@ variable "vpc_id" {
 variable "subnet_id" {
   type = string
 }
+
+variable "gemini_api_key_secret_id" {
+  type = string
+}
+
+variable "rag_corpus_id_secret_id" {
+  type = string
+}

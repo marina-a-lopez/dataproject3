@@ -45,6 +45,8 @@ module "iam" {
   backend_cloud_run_name   = module.cloud_run.backend_name
   frontend_cloud_run_name  = module.cloud_run.frontend_name
   dashboard_cloud_run_name = module.cloud_run.dashboard_name
+  gemini_api_key           = var.gemini_api_key
+  rag_corpus_id            = var.rag_corpus_id
 }
 
 module "cloud_run" {
@@ -58,6 +60,21 @@ module "cloud_run" {
   document_bucket_name     = module.storage.document_bucket_name
   vpc_id                   = module.networking.vpc_id
   subnet_id                = module.networking.subnet_id
+  gemini_api_key_secret_id = module.iam.gemini_api_key_secret_id
+  rag_corpus_id_secret_id  = module.iam.rag_corpus_id_secret_id
+}
+
+module "cloud_functions" {
+  source                  = "./modules/cloud_functions"
+  project_id              = var.project_id
+  region                  = var.region
+  functions_bucket_name   = module.storage.functions_bucket_name
+  cloud_function_sa_email = module.iam.cloud_function_sa_email
+  db_host                 = module.cloudsql.private_ip
+  db_user                 = module.cloudsql.db_user
+  db_name                 = module.cloudsql.db_name
+  db_password             = var.postgres_password
+  db_password_secret_id   = module.cloudsql.database_url_secret_id
 }
 
 module "datastream" {

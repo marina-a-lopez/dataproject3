@@ -1,16 +1,21 @@
 import os
 import uuid
 import json
+import logging
 from datetime import datetime, timezone
 from typing import List, Optional
+from google.cloud import secretmanager
 from dotenv import load_dotenv
 from sqlalchemy import (
-    Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text
+    Column, Integer, String, Float, ForeignKey, DateTime, Text, JSON, UniqueConstraint, create_engine, text, Boolean
 )
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlalchemy.types import TypeDecorator, CHAR
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+# pyrefly: ignore [missing-import]
 from pgvector.sqlalchemy import Vector
+
 
 Base = declarative_base()
 
@@ -29,6 +34,7 @@ class Usuario(Base):
     telefono = Column(String(20), nullable=False)
     password_hash = Column(String(255), nullable=False) # Contraseña encriptada
     cnae = Column(String(10), nullable=True)
+    iae = Column(String(20), nullable=True)
     iban = Column(String(50), nullable=True)
     profile_picture = Column(String(255), nullable=True)
     gmail_token = Column(String(255), nullable=True)
@@ -170,12 +176,16 @@ class Gasto(Base):
     
     fecha = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     proveedor = Column(String(255), nullable=True)
-    concepto = Column(String(255), nullable=True)
+    concepto = Column(Text, nullable=True)
     importe_total = Column(Float, nullable=False, default=0.0)
     
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     url_ticket = Column(String(500), nullable=True)
     status = Column(String(20), default='confirmed', nullable=False)
+    clarification_reason = Column(Text, nullable=True)
+    is_deducible = Column(Boolean, default=True)
+    porcentaje_iva = Column(Integer, default=100)
+    porcentaje_irpf = Column(Integer, default=100)
     
     usuario = relationship("Usuario", back_populates="gastos")
 
@@ -186,20 +196,48 @@ class Subvencion(Base):
     id_bdns = Column(String(100), unique=True, nullable=False)
     titulo = Column(Text, nullable=False)
     cnae_target = Column(String(50), nullable=True)
+    apto_autonomos = Column(Boolean, nullable=True)
+    fecha_publicacion = Column(DateTime, nullable=True)
     fecha_cierre = Column(DateTime, nullable=True)
     texto_completo = Column(Text, nullable=False)
     embedding = Column(Vector(768))
 
+class ReglaDeduccion(Base):
+    __tablename__ = 'reglas_deduccion'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    contenido = Column(Text, nullable=False)
+    fuente = Column(String(255), nullable=False)
+    iae_contexto = Column(String(50), nullable=True)
+    embedding = Column(Vector(768))
+
+
+def fetch_secret(secret_id: str) -> Optional[str]:
+    """Recupera un secreto de Google Secret Manager."""
+    project_id = os.getenv("GCP_PROJECT_ID")
+    if not project_id:
+        return None
+    try:
+        client = secretmanager.SecretManagerServiceClient()
+        name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+        response = client.access_secret_version(request={"name": name})
+        return response.payload.data.decode("UTF-8")
+    except Exception as e:
+        logging.warning(f"No se pudo cargar el secreto {secret_id}: {e}")
+        return None
 
 load_dotenv()
-DB_PATH = os.getenv("DATABASE_URL")
+# Intentar cargar desde Secret Manager primero, si falla usar env var local
+DB_URL_SECRET = fetch_secret("DATABASE_URL")
+DB_PATH = DB_URL_SECRET or os.getenv("DATABASE_URL")
 
 try:
     if DB_PATH:
-        engine = create_engine(DB_PATH, echo=False)
+        # Si es una conexión a Cloud SQL, aseguramos que use el driver correcto si es necesario
+        engine = create_engine(DB_PATH, echo=False, poolclass=NullPool)
         SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     else:
-        raise ValueError("La variable DATABASE_URL no está definida en el entorno.")
+        raise ValueError("La variable DATABASE_URL no está definida ni en el entorno ni en Secret Manager.")
 except Exception as e:
     print(f"Error al inicializar la base de datos: {e}")
     engine = None

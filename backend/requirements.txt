@@ -15,3 +15,5 @@ pandas
 google-cloud-bigquery
 pgvector
 google-cloud-pubsub
+PyPDF2
+google-cloud-secret-manager

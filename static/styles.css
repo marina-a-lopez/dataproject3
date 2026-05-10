@@ -3,49 +3,58 @@
    ========================================================================= */
 
 :root {
-    /* Color Palette */
-    --clr-primary-900: #0A192F;
-    /* Deep Navy Background */
-    --clr-primary-800: #112240;
-    /* Lighter Navy Surface */
+    /* Altonomo Brand Colors */
+    --green:      #7DB04B;
+    --green-dk:   #5A8A2E;
+    --green-lt:   #EAF3DE;
+    --green-mid:  #C2DD97;
+    --charcoal:   #4D4D4D;
+    --charcoal-m: #6A6A6A;
+    --charcoal-lt:#9A9A9A;
+    --navy:       #0B1A2C;
+    --navy-mid:   #152B47;
+    --ink:        #1A1A1A;
+    --off-white:  #F6F5F1;
+    --cream:      #FDFCF8;
+    --white:      #FFFFFF;
+    --border:     rgba(77,77,77,0.12);
+    --border-md:  rgba(77,77,77,0.22);
+    --danger:     #E24B4A;
+    --warning:    #F5A623;
+    --info:       #3B8BD4;
+    
+    /* Legacy mapping for compatibility during transition */
+    --clr-primary-900: var(--navy);
+    --clr-primary-800: var(--navy-mid);
     --clr-primary-700: #233554;
-    /* Navy Borders/Hover */
+    --clr-accent-gold: var(--green);
+    --clr-accent-gold-hover: var(--green-dk);
+    --clr-surface: var(--white);
+    --clr-bg-main: var(--cream);
+    --clr-text-dark: var(--ink);
+    --clr-text-body: var(--charcoal);
+    --clr-text-muted: var(--charcoal-lt);
+    --clr-text-light: var(--off-white);
+    --clr-success: var(--green);
+    --clr-success-bg: var(--green-lt);
+    --clr-warning: var(--warning);
+    --clr-danger: var(--danger);
 
-    --clr-accent-gold: #D4AF37;
-    /* Corporate Gold */
-    --clr-accent-gold-hover: #F3E5AB;
+    /* Typography */
+    --font-heading: 'Montserrat', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
 
-    --clr-surface: #FFFFFF;
-    --clr-bg-main: #F4F7F9;
-    /* Very light slate gray */
+    /* Radius */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
 
-    --clr-text-dark: #0F172A;
-    --clr-text-body: #334155;
-    --clr-text-muted: #64748B;
-    --clr-text-light: #F8FAFC;
-
-    /* Semantic Colors */
-    --clr-success: #10B981;
-    --clr-success-bg: #D1FAE5;
-    --clr-warning: #F59E0B;
-    --clr-warning-bg: #FEF3C7;
-    --clr-danger: #EF4444;
-    --clr-danger-bg: #FEE2E2;
-    --clr-info: #3B82F6;
-    --clr-info-bg: #DBEAFE;
-
-    --font-heading: 'Outfit', sans-serif;
-    --font-body: 'Inter', sans-serif;
-
-    --radius-sm: 4px;
-    --radius-md: 8px;
-    --radius-lg: 12px;
-
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-
-    --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    /* Shadows & Transitions */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+    --shadow-md: 0 4px 12px rgba(11, 26, 44, 0.05);
+    --shadow-lg: 0 12px 24px rgba(11, 26, 44, 0.08);
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* ================== GLOBAL RESETS ================== */
@@ -186,11 +195,32 @@ input {
         opacity: 0;
         transform: translateY(10px);
     }
-
     to {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(125, 176, 75, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 15px rgba(125, 176, 75, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(125, 176, 75, 0);
+    }
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: var(--radius-xl);
+    padding: 2rem;
+    box-shadow: var(--shadow-lg);
 }
 
 .hover-animate {
@@ -268,13 +298,29 @@ input {
     background-color: var(--clr-text-dark);
 }
 
-.btn-gold {
-    background-color: var(--clr-accent-gold);
+.btn-accent {
+    background-color: var(--clr-accent-gold);.btn-icon-alt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--clr-border);
+    border-radius: 12px;
+    color: var(--clr-text-muted);
+    transition: all 0.2s ease;
+}
+
+.btn-icon-alt:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--green);
+    color: var(--green);
+}
     color: #000;
     font-weight: 600;
 }
 
-.btn-gold:hover {
+.btn-accent:hover {
     background-color: var(--clr-accent-gold-hover);
 }
 
@@ -542,13 +588,17 @@ input {
 }
 
 .nav-item.active {
-    background-color: var(--clr-primary-900);
-    color: var(--clr-text-light);
-    box-shadow: var(--shadow-sm);
+    background-color: var(--green-lt);
+    color: var(--navy);
+    border-left: 4px solid var(--green);
+    box-shadow: none;
+    margin-left: 0;
+    margin-right: 0;
+    border-radius: 0;
 }
 
 .nav-item.active i {
-    color: var(--clr-accent-gold);
+    color: var(--green);
 }
 
 .sidebar-footer {
@@ -680,25 +730,27 @@ input {
 
 /* Dashboard Hero */
 .hero-balance {
-    background: linear-gradient(135deg, var(--clr-primary-900) 0%, var(--clr-primary-800) 100%);
+    background: var(--navy);
     color: white;
-    padding: 2rem;
+    padding: 2.5rem;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     position: relative;
     overflow: hidden;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255,255,255,0.05);
 }
 
-.hero-balance::after {
+.hero-balance::before {
     content: '';
     position: absolute;
-    top: -50%;
-    right: -10%;
-    width: 300px;
-    height: 300px;
+    top: -70px;
+    right: -70px;
+    width: 240px;
+    height: 240px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, transparent 70%);
+    background: rgba(125, 176, 75, 0.09);
 }
 
 .hero-label {
@@ -749,6 +801,9 @@ input {
 }
 
 .stat-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -756,15 +811,10 @@ input {
     transition: var(--transition);
 }
 
-.stat-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-}
-
 .stat-icon {
     width: 48px;
     height: 48px;
-    border-radius: var(--radius-md);
+    border-radius: 12px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -833,24 +883,25 @@ input {
 }
 
 .corporate-table th {
+    background-color: var(--off-white);
     padding: 1rem;
-    border-bottom: 2px solid var(--clr-border);
-    color: var(--clr-text-muted);
-    font-weight: 600;
+    text-align: left;
     font-size: 0.75rem;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.05em;
+    color: var(--charcoal-lt);
+    border-bottom: 1px solid var(--border);
 }
 
 .corporate-table td {
     padding: 1rem;
-    border-bottom: 1px solid var(--clr-border);
-    font-size: 0.875rem;
-    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+    color: var(--charcoal);
 }
 
-.corporate-table tbody tr:hover {
-    background-color: #F8FAFC;
+.corporate-table tr:hover {
+    background-color: var(--green-lt);
 }
 
 .badge {
@@ -983,9 +1034,9 @@ input {
 }
 
 .corporate-modal {
-    background: #FFFFFF;
+    background: var(--navy);
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    border-top: 4px solid var(--clr-accent-gold) !important;
+    border-top: 4px solid var(--green) !important;
 }
 
 /* ================== MODAL OVERLAY ================== */
@@ -1019,12 +1070,12 @@ input {
 
 .modal-popup {
     width: 100%;
-    max-width: 460px;
-    background: var(--clr-card-bg);
-    border-radius: 16px;
+    max-width: 440px;
+    background: var(--navy);
+    border-radius: 20px;
     box-shadow: 0 32px 80px rgba(0, 0, 0, 0.55);
     border: 1px solid var(--clr-border);
-    animation: slideUpModal 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: slideUpModal 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     overflow: hidden;
 }
 
@@ -1033,7 +1084,6 @@ input {
         opacity: 0;
         transform: translateY(24px) scale(0.97);
     }
-
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -1044,24 +1094,79 @@ input {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 24px 16px;
+    padding: 20px 24px;
+    background: rgba(255, 255, 255, 0.02);
     border-bottom: 1px solid var(--clr-border);
 }
 
 .modal-title {
     font-size: 1.15rem;
     font-weight: 700;
-    color: var(--clr-text);
+    color: var(--off-white);
     display: flex;
     align-items: center;
     gap: 10px;
+    margin: 0;
 }
 
 .modal-body {
-    padding: 20px 24px;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid var(--clr-border);
+}
+
+/* --- Form Elements --- */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--clr-text-muted);
+    margin-left: 2px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--clr-border);
+    border-radius: 12px;
+    color: var(--off-white);
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    font-family: var(--font-body);
+}
+
+.form-input:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--green);
+    box-shadow: 0 0 0 4px rgba(125, 176, 75, 0.1);
+    outline: none;
+}
+
+.form-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.form-input[readonly] {
+    background: rgba(255, 255, 255, 0.02);
+    opacity: 0.8;
+    cursor: default;
 }
 
 .modal-footer {
@@ -1596,62 +1701,65 @@ input {
 
 .period-tabs {
     display: flex;
-    background: var(--clr-sidebar-bg, #0f1923);
-    border-radius: 8px;
-    padding: 3px;
-    gap: 2px;
+    background: var(--navy-mid);
+    border-radius: var(--radius-md);
+    padding: 4px;
+    gap: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .period-tab {
-    padding: 6px 16px;
-    border-radius: 6px;
+    padding: 8px 20px;
+    border-radius: var(--radius-sm);
     border: none;
     background: transparent;
-    color: var(--clr-text-muted, #8a99b3);
+    color: var(--charcoal-lt);
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: var(--transition);
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
 
 .period-tab:hover {
-    color: var(--clr-gold, #d4af37);
+    color: var(--green);
 }
 
 .period-tab.active {
-    background: var(--clr-gold, #d4af37);
-    color: #0f1923;
+    background: var(--green);
+    color: var(--navy);
+    box-shadow: 0 4px 12px rgba(125, 176, 75, 0.3);
 }
 
 .period-nav {
     display: flex;
     align-items: center;
-    gap: 6px;
-    background: var(--clr-sidebar-bg, #0f1923);
-    border-radius: 8px;
-    padding: 3px 6px;
+    gap: 8px;
+    background: transparent;
+    padding: 0;
+    border: none;
 }
 
 .period-nav-btn {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: none;
-    background: transparent;
-    color: var(--clr-text-muted, #8a99b3);
-    border-radius: 4px;
+    border: 1px solid var(--border, #d1d9e6);
+    background: var(--white, #fff);
+    color: var(--navy, #0b1a2c);
+    border-radius: var(--radius-sm);
     cursor: pointer;
     transition: all 0.2s ease;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
 }
 
 .period-nav-btn:hover:not(:disabled) {
-    background: rgba(212, 175, 55, 0.15);
-    color: var(--clr-gold, #d4af37);
+    background: rgba(125, 176, 75, 0.1);
+    color: var(--green);
+    border-color: var(--green);
 }
 
 .period-nav-btn:disabled {
@@ -1660,13 +1768,48 @@ input {
 }
 
 .period-label-display {
-    min-width: 140px;
-    text-align: center;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--green);
     font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--clr-text, #e2e8f0);
-    padding: 0 4px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
     white-space: nowrap;
+    text-align: center;
+    min-width: 100px;
+    display: inline-block;
+}
+
+.period-nav-arrow {
+    background: transparent;
+    border: none;
+    color: var(--green) !important;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: var(--transition);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 900;
+}
+
+.period-nav-arrow:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(1.1);
+}
+
+.period-nav-arrow:disabled {
+    opacity: 0.3;
+    color: var(--white) !important;
+    cursor: default;
+}
+
+.integrated-date-nav {
+    display: flex;
+    align-items: center;
+    gap: 0;
 }
 
 /* ─── Calendar View ─────────────────────────────────────── */
@@ -1686,11 +1829,12 @@ input {
 }
 
 .calendar-month-title {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: var(--clr-text);
-    min-width: 200px;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--green) !important;
+    min-width: 180px;
     text-align: center;
+    margin: 0;
 }
 
 .calendar-controls {
@@ -1710,7 +1854,7 @@ input {
 }
 
 .cal-toggle-label input[type=checkbox] {
-    accent-color: var(--clr-gold, #d4af37);
+    accent-color: var(--green);
     width: 16px;
     height: 16px;
 }
@@ -1758,11 +1902,11 @@ input {
 }
 
 .cal-day:hover {
-    background: rgba(212, 175, 55, 0.07);
+    background: rgba(125, 176, 75, 0.05);
 }
 
 .cal-day.today {
-    background: rgba(212, 175, 55, 0.12);
+    background: rgba(125, 176, 75, 0.08);
 }
 
 .cal-day.other-month {
@@ -1778,8 +1922,8 @@ input {
 }
 
 .cal-day.today .cal-day-num {
-    background: var(--clr-gold, #d4af37);
-    color: #0f1923;
+    background: var(--green);
+    color: var(--navy);
     width: 22px;
     height: 22px;
     border-radius: 50%;

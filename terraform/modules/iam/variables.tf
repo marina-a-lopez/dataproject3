@@ -33,3 +33,13 @@ variable "dashboard_cloud_run_name" {
 variable "region" {
   type = string
 }
+
+variable "gemini_api_key" {
+  type      = string
+  sensitive = true
+}
+
+variable "rag_corpus_id" {
+  type    = string
+  default = "pending"
+}

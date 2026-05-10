@@ -9,3 +9,9 @@ resource "google_storage_bucket" "dataflow_staging" {
   location      = var.region
   force_destroy = true
 }
+
+resource "google_storage_bucket" "functions_bucket" {
+  name          = "${var.project_id}-cloud-functions"
+  location      = var.region
+  force_destroy = true
+}

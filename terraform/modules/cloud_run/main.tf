@@ -73,6 +73,28 @@ resource "google_cloud_run_v2_service" "backend" {
         name  = "GCP_BUCKET_NAME"
         value = var.document_bucket_name
       }
+      env {
+        name  = "GCP_LOCATION"
+        value = "us-central1"
+      }
+      env {
+        name = "GEMINI_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = var.gemini_api_key_secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "RAG_CORPUS_ID"
+        value_source {
+          secret_key_ref {
+            secret  = var.rag_corpus_id_secret_id
+            version = "latest"
+          }
+        }
+      }
     }
   }
   depends_on = [docker_registry_image.backend_push]
