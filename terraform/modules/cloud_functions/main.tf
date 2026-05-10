@@ -32,9 +32,9 @@ resource "google_cloudfunctions2_function" "bdns_processor" {
   }
 
   service_config {
-    max_instance_count = 3
-    timeout_seconds    = 540
-    available_memory   = "512M"
+    max_instance_count    = 3
+    timeout_seconds       = 540
+    available_memory      = "512M"
     service_account_email = var.cloud_function_sa_email
 
     environment_variables = {
@@ -43,13 +43,7 @@ resource "google_cloudfunctions2_function" "bdns_processor" {
       DB_HOST        = var.db_host
       DB_USER        = var.db_user
       DB_NAME        = var.db_name
-    }
-
-    secret_environment_variables {
-      key        = "DB_PASS"
-      project_id = var.project_id
-      secret     = var.db_password_secret_id
-      version    = "latest"
+      DB_PASS        = var.db_password
     }
   }
 
@@ -58,6 +52,18 @@ resource "google_cloudfunctions2_function" "bdns_processor" {
     event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
     pubsub_topic   = "projects/${var.project_id}/topics/topic-procesar-bdns"
     retry_policy   = "RETRY_POLICY_DO_NOT_RETRY"
+  }
+}
+
+resource "null_resource" "bdns_vpc_config" {
+  depends_on = [google_cloudfunctions2_function.bdns_processor]
+
+  triggers = {
+    function_id = google_cloudfunctions2_function.bdns_processor.id
+  }
+
+  provisioner "local-exec" {
+    command = "gcloud run services update bdns-processor --region=${var.region} --project=${var.project_id} --network=vpc-aitonomo --subnet=subnet-aitonomo --vpc-egress=private-ranges-only --quiet"
   }
 }
 

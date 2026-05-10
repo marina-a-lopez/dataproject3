@@ -73,6 +73,7 @@ module "cloud_functions" {
   db_host                 = module.cloudsql.private_ip
   db_user                 = module.cloudsql.db_user
   db_name                 = module.cloudsql.db_name
+  db_password             = var.postgres_password
   db_password_secret_id   = module.cloudsql.database_url_secret_id
 }
 
