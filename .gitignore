@@ -29,3 +29,6 @@ terraform.*
 .terraform.*
 *.tfstate
 state.txt
+
+# Cloud Functions build artifacts
+backend/cloud_functions/*.zip
