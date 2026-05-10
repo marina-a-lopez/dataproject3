@@ -265,7 +265,6 @@ const UI = {
         document.getElementById(viewId).classList.remove('hidden');
 
         if (viewId === 'expenses-view') appLogic.loadExpenseDrafts();
-        if (viewId === 'subsidies-view') appLogic.loadSubsidies();
     }
 };
 
@@ -1232,10 +1231,10 @@ const appLogic = {
         res.forEach(exp => {
             // Retrocompatibilidad: Si en BD está como deducible pero el motivo aclara que no lo es
             const isDeducible = exp.is_deducible && (!exp.clarification_reason || !exp.clarification_reason.toLowerCase().includes('no es deducible'));
-            
+
             const pIva = isDeducible ? (exp.porcentaje_iva ?? 100) : 0;
             const pIrpf = isDeducible ? (exp.porcentaje_irpf ?? 100) : 0;
-            
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>${exp.fecha.split('T')[0]}</td>
