@@ -1,12 +1,14 @@
 import logging
 import re
 import os
+import json
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 import vertexai
 from vertexai.rag import RagRetrievalConfig, RagResource, retrieval_query
 from vertexai.generative_models import GenerativeModel
 from sqlalchemy.orm import Session
-from database import Usuario
+from database import Usuario, Subvencion
 
 # Configuración de Logging
 logger = logging.getLogger("RAG_Subsidies_Agent")
@@ -29,6 +31,8 @@ class RagSubsidiesAgent:
     def get_recommendations(self, user: Usuario, db: Session, top_k: int = 5) -> List[Dict[str, Any]]:
         """
         Obtiene recomendaciones de subvenciones personalizadas usando RAG Engine.
+        Solo devuelve subvenciones con fecha_cierre posterior a hoy.
+        Incluye explicación IA, fechas, importe máximo y enlace BOE.
         """
         self._initialize()
         
@@ -36,51 +40,89 @@ class RagSubsidiesAgent:
             return []
 
         corpus_name = f"projects/{self.project_id}/locations/{self.location}/ragCorpora/{self.corpus_id}"
-        
-        # Consulta semántica mejorada
         query_text = f"Subvenciones para actividad {user.desc_producto or ''} con CNAE {user.cnae or ''}"
+        now = datetime.now(timezone.utc)
         
         try:
-            retrieval_config = RagRetrievalConfig(top_k=top_k * 2) # Recuperamos de más para filtrar territorialmente
-            
+            retrieval_config = RagRetrievalConfig(top_k=top_k * 3)
             response = retrieval_query(
                 rag_resources=[RagResource(rag_corpus=corpus_name)],
                 text=query_text,
                 rag_retrieval_config=retrieval_config
             )
             
-            recommendations = []
-            user_provincia = (user.provincia or "").strip().lower()
-
+            candidates = []
             for context in response.contexts:
-                content = context.text.lower()
-                
-                # Filtro territorial (Provincia o Nacional)
-                if user_provincia in content or "nacional" in content or "estatal" in content:
-                    
-                    # Extracción de ID_BDNS (Prioriza metadatos)
-                    id_bdns = "N/A"
-                    if hasattr(context, 'metadata') and 'id_bdns' in context.metadata:
-                        id_bdns = context.metadata['id_bdns']
-                    else:
-                        match = re.search(r'bdns[:\s]+(\d+)', content)
-                        if match: id_bdns = match.group(1)
+                candidates.append({
+                    "id_bdns": (context.metadata.get('id_bdns') if hasattr(context, 'metadata') and context.metadata else None)
+                               or (re.search(r'bdns[:\s]+(\d+)', context.text.lower()) or [None, "N/A"])[1],
+                    "score": getattr(context, 'score', 0.0),
+                    "texto_completo": context.text,
+                })
 
-                    # Intentamos extraer un título limpio si no está en metadatos
-                    titulo = "Subvención Identificada"
-                    first_line = context.text.split('\n')[0]
-                    if len(first_line) < 100:
-                        titulo = first_line
+            candidates = sorted(candidates, key=lambda x: x['score'], reverse=True)
 
-                    recommendations.append({
-                        "id_bdns": id_bdns,
-                        "titulo": titulo,
-                        "score": getattr(context, 'score', 0.0),
-                        "snippet": context.text[:200] + "..."
-                    })
-            
-            # Devolvemos solo el top_k después del filtrado
-            return sorted(recommendations, key=lambda x: x['score'], reverse=True)[:top_k]
+            user_provincia = (user.provincia or "").strip().lower()
+            # Normalizar tildes básicas para comparación
+            import unicodedata
+            def _norm(s):
+                return unicodedata.normalize('NFD', s).encode('ascii', 'ignore').decode()
+            user_provincia_norm = _norm(user_provincia)
+
+            recommendations = []
+            seen_ids = set()
+            for c in candidates:
+                if len(recommendations) >= top_k:
+                    break
+                if c["id_bdns"] in seen_ids:
+                    continue
+                seen_ids.add(c["id_bdns"])
+
+                # Buscar en BD para obtener fechas y título
+                sub = None
+                if c["id_bdns"] != "N/A":
+                    sub = db.query(Subvencion).filter(Subvencion.id_bdns == c["id_bdns"]).first()
+
+                # Filtrar por apto_autonomos
+                if sub and sub.apto_autonomos is False:
+                    continue
+
+                # Filtrar por fecha de cierre
+                if sub and sub.fecha_cierre:
+                    fecha_cierre_aware = sub.fecha_cierre.replace(tzinfo=timezone.utc) if sub.fecha_cierre.tzinfo is None else sub.fecha_cierre
+                    if fecha_cierre_aware <= now:
+                        continue
+
+                # Generar explicación IA (incluye ambito_geografico)
+                ai_info = self.explain_subsidy(c["texto_completo"])
+
+                # Filtro territorial por ambito_geografico
+                ambito = ai_info.get("ambito_geografico") or ["nacional"]
+                if isinstance(ambito, str):
+                    ambito = [ambito]
+                ambito_norm = [_norm(a.lower()) for a in ambito]
+                if "nacional" not in ambito_norm and user_provincia_norm and not any(
+                    user_provincia_norm in a or a in user_provincia_norm for a in ambito_norm
+                ):
+                    continue
+
+                titulo = sub.titulo if sub else (c["texto_completo"].split('\n')[0][:100] or "Subvención Identificada")
+                fecha_pub = sub.fecha_publicacion.strftime("%d/%m/%Y") if sub and sub.fecha_publicacion else None
+                fecha_cierre = sub.fecha_cierre.strftime("%d/%m/%Y") if sub and sub.fecha_cierre else None
+
+                recommendations.append({
+                    "id_bdns": c["id_bdns"],
+                    "titulo": titulo,
+                    "fecha_publicacion": fecha_pub,
+                    "fecha_cierre": fecha_cierre,
+                    "importe_maximo": ai_info.get("importe_maximo"),
+                    "explicacion": ai_info.get("explicacion"),
+                    "link_boe": ai_info.get("link_boe"),
+                    "link_bdns": ai_info.get("link_bdns"),
+                    "score": c["score"],
+                })
+
+            return recommendations
 
         except Exception as e:
             logger.error(f"Error in RagSubsidiesAgent: {e}")
@@ -107,15 +149,16 @@ class RagSubsidiesAgent:
             
             [ESQUEMA_JSON — Responde ÚNICAMENTE con este JSON]
             {{
-                "explicacion": "Resumen directo (máximo 150 palabras). Estructura recomendada: \n- Cuantía: [Importe si aparece] \n- Beneficiarios: [Quién puede pedirla] \n- Propósito: [Breve descripción]. \n\nAVISO: AItonomo ofrece orientación automatizada, verifica siempre la convocatoria oficial.",
-                "link_boe": "URL exacta del BOE/BDNS. Si no hay, usar: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatorias"
+                "explicacion": "Resumen en máximo 60 palabras. Indica beneficiarios y propósito. Sin introducciones. AVISO: verifica siempre la convocatoria oficial.",
+                "importe_maximo": "Importe máximo de la ayuda si aparece en el texto (ej: '10.000 €'). Si no aparece, null.",
+                "link_boe": "URL exacta de las bases reguladoras en el BOE (boe.es). Si no hay, null.",
+                "link_bdns": "URL exacta de la convocatoria en infosubvenciones.es o bdnstrans. Si no hay URL pero hay un código BDNS numérico, construye: https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria?codigoBDNS=CODIGO. Si no hay nada, null.",
+                "ambito_geografico": "Lista de provincias o comunidades autónomas a las que se restringe esta subvención, en minúsculas y sin tildes (ej: ['madrid', 'castilla la mancha']). Si es nacional o no especifica restricción territorial, devuelve ['nacional']."
             }}
 
             [REGLAS]
             - Ve al grano. Sin introducciones.
-            - Usa viñetas si ayuda a la claridad.
-            - No inventes datos.
-            - No incluyas el texto original de la convocatoria en la explicación.
+            - No inventes datos ni URLs.
             """
             
             logger.info(f"Generando explicación para texto de longitud: {len(subsidy_text)}")
