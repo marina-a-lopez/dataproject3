@@ -7,7 +7,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [fetched, setFetched] = useState(false);
 
-  const backendUrl = 'https://api-backend-4nrtuy3yca-no.a.run.app';
+  const backendUrl = '__API_BASE_URL__';
 
   useEffect(() => {
     fetchData();

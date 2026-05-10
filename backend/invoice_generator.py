@@ -236,9 +236,10 @@ class PremiumInvoicePDF(FPDF):
         self.cell(35, 6, "Subtotal", 0, 0, 'R')
         self.cell(35, 6, f"{final_total:,.2f}", 0, 1, 'R')
         
-        tax = final_total * 0.21
+        tax_rate = self.data.get('tax_rate', 21)
+        tax = final_total * (tax_rate / 100.0)
         self.set_x(120)
-        self.cell(35, 6, "IVA (21%)", 0, 0, 'R')
+        self.cell(35, 6, f"IVA ({tax_rate:g}%)", 0, 0, 'R')
         self.cell(35, 6, f"{tax:,.2f}", 0, 1, 'R')
         
         self.ln(2)

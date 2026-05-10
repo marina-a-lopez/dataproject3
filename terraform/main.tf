@@ -82,9 +82,6 @@ resource "google_sql_database" "aitonomo_db" {
 }
 
 
-
-
-
 # ---------------------------------------------------------
 # 1. ALMACÉN DE IMÁGENES (Artifact Registry)
 # ---------------------------------------------------------
@@ -169,6 +166,11 @@ resource "google_cloud_run_v2_service" "backend_cloud_run" {
       env {
         name  = "GCP_BUCKET_NAME"
         value = google_storage_bucket.document_bucket.name
+      }
+      # CORS: restringir al dominio del frontend en producción
+      env {
+        name  = "ALLOWED_ORIGINS"
+        value = google_cloud_run_v2_service.frontend_cloud_run.uri
       }
     }
   }
@@ -311,7 +313,7 @@ resource "google_bigquery_dataset" "raw_dataset" {
 resource "google_bigquery_table" "bq_usuarios" {
   dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
   table_id            = "public_usuarios"
-  deletion_protection = false # Cambiar a true en producción
+  deletion_protection = false
   time_partitioning {
     type  = "DAY"
     field = "created_at"
@@ -344,6 +346,33 @@ resource "google_bigquery_table" "bq_usuarios" {
   {"name": "desc_servicio", "type": "STRING", "mode": "NULLABLE"},
   {"name": "precio_producto", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "desc_producto", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
+]
+EOF
+}
+
+resource "google_bigquery_table" "bq_calendario_eventos" {
+  dataset_id          = google_bigquery_dataset.raw_dataset.dataset_id
+  table_id            = "public_calendario_eventos"
+  deletion_protection = false
+  time_partitioning {
+    type  = "DAY"
+    field = "created_at"
+  }
+  table_constraints {
+    primary_key {
+      columns = ["id"]
+    }
+  }
+  schema = <<EOF
+[
+  {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "usuario_id", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "fecha", "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {"name": "titulo", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "descripcion", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "tipo", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "color", "type": "STRING", "mode": "NULLABLE"},
   {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
 ]
 EOF
@@ -427,7 +456,9 @@ resource "google_bigquery_table" "bq_gastos" {
   {"name": "proveedor", "type": "STRING", "mode": "NULLABLE"},
   {"name": "concepto", "type": "STRING", "mode": "NULLABLE"},
   {"name": "importe_total", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "tipo_iva", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "url_ticket", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "status", "type": "STRING", "mode": "NULLABLE"},
   {"name": "created_at", "type": "TIMESTAMP", "mode": "NULLABLE"}
 ]
 EOF
@@ -458,6 +489,7 @@ resource "google_bigquery_table" "bq_facturas" {
   {"name": "total_base", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "total_impuestos", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "importe_total", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "tipo_iva", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "json_lineas", "type": "JSON", "mode": "NULLABLE"},
   {"name": "url_pdf", "type": "STRING", "mode": "NULLABLE"},
   {"name": "hash_registro", "type": "STRING", "mode": "NULLABLE"},
@@ -493,6 +525,7 @@ resource "google_bigquery_table" "bq_presupuestos" {
   {"name": "total_base", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "total_impuestos", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "importe_total", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "tipo_iva", "type": "FLOAT", "mode": "NULLABLE"},
   {"name": "json_lineas", "type": "JSON", "mode": "NULLABLE"},
   {"name": "url_pdf", "type": "STRING", "mode": "NULLABLE"},
   {"name": "estado", "type": "STRING", "mode": "NULLABLE"},
