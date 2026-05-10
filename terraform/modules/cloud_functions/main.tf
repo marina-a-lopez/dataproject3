@@ -53,3 +53,16 @@ resource "google_cloudfunctions2_function" "bdns_processor" {
     }
   }
 }
+
+resource "google_cloud_scheduler_job" "bdns_daily" {
+  name      = "bdns-daily-trigger"
+  project   = var.project_id
+  region    = "europe-west1"
+  schedule  = "0 3 * * *"
+  time_zone = "Europe/Madrid"
+
+  pubsub_target {
+    topic_name = "projects/${var.project_id}/topics/topic-procesar-bdns"
+    data       = base64encode("{\"trigger\":\"scheduled\"}")
+  }
+}
