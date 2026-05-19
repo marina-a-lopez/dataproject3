@@ -24,22 +24,14 @@ resource "google_cloud_run_v2_service" "backend" {
       egress = "PRIVATE_RANGES_ONLY"
     }
 
-    volumes {
-      name = "cloudsql"
-      cloud_sql_instance {
-        instances = [var.cloudsql_connection_name]
-      }
-    }
+
 
     containers {
       image = var.backend_image
       ports {
         container_port = 8080
       }
-      volume_mounts {
-        name       = "cloudsql"
-        mount_path = "/cloudsql"
-      }
+
       env {
         name = "DATABASE_URL"
         value_source {
