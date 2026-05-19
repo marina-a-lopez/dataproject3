@@ -20,8 +20,8 @@ resource "google_compute_instance" "proxy_datastream" {
     access_config {}
   }
 
-  metadata_startup_script = <<-EOF
-    #! /bin/bash
+  metadata_startup_script = replace(<<-EOF
+    #!/bin/bash
     apt-get update
     apt-get install -y haproxy
 
@@ -43,6 +43,7 @@ resource "google_compute_instance" "proxy_datastream" {
 
     systemctl restart haproxy
   EOF
+  , "\r", "")
 
   depends_on = [var.vpc_id]
   lifecycle {

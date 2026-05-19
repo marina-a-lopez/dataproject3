@@ -8,9 +8,9 @@ on:
   workflow_dispatch:  # permite lanzarlo manualmente desde GitHub
 
 env:
-  PROJECT_ID: proyectodataia3
+  PROJECT_ID: project3grupo4
   REGION: europe-southwest1
-  REGISTRY: europe-southwest1-docker.pkg.dev/proyectodataia3/repo-aitonomo
+  REGISTRY: europe-southwest1-docker.pkg.dev/project3grupo4/repo-aitonomo
 
 jobs:
   ci:
@@ -32,7 +32,7 @@ jobs:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
     needs: ci
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4

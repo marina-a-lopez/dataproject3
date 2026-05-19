@@ -12,6 +12,10 @@ resource "google_cloud_run_v2_service" "backend" {
   template {
     service_account = var.backend_sa_email
 
+    scaling {
+      max_instance_count = 10
+    }
+
     vpc_access {
       network_interfaces {
         network    = var.vpc_id
@@ -77,6 +81,10 @@ resource "google_cloud_run_v2_service" "backend" {
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image]
+  }
 }
 
 resource "google_cloud_run_v2_service" "frontend" {
@@ -97,6 +105,10 @@ resource "google_cloud_run_v2_service" "frontend" {
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image]
+  }
 }
 
 resource "google_cloud_run_v2_service" "dashboard" {
@@ -116,5 +128,9 @@ resource "google_cloud_run_v2_service" "dashboard" {
         value = google_cloud_run_v2_service.backend.uri
       }
     }
+  }
+
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image]
   }
 }
