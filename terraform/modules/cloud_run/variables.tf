@@ -45,17 +45,17 @@ variable "rag_corpus_id_secret_id" {
 variable "backend_image" {
   description = "Imagen Docker del backend (gestionada por CI/CD)"
   type        = string
-  default     = "europe-southwest1-docker.pkg.dev/proyectodataia3/repo-aitonomo/backend:c3e6ae7f121037a11f2915da5d1de735f63e56bf"
+  default     = "europe-southwest1-docker.pkg.dev/project3grupo4/repo-aitonomo/backend:b133cb7b80b163146d7beeb090db189f13583a63"
 }
 
 variable "frontend_image" {
   description = "Imagen Docker del frontend web (gestionada por CI/CD)"
   type        = string
-  default     = "europe-southwest1-docker.pkg.dev/proyectodataia3/repo-aitonomo/frontend:d253468b9f73c0f75abc4e9d8204f8d910351476"
+  default     = "europe-southwest1-docker.pkg.dev/project3grupo4/repo-aitonomo/frontend:6a439fafcd5c9c3241a77e78e820b2f965cbff10"
 }
 
 variable "dashboard_image" {
   description = "Imagen Docker del dashboard de inversores (gestionada por CI/CD)"
   type        = string
-  default     = "europe-southwest1-docker.pkg.dev/proyectodataia3/repo-aitonomo/dashboard:a916c795429475ab9f41f248941e36c1e5e9b73a"
+  default     = "europe-southwest1-docker.pkg.dev/project3grupo4/repo-aitonomo/dashboard:d170c06db202ffbdab0f14f650a2ce987157ee5f"
 }

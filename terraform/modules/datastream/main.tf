@@ -64,6 +64,10 @@ resource "google_datastream_private_connection" "datastream_pc" {
     vpc    = var.vpc_id
     subnet = "10.3.0.0/29"
   }
+
+  lifecycle {
+    ignore_changes = [create_without_validation]
+  }
 }
 
 resource "google_datastream_connection_profile" "postgres_cp" {
